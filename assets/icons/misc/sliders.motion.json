@@ -1,0 +1,52 @@
+{
+  "parts": [
+    {"id": "t0", "path": "t0", "morph": "t0-to", "origin": [12, 12]},
+    {"id": "k0", "path": "k0", "origin": [15, 7], "tint": "accent"},
+    {"id": "f0", "path": "k0", "origin": [15, 7], "parent": "k0", "solid": true, "tint": "accent", "rest": {"fill": 0}},
+    {"id": "t1", "path": "t1", "morph": "t1-to", "origin": [12, 12]},
+    {"id": "k1", "path": "k1", "origin": [8.5, 12], "tint": "accent"},
+    {"id": "f1", "path": "k1", "origin": [8.5, 12], "parent": "k1", "solid": true, "tint": "accent", "rest": {"fill": 0}},
+    {"id": "t2", "path": "t2", "morph": "t2-to", "origin": [12, 12]},
+    {"id": "k2", "path": "k2", "origin": [13, 17], "tint": "accent"},
+    {"id": "f2", "path": "k2", "origin": [13, 17], "parent": "k2", "solid": true, "tint": "accent", "rest": {"fill": 0}}
+  ],
+  "hover": [
+    {"part": "t0", "prop": "morph", "dur": 560, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "k0", "prop": "tx", "dur": 560, "keys": [[0, 0], [1, -6.5, "back"]]},
+    {"part": "k0", "prop": "tint", "dur": 400, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "k0", "prop": "scale", "dur": 560, "keys": [[0, 0], [0.5, 0.18, "o"], [1, 0, "io"]]},
+    {"part": "t1", "prop": "morph", "dur": 560, "delay": 70, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "k1", "prop": "tx", "dur": 560, "delay": 70, "keys": [[0, 0], [1, 7, "back"]]},
+    {"part": "k1", "prop": "tint", "dur": 400, "delay": 70, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "k1", "prop": "scale", "dur": 560, "delay": 70, "keys": [[0, 0], [0.5, 0.18, "o"], [1, 0, "io"]]},
+    {"part": "t2", "prop": "morph", "dur": 560, "delay": 140, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "k2", "prop": "tx", "dur": 560, "delay": 140, "keys": [[0, 0], [1, -3.5, "back"]]},
+    {"part": "k2", "prop": "tint", "dur": 400, "delay": 140, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "k2", "prop": "scale", "dur": 560, "delay": 140, "keys": [[0, 0], [0.5, 0.18, "o"], [1, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "k0", "prop": "scale", "dur": 320, "keys": [[0, 0], [0.35, 0.28, "o"], [1, 0, "io"]]},
+    {"part": "k1", "prop": "scale", "dur": 320, "delay": 40, "keys": [[0, 0], [0.35, 0.28, "o"], [1, 0, "io"]]},
+    {"part": "k2", "prop": "scale", "dur": 320, "delay": 80, "keys": [[0, 0], [0.35, 0.28, "o"], [1, 0, "io"]]}
+  ],
+  "active": [
+    {"part": "t0", "prop": "morph", "dur": 560, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "k0", "prop": "tx", "dur": 560, "keys": [[0, 0], [1, -6.5, "back"]]},
+    {"part": "k0", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "f0", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "f0", "prop": "scale", "dur": 420, "delay": 300, "keys": [[0, -1], [1, 0, "back"]]},
+    {"part": "f0", "prop": "fill", "dur": 420, "delay": 300, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "t1", "prop": "morph", "dur": 560, "delay": 70, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "k1", "prop": "tx", "dur": 560, "delay": 70, "keys": [[0, 0], [1, 7, "back"]]},
+    {"part": "k1", "prop": "tint", "dur": 360, "delay": 70, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "f1", "prop": "tint", "dur": 360, "delay": 70, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "f1", "prop": "scale", "dur": 420, "delay": 370, "keys": [[0, -1], [1, 0, "back"]]},
+    {"part": "f1", "prop": "fill", "dur": 420, "delay": 370, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "t2", "prop": "morph", "dur": 560, "delay": 140, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "k2", "prop": "tx", "dur": 560, "delay": 140, "keys": [[0, 0], [1, -3.5, "back"]]},
+    {"part": "k2", "prop": "tint", "dur": 360, "delay": 140, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "f2", "prop": "tint", "dur": 360, "delay": 140, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "f2", "prop": "scale", "dur": 420, "delay": 440, "keys": [[0, -1], [1, 0, "back"]]},
+    {"part": "f2", "prop": "fill", "dur": 420, "delay": 440, "keys": [[0, 0], [0.01, 1]]}
+  ]
+}

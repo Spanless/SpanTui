@@ -1,0 +1,29 @@
+# Build trees and packages (target\build, target\release; .env can move them
+# out of the checkout, see .env.example)
+target/
+
+# Qt / CMake local artifacts
+CMakeLists.txt.user
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+Testing/
+.qt/
+.rcc/
+qmlcache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# Everything development runs, tests, probes and manual debugging write
+# outside target/: data root of dev runs, test TEMP/APPDATA, tool work files,
+# debug output.
+.dev/
+
+# Machine-local tooling configuration (template: .env.example)
+.env
+
+# Test result XML must never be committed to the worktree root
+/*.xml

@@ -1,0 +1,37 @@
+# C++ formatting. Only the lines a change touches are checked
+# (tools/check-format.ps1); existing code is not reformatted in bulk.
+# The clang-format version CI uses is pinned in tools/toolchain-versions.json.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4
+PointerAlignment: Right
+ReferenceAlignment: Right
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  SplitEmptyFunction: false
+BreakBeforeBinaryOperators: NonAssignment
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: CurrentLine
+ConstructorInitializerIndentWidth: 4
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortBlocksOnASingleLine: Empty
+AllowShortLambdasOnASingleLine: All
+IndentCaseLabels: false
+NamespaceIndentation: None
+FixNamespaceComments: false
+AlignAfterOpenBracket: Align
+AlignOperands: DontAlign
+AlignTrailingComments: false
+SortIncludes: Never
+IncludeBlocks: Preserve
+ReflowComments: false
+KeepEmptyLines:
+  AtStartOfBlock: false
+MaxEmptyLinesToKeep: 1
+InsertNewlineAtEOF: true

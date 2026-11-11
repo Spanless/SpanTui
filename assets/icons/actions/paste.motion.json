@@ -1,0 +1,35 @@
+{
+  "parts": [
+    {"id": "board", "path": "board", "origin": [12, 21]},
+    {"id": "clip", "path": "clip", "origin": [12, 12], "tint": "accent"},
+    {"id": "l0", "path": "l0", "origin": [12, 12], "parent": "board", "length": 7, "tint": "accent", "rest": {"opacity": 0}},
+    {"id": "l1", "path": "l1", "origin": [12, 12], "parent": "board", "length": 7, "tint": "accent", "rest": {"opacity": 0}},
+    {"id": "l2", "path": "l2", "origin": [12, 12], "parent": "board", "length": 4, "tint": "accent", "rest": {"opacity": 0}}
+  ],
+  "hover": [
+    {"part": "clip", "prop": "ty", "dur": 700, "keys": [[0, 0], [0.3, -1.5, "o"], [0.55, 0, "i"], [0.72, -0.45, "o"], [0.88, 0, "i"]]},
+    {"part": "board", "prop": "scale", "dur": 700, "keys": [[0, 0], [0.55, 0], [0.62, -0.05, "o"], [1, 0, "back"]]},
+    {"part": "l0", "prop": "opacity", "dur": 300, "delay": 380, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "l0", "prop": "draw", "dur": 300, "delay": 380, "keys": [[0, -1], [1, 0, "o"]]},
+    {"part": "l1", "prop": "opacity", "dur": 300, "delay": 490, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "l1", "prop": "draw", "dur": 300, "delay": 490, "keys": [[0, -1], [1, 0, "o"]]},
+    {"part": "l2", "prop": "opacity", "dur": 300, "delay": 600, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "l2", "prop": "draw", "dur": 300, "delay": 600, "keys": [[0, -1], [1, 0, "o"]]}
+  ],
+  "press": [
+    {"part": "board", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "clip", "prop": "ty", "dur": 700, "keys": [[0, 0], [0.3, -1.5, "o"], [0.55, 0, "i"], [0.72, -0.45, "o"], [0.88, 0, "i"]]},
+    {"part": "l0", "prop": "opacity", "dur": 300, "delay": 380, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "l0", "prop": "draw", "dur": 300, "delay": 380, "keys": [[0, -1], [1, 0, "o"]]},
+    {"part": "l1", "prop": "opacity", "dur": 300, "delay": 490, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "l1", "prop": "draw", "dur": 300, "delay": 490, "keys": [[0, -1], [1, 0, "o"]]},
+    {"part": "l2", "prop": "opacity", "dur": 300, "delay": 600, "keys": [[0, 0], [0.01, 1]]},
+    {"part": "l2", "prop": "draw", "dur": 300, "delay": 600, "keys": [[0, -1], [1, 0, "o"]]},
+    {"part": "clip", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "l0", "prop": "tint", "dur": 360, "delay": 110, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "l1", "prop": "tint", "dur": 360, "delay": 220, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "l2", "prop": "tint", "dur": 360, "delay": 330, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

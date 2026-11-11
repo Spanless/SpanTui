@@ -1,0 +1,17 @@
+# Default: normalize text files to LF in the repository.
+* text=auto eol=lf
+
+# Binary artifacts (explicit, in addition to auto-detection).
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+*.dll binary
+*.qm binary
+*.zip binary
+*.ttf binary
+*.a binary
+
+# Vendored upstream sources stay byte-identical to upstream: whitespace
+# checks (git diff --check) skip them.
+src/terminal/vendor/** -whitespace

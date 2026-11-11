@@ -1,0 +1,15 @@
+{
+  "parts": [
+    {"id": "b", "path": "b", "morph": "b-to", "origin": [12, 12], "solid": true}
+  ],
+  "hover": [
+    {"part": "b", "prop": "tx", "dur": 520, "keys": [[0, 0], [0.2, -1.4, "io"], [0.4, 1.2, "io"], [0.6, -0.8, "io"], [0.8, 0.4, "io"], [1, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "b", "prop": "scale", "dur": 300, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "b", "prop": "scale", "dur": 460, "keys": [[0, -0.4], [1, 0, "back"]]},
+    {"part": "b", "prop": "morph", "dur": 560, "keys": [[0, 1], [0.3, 1], [1, 0, "o"]]}
+  ]
+}

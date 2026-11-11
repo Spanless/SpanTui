@@ -1,0 +1,4 @@
+LIBRARY "SpanTui-shell-extension"
+EXPORTS
+    DllCanUnloadNow
+    DllGetClassObject

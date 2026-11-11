@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="body" d="M8.5 6L15.5 6A2.5 2.5 0 0 1 18 8.5L18 15.5A2.5 2.5 0 0 1 15.5 18L8.5 18A2.5 2.5 0 0 1 6 15.5L6 8.5A2.5 2.5 0 0 1 8.5 6Z"/>
+  <path id="die" d="M10.5 9.5L13.5 9.5A1 1 0 0 1 14.5 10.5L14.5 13.5A1 1 0 0 1 13.5 14.5L10.5 14.5A1 1 0 0 1 9.5 13.5L9.5 10.5A1 1 0 0 1 10.5 9.5Z"/>
+  <path id="p0" d="M10 3L10 6"/>
+  <path id="p1" d="M14 3L14 6"/>
+  <path id="p2" d="M21 10L18 10"/>
+  <path id="p3" d="M21 14L18 14"/>
+  <path id="p4" d="M14 21L14 18"/>
+  <path id="p5" d="M10 21L10 18"/>
+  <path id="p6" d="M3 14L6 14"/>
+  <path id="p7" d="M3 10L6 10"/>
+</svg>

@@ -1,0 +1,17 @@
+{
+  "parts": [
+    {"id": "c", "path": "c", "origin": [12, 12], "length": 21.937, "tint": "success"}
+  ],
+  "hover": [
+    {"part": "c", "prop": "draw", "dur": 520, "keys": [[0, -1], [0.15, -1], [1, 0, "o"]]},
+    {"part": "c", "prop": "tint", "dur": 260, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "c", "prop": "scale", "dur": 300, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "c", "prop": "draw", "dur": 420, "keys": [[0, -1], [1, 0, "o"]]},
+    {"part": "c", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "c", "prop": "scale", "dur": 620, "keys": [[0, 0], [0.6, 0.14, "o"], [1, 0.06, "io"]]}
+  ]
+}

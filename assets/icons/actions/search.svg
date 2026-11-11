@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="lens" d="M4 10.5A6.5 6.5 0 0 1 10.5 4A6.5 6.5 0 0 1 17 10.5A6.5 6.5 0 0 1 10.5 17A6.5 6.5 0 0 1 4 10.5Z"/>
+  <path id="handle" d="M15.1 15.1L20 20"/>
+  <defs>
+    <path id="glint" d="M6.73 9.49A3.9 3.9 0 0 1 9.17 6.84"/>
+  </defs>
+</svg>

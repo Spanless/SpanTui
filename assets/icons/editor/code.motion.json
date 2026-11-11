@@ -1,0 +1,22 @@
+{
+  "parts": [
+    {"id": "l", "path": "l", "origin": [12, 12]},
+    {"id": "r", "path": "r", "origin": [12, 12]},
+    {"id": "s", "path": "s", "origin": [12, 12], "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "l", "prop": "tx", "dur": 420, "keys": [[0, 0], [1, -1.2, "back"]]},
+    {"part": "r", "prop": "tx", "dur": 420, "delay": 70, "keys": [[0, 0], [1, 1.2, "back"]]},
+    {"part": "s", "prop": "sx", "dur": 620, "keys": [[0, 0], [0.5, -2, "io"], [1, 0, "io"]]},
+    {"part": "s", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "s", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "l", "prop": "tx", "dur": 420, "keys": [[0, 0], [1, -1.2, "back"]]},
+    {"part": "r", "prop": "tx", "dur": 420, "delay": 70, "keys": [[0, 0], [1, 1.2, "back"]]},
+    {"part": "s", "prop": "sx", "dur": 620, "keys": [[0, 0], [0.5, -2, "io"], [1, 0, "io"]]},
+    {"part": "s", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

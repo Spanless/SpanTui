@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="cloud" d="M9.25 17.5A5.5 5.5 0 0 1 4.57 9.1A5.5 5.5 0 0 1 14.17 9.54A4.2 4.2 0 0 1 20.14 12.33A4.2 4.2 0 0 1 16.05 17.5Z"/>
+  <defs>
+    <path id="arrow" d="M11.75 15.5L11.75 10.5M13.45 12.2L11.75 10.5L10.05 12.2"/>
+  </defs>
+</svg>

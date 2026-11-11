@@ -1,0 +1,22 @@
+{
+  "parts": [
+    {"id": "page", "path": "page", "origin": [12, 21], "tint": "success"},
+    {"id": "p", "path": "p", "origin": [12, 14.5], "parent": "page", "wrap": 90, "tint": "success"}
+  ],
+  "hover": [
+    {"part": "page", "prop": "ty", "dur": 560, "keys": [[0, 0], [0.4, -0.9, "o"], [1, 0, "io"]]},
+    {"part": "p", "prop": "rotate", "dur": 520, "keys": [[0, 0], [1, 90, "back"]]},
+    {"part": "p", "prop": "scale", "dur": 520, "keys": [[0, 0], [0.45, 0.25, "o"], [1, 0, "io"]]},
+    {"part": "p", "prop": "tint", "dur": 260, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "page", "prop": "scale", "dur": 280, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "page", "prop": "ty", "dur": 560, "keys": [[0, 0], [0.4, -0.9, "o"], [1, 0, "io"]]},
+    {"part": "p", "prop": "rotate", "dur": 520, "keys": [[0, 0], [1, 90, "back"]]},
+    {"part": "p", "prop": "scale", "dur": 520, "keys": [[0, 0], [1, 0.15, "back"]]},
+    {"part": "p", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "page", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

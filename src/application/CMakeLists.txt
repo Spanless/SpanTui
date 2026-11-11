@@ -1,0 +1,90 @@
+# Application state, cross-domain wiring and diagnostics. runtime/ is not part
+# of this library: it is the executable's composition root.
+add_library(SpanApplication STATIC
+    application_constants.h
+    appearance_settings.cpp
+    appearance_settings.h
+    clipboard.cpp
+    clipboard.h
+    diagnostics/resource_reporter.cpp
+    diagnostics/resource_reporter.h
+    diagnostics/ui_health_monitor.cpp
+    diagnostics/ui_health_monitor.h
+    graphics_mode_service.cpp
+    graphics_mode_service.h
+    gui_application.cpp
+    gui_application.h
+    icon_motion.cpp
+    icon_motion.h
+    idle_governor.cpp
+    idle_governor.h
+    launch_options.cpp
+    launch_options.h
+    message_center.cpp
+    message_center.h
+    project_context.cpp
+    project_context.h
+    pixel_snap.cpp
+    pixel_snap.h
+    preferences.cpp
+    preferences.h
+    project_workspace_registry.cpp
+    project_workspace_registry.h
+    session_terminal_routing.cpp
+    session_terminal_routing.h
+    settings_store.cpp
+    settings_store.h
+    shell_profile_registry.cpp
+    shell_profile_registry.h
+    shortcut_registry.cpp
+    shortcut_registry.h
+    single_instance_router.cpp
+    single_instance_router.h
+    task_progress.cpp
+    task_progress.h
+    task_progress_binding.cpp
+    task_progress_binding.h
+    task_progress_titles.h
+    terminal_host_events.cpp
+    terminal_host_events.h
+    terminal_resource_targets.cpp
+    terminal_resource_targets.h
+    terminal_settings.cpp
+    terminal_settings.h
+    tool_registry.cpp
+    tool_registry.h
+    translator.cpp
+    translator.h
+    ui_icon_catalog.cpp
+    ui_icon_catalog.h
+    window_transition_coordinator.cpp
+    window_transition_coordinator.h
+    workspace_controller.cpp
+    workspace_controller.h
+    workspace_messages.cpp
+    workspace_messages.h
+    workspace_settings.cpp
+    workspace_settings.h
+)
+target_link_libraries(SpanApplication
+    PUBLIC
+        SpanCore
+        SpanPlatform
+        SpanTerminal
+        SpanMonitoring
+        SpanGit
+        SpanDocuments
+        SpanWorkspace
+        SpanUpdate
+        SpanRemote
+        Qt6::Network
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::Sql
+        Qt6::Svg
+)
+# The SpanTui QML module declares this library's QObject types as foreign
+# types (src/application/runtime/qml_types.h); its type registrar reads the
+# metatypes extracted here. The other libraries with QML-facing types do the
+# same.
+qt_extract_metatypes(SpanApplication)

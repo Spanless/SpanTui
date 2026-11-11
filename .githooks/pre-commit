@@ -1,0 +1,5 @@
+#!/bin/sh
+# Opt-in: git config core.hooksPath .githooks
+# Runs the static gate over the staged change (docs/workflow/verification.md).
+exec powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+    -File "$(git rev-parse --show-toplevel)/tools/agent-check.ps1" -Staged

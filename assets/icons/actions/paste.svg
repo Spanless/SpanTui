@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="board" d="M8.5 4.75L8 4.75A3 3 0 0 0 5 7.75L5 18A3 3 0 0 0 8 21L16 21A3 3 0 0 0 19 18L19 7.75A3 3 0 0 0 16 4.75L15.5 4.75"/>
+  <path id="clip" d="M9.75 3L14.25 3A1.25 1.25 0 0 1 15.5 4.25L15.5 5.25A1.25 1.25 0 0 1 14.25 6.5L9.75 6.5A1.25 1.25 0 0 1 8.5 5.25L8.5 4.25A1.25 1.25 0 0 1 9.75 3Z"/>
+  <defs>
+    <path id="l0" d="M8.5 11L15.5 11"/>
+    <path id="l1" d="M8.5 14L15.5 14"/>
+    <path id="l2" d="M8.5 17L12.5 17"/>
+  </defs>
+</svg>

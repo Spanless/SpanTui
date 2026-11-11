@@ -1,0 +1,27 @@
+{
+  "parts": [
+    {"id": "trunk", "path": "trunk", "origin": [12, 12]},
+    {"id": "a", "path": "a", "origin": [6.5, 17.5]},
+    {"id": "curve", "path": "curve", "origin": [12, 12], "length": 13.512, "tint": "success"},
+    {"id": "b", "path": "b", "origin": [17.5, 6.5], "tint": "success"},
+    {"id": "bf", "path": "b", "origin": [17.5, 6.5], "parent": "b", "solid": true, "tint": "success", "rest": {"fill": 0}}
+  ],
+  "hover": [
+    {"part": "a", "prop": "scale", "dur": 900, "keys": [[0, 0], [0.15, 0.25, "o"], [0.45, 0, "io"]]},
+    {"part": "curve", "prop": "draw", "dur": 900, "keys": [[0, -1], [0.12, -1], [0.6, 0, "io"]]},
+    {"part": "b", "prop": "scale", "dur": 900, "keys": [[0, -1], [0.55, -1], [0.8, 0.3, "o"], [1, 0, "io"]]},
+    {"part": "b", "prop": "tint", "dur": 900, "keys": [[0, 0], [0.6, 0], [0.85, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "b", "prop": "scale", "dur": 280, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "a", "prop": "scale", "dur": 900, "keys": [[0, 0], [0.15, 0.25, "o"], [0.45, 0, "io"]]},
+    {"part": "curve", "prop": "draw", "dur": 900, "keys": [[0, -1], [0.12, -1], [0.6, 0, "io"]]},
+    {"part": "b", "prop": "scale", "dur": 900, "keys": [[0, -1], [0.55, -1], [0.8, 0.3, "o"], [1, 0, "io"]]},
+    {"part": "curve", "prop": "tint", "dur": 360, "delay": 500, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "b", "prop": "tint", "dur": 360, "delay": 500, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "bf", "prop": "tint", "dur": 360, "delay": 500, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "bf", "prop": "fill", "dur": 300, "delay": 700, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

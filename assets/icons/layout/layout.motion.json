@@ -1,0 +1,22 @@
+{
+  "parts": [
+    {"id": "frame", "path": "frame", "origin": [12, 19]},
+    {"id": "head", "path": "head", "origin": [12, 12], "tint": "accent"},
+    {"id": "col", "path": "col", "morph": "col-to", "origin": [12, 12], "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "head", "prop": "ty", "dur": 950, "keys": [[0, 0], [0.3, -1.5, "o"], [0.62, -1.5], [1, 0, "io"]]},
+    {"part": "col", "prop": "morph", "dur": 950, "keys": [[0, 0], [0.3, 1, "o"], [0.62, 1], [1, 0, "io"]]},
+    {"part": "frame", "prop": "sy", "dur": 950, "keys": [[0, 0], [0.28, 0], [0.36, -0.04, "o"], [0.55, 0, "back"]]},
+    {"part": "frame", "prop": "sx", "dur": 950, "keys": [[0, 0], [0.28, 0], [0.36, 0.025, "o"], [0.55, 0, "back"]]}
+  ],
+  "press": [
+    {"part": "frame", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "head", "prop": "ty", "dur": 520, "keys": [[0, 0], [1, -1.5, "back"]]},
+    {"part": "col", "prop": "morph", "dur": 520, "keys": [[0, 0], [1, 1, "back"]]},
+    {"part": "head", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "col", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

@@ -1,0 +1,21 @@
+#!/bin/sh
+# Opt-in: git config core.hooksPath .githooks
+# master and dev change only through pull requests (docs/workflow/release.md):
+# pushes to them are refused here. Any other push first runs the static
+# checks, `dev check` (docs/workflow/verification.md); the build and the
+# tests run in GitHub CI on the pull request. `git push --no-verify`
+# skips the checks.
+zero=0000000000000000000000000000000000000000
+pushes_code=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    case "$remote_ref" in
+        refs/heads/master | refs/heads/dev)
+            echo "pre-push: $remote_ref changes only through a pull request; push a feature branch and open one." >&2
+            exit 1
+            ;;
+    esac
+    [ "$local_sha" != "$zero" ] && pushes_code=1
+done
+[ "$pushes_code" = 1 ] || exit 0
+exec powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
+    -File "$(git rev-parse --show-toplevel)/tools/devtool/dev.ps1" check

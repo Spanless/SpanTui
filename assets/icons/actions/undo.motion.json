@@ -1,0 +1,23 @@
+{
+  "parts": [
+    {"id": "u", "origin": [14.5, 14.25]},
+    {"id": "hook", "path": "hook", "morph": "hook-to", "origin": [12, 12], "parent": "u", "tint": "accent"},
+    {"id": "head", "path": "head", "origin": [12, 12], "parent": "u", "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "u", "prop": "rotate", "dur": 760, "keys": [[0, 0], [0.3, -10, "o"], [0.65, 3, "io"], [1, 0, "io"]]},
+    {"part": "head", "prop": "tx", "dur": 760, "keys": [[0, 0], [0.3, -1.6, "o"], [0.65, 0.304, "io"], [1, 0, "io"]]},
+    {"part": "hook", "prop": "morph", "dur": 760, "keys": [[0, 0], [0.3, 1, "o"], [0.65, -0.19, "io"], [1, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "head", "prop": "tx", "dur": 360, "keys": [[0, 0], [0.3, -1.2, "o"], [1, 0, "back"]]},
+    {"part": "hook", "prop": "morph", "dur": 360, "keys": [[0, 0], [0.3, 0.75, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "u", "prop": "rotate", "dur": 700, "keys": [[0, 0], [0.4, -20, "o"], [1, -8, "io"]]},
+    {"part": "head", "prop": "tx", "dur": 760, "keys": [[0, 0], [0.3, -1.6, "o"], [0.65, 0.304, "io"], [1, 0, "io"]]},
+    {"part": "hook", "prop": "morph", "dur": 760, "keys": [[0, 0], [0.3, 1, "o"], [0.65, -0.19, "io"], [1, 0, "io"]]},
+    {"part": "hook", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "head", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

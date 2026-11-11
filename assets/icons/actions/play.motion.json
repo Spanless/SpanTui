@@ -1,0 +1,17 @@
+{
+  "parts": [
+    {"id": "tri", "path": "tri", "origin": [12, 12], "solid": true, "tint": "success"}
+  ],
+  "hover": [
+    {"part": "tri", "prop": "tx", "dur": 380, "keys": [[0, 0], [1, 0.9, "back"]]},
+    {"part": "tri", "prop": "tint", "dur": 380, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "tri", "prop": "scale", "dur": 340, "keys": [[0, 0], [0.3, -0.2, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "tri", "prop": "scale", "dur": 520, "keys": [[0, 0], [0.3, -0.2, "o"], [1, 0.08, "back"]]},
+    {"part": "tri", "prop": "tx", "dur": 520, "keys": [[0, 0], [1, 0.6, "back"]]},
+    {"part": "tri", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

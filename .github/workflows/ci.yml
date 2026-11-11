@@ -1,0 +1,271 @@
+name: CI
+
+# Every pull request is tested here, each in its own run, and `windows` is the
+# required status check; nobody waits for anyone else's run.
+# - A pull request into dev runs the core tests plus the tests its changes
+#   touch (dev ci --core).
+# - Every other run is the full suite: the run after a merge into dev, which
+#   blocks nobody, catches what the narrower pull request run missed within
+#   one merge, and keeps dev's compiler cache warm for the pull requests that
+#   branch from it; dev -> master normally reuses that result.
+# A tree that already passed is not tested again (see the `reuse` job).
+# Releases are packaged and published from the maintainer's machine
+# (dev release). Policy: docs/workflow/release.md.
+# Actions are pinned to commit SHAs (the tag in the trailing comment);
+# Dependabot proposes updates (.github/dependabot.yml). Tool versions come
+# from tools/toolchain-versions.json.
+on:
+  pull_request:
+    branches: [master, dev]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [master, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Decides on a cheap Linux runner how much of the Windows job has to run.
+  # skip: nothing, for a draft pull request, or when the commit under test has
+  # the same tree as a commit whose push run already passed (the dev -> master
+  # pull request and its merge commit both carry the tree dev was tested
+  # with). Only push runs count: they run the full suite, and their head
+  # commit is exactly what they tested; a pull request run tests a merge with
+  # the base of that moment, and into dev only the core tests.
+  # docs_only: a pull request that changes only docs/ and top-level Markdown
+  # gets the static checks without a build. Push runs always build, so the run
+  # after the merge stays a full safety net.
+  # A failure here never skips anything.
+  reuse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      skip: ${{ steps.decide.outputs.skip }}
+      docs_only: ${{ steps.decide.outputs.docs_only }}
+    steps:
+      - name: Look for a draft, an already tested tree or a docs-only change
+        id: decide
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          repo="repos/$GITHUB_REPOSITORY"
+          skip=false
+          docs_only=false
+          if [ "$EVENT" = pull_request ] && [ "$DRAFT" = true ]; then
+            echo "Draft pull request; the build runs once it is ready for review."
+            skip=true
+          else
+            case "$EVENT" in
+              pull_request) candidate="$PR_HEAD" ;;
+              push) candidate=$(gh api "$repo/commits/$GITHUB_SHA" --jq '.parents[1].sha // empty') ;;
+              *) candidate= ;;
+            esac
+            if [ -n "$candidate" ]; then
+              tree=$(gh api "$repo/git/commits/$GITHUB_SHA" --jq .tree.sha)
+              candidate_tree=$(gh api "$repo/git/commits/$candidate" --jq .tree.sha)
+              if [ "$tree" = "$candidate_tree" ] &&
+                [ "$(gh api "$repo/actions/workflows/ci.yml/runs?head_sha=$candidate&event=push&status=success" --jq .total_count)" -gt 0 ]; then
+                echo "Tree $tree already passed on $candidate; the build is skipped."
+                skip=true
+              fi
+            fi
+            if [ "$skip" = false ] && [ "$EVENT" = pull_request ]; then
+              files=$(gh api --paginate "$repo/pulls/$PR_NUMBER/files" --jq '.[].filename')
+              if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '^docs/|^[^/]+\.md$'; then
+                echo "Only documentation changed; the static checks run without a build."
+                docs_only=true
+              fi
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
+  # The dev -> master pull request is a release: its version has to pass the
+  # release gate (tools/check-version.ps1) before the merge, not only when
+  # dev release runs after it. The checkout keeps the token, so the script
+  # can list origin's tags.
+  version:
+    if: github.event_name == 'pull_request' && github.base_ref == 'master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Release version gate
+        shell: pwsh
+        run: ./tools/check-version.ps1
+
+  windows:
+    needs: reuse
+    if: ${{ !cancelled() && needs.reuse.outputs.skip != 'true' }}
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      BUILD: ${{ needs.reuse.outputs.docs_only != 'true' }}
+      # Core tests plus the affected ones for a pull request into dev; the
+      # full suite for every other run.
+      CORE: ${{ github.event_name == 'pull_request' && github.base_ref == 'dev' }}
+      # sccache keeps compiled objects in a local directory that travels
+      # between runs as one actions/cache archive (see the restore and save
+      # steps). The idle timeout is off so the server started below, which
+      # owns SCCACHE_DIR, serves the whole build.
+      SCCACHE_CACHE_SIZE: 2G
+      SCCACHE_IDLE_TIMEOUT: '0'
+      # CI never needs debug info; without it objects, the cache archive and
+      # links are much smaller (docs/workflow/build.md).
+      SPANTUI_DEBUG_INFO: 'OFF'
+      # sccache caches compiles, not links: with GNU ld, linking the test
+      # executables against the static project libraries took more than half
+      # of the run. The build scripts find ld.lld in the LLVM the runner image
+      # preinstalls (configure prints "Linker: lld").
+      SPANTUI_LINKER: lld
+    steps:
+      # Two commits deep: a core run diffs the tested merge against its first
+      # parent.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      # The one place the Qt, MinGW and clang-format versions are written;
+      # dev release refuses to package with a different Qt or MinGW.
+      - name: Read the pinned tool versions
+        id: versions
+        shell: pwsh
+        run: |
+          $v = Get-Content tools/toolchain-versions.json -Raw | ConvertFrom-Json
+          "qt=$($v.qt)" >> $env:GITHUB_OUTPUT
+          "mingw=$($v.mingwTool)" >> $env:GITHUB_OUTPUT
+          "clang_format=$($v.clangFormat)" >> $env:GITHUB_OUTPUT
+
+      # Pull requests into dev: the lines they add or change must match
+      # .clang-format (tools/check-format.ps1). The runner's own LLVM has
+      # another version, so the pinned one comes from PyPI. It runs before
+      # the long build so a formatting miss fails within a minute.
+      - name: C++ format of the changed lines
+        if: env.CORE == 'true'
+        shell: pwsh
+        env:
+          CLANG_FORMAT_VERSION: ${{ steps.versions.outputs.clang_format }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet "clang-format==$env:CLANG_FORMAT_VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PATH = (python -c "import sysconfig; print(sysconfig.get_path('scripts'))") + ';' + $env:PATH
+          $base = git rev-parse --verify --quiet 'HEAD^1^{commit}'
+          if ($LASTEXITCODE -ne 0 -or -not $base) { Write-Host 'No base commit; nothing to compare.'; exit 0 }
+          ./tools/check-format.ps1 -Base $base -Require
+          exit $LASTEXITCODE
+
+      # aqtinstall 3.3.0 (the newest on PyPI) cannot read the per-arch
+      # repository layout Qt 6.11+ is published in, so it comes from a pinned
+      # upstream commit until a release supports it. qttasktree is optional for
+      # the build, but without it Qt's own QML asset downloader package fails
+      # to load and CMake warns on every configure.
+      - name: Install Qt and MinGW
+        if: env.BUILD == 'true'
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
+        with:
+          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
+          version: ${{ steps.versions.outputs.qt }}
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          modules: 'qtshadertools qtimageformats qttasktree'
+          tools: ${{ steps.versions.outputs.mingw }}
+          cache: true
+
+      # One archive instead of one cache request per object: with sccache's
+      # GitHub Actions backend a fully cached build still spent minutes
+      # fetching ~450 objects one by one. Only dev's push runs save an archive
+      # (see the save step); every run restores the newest one it can see,
+      # which for a pull request is its base branch's.
+      - name: Restore the compiler cache
+        if: env.BUILD == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\sccache
+          key: sccache-windows-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: sccache-windows-
+
+      # CMakeLists.txt picks sccache up from PATH as the compiler launcher
+      # (configure prints "Compiler cache: ..."). The server is started here
+      # so a cache failure shows in this step instead of silently falling back
+      # to uncached compiles.
+      - name: Set up sccache
+        if: env.BUILD == 'true'
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+
+      - name: Start sccache
+        if: env.BUILD == 'true'
+        shell: pwsh
+        run: |
+          $env:SCCACHE_DIR = Join-Path $env:RUNNER_TEMP 'sccache'
+          "SCCACHE_DIR=$env:SCCACHE_DIR" >> $env:GITHUB_ENV
+          Split-Path -Parent $env:SCCACHE_PATH >> $env:GITHUB_PATH
+          & $env:SCCACHE_PATH --start-server
+          & $env:SCCACHE_PATH --show-stats
+
+      # tools/toolchain.ps1 discovers <root>\<qt>\mingw_64 and
+      # <root>\Tools\mingw*_64; CMake and Ninja come from the runner PATH.
+      # The Qt install leaves aqtinstall.log in the checkout, which the layout
+      # check would report.
+      - name: Point the build scripts at Qt
+        if: env.BUILD == 'true'
+        shell: pwsh
+        run: |
+          "SPANTUI_QT_SDK_ROOT=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_ENV
+          Remove-Item -LiteralPath aqtinstall.log -ErrorAction SilentlyContinue
+
+      # A core run measures the changes from the base the pull request merges
+      # into: the first parent of the tested merge. The base goes in as a hash:
+      # cmd would eat the ^ of HEAD^1.
+      - name: Checks, build and tests
+        if: env.BUILD == 'true'
+        shell: pwsh
+        run: |
+          $ciArgs = @('ci')
+          if ($env:CORE -eq 'true') {
+            $base = git rev-parse --verify --quiet 'HEAD^1^{commit}'
+            if ($LASTEXITCODE -eq 0 -and $base) { $ciArgs += @('--core', '--base', $base) }
+            else { Write-Host 'No base commit; running the full suite.' }
+          }
+          & .\dev.bat @ciArgs
+          exit $LASTEXITCODE
+
+      - name: Checks only (documentation change)
+        if: env.BUILD != 'true'
+        shell: cmd
+        run: dev.bat check
+
+      # Stopping the server prints the statistics and flushes the directory
+      # before it is archived.
+      - name: Compiler cache statistics
+        if: ${{ always() && env.BUILD == 'true' }}
+        shell: pwsh
+        run: sccache --stop-server
+
+      # Only dev's push runs save: each archive is about 2 GB, and pull
+      # request archives (usable only by that pull request) would push dev's
+      # out of the repository's cache quota. A failed build or test run
+      # still saves what it compiled.
+      - name: Save the compiler cache
+        if: ${{ !cancelled() && env.BUILD == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}\sccache
+          key: sccache-windows-${{ github.run_id }}-${{ github.run_attempt }}

@@ -1,0 +1,23 @@
+{
+  "parts": [
+    {"id": "teeth", "path": "teeth", "origin": [12, 12], "wrap": 45, "tint": "accent"},
+    {"id": "hole", "path": "hole", "origin": [12, 12], "parent": "teeth", "tint": "accent"},
+    {"id": "core", "path": "hole", "origin": [12, 12], "parent": "teeth", "solid": true, "tint": "accent", "rest": {"fill": 0}}
+  ],
+  "hover": [
+    {"part": "teeth", "prop": "rotate", "dur": 950, "keys": [[0, 0], [0.2, -12, "io"], [1, 90, "back"]]},
+    {"part": "hole", "prop": "scale", "dur": 950, "keys": [[0, 0], [0.2, 0.22, "o"], [0.6, -0.1, "io"], [1, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "teeth", "prop": "rotate", "dur": 520, "keys": [[0, 0], [1, 45, "o"]]},
+    {"part": "teeth", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "teeth", "prop": "rotate", "dur": 900, "keys": [[0, 0], [0.2, -12, "io"], [1, 90, "back"]]},
+    {"part": "teeth", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "hole", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "core", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "core", "prop": "scale", "dur": 480, "delay": 320, "keys": [[0, -1], [1, 0, "back"]]},
+    {"part": "core", "prop": "fill", "dur": 480, "delay": 320, "keys": [[0, 0], [0.01, 1]]}
+  ]
+}

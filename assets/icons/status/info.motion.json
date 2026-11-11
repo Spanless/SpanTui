@@ -1,0 +1,25 @@
+{
+  "parts": [
+    {"id": "circ", "path": "circ", "origin": [12, 12], "tint": "accent"},
+    {"id": "disc", "path": "circ", "origin": [12, 12], "solid": true, "tint": "accent", "rest": {"fill": 0}},
+    {"id": "stem", "path": "stem", "origin": [12, 16.5], "tint": "accent"},
+    {"id": "dot", "path": "dot", "origin": [12, 12], "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "dot", "prop": "ty", "dur": 760, "keys": [[0, 0], [0.3, -2.2, "o"], [0.55, 0, "i"], [0.7, -0.6, "o"], [0.85, 0, "i"]]},
+    {"part": "stem", "prop": "sy", "dur": 760, "keys": [[0, 0], [0.55, 0], [0.62, -0.1, "o"], [0.8, 0, "io"]]},
+    {"part": "dot", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "circ", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "dot", "prop": "ty", "dur": 760, "keys": [[0, 0], [0.3, -2.2, "o"], [0.55, 0, "i"], [0.7, -0.6, "o"], [0.85, 0, "i"]]},
+    {"part": "stem", "prop": "sy", "dur": 760, "keys": [[0, 0], [0.55, 0], [0.62, -0.1, "o"], [0.8, 0, "io"]]},
+    {"part": "dot", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "stem", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "circ", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "disc", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "disc", "prop": "fill", "dur": 400, "delay": 300, "keys": [[0, 0], [1, 0.16, "o"]]}
+  ]
+}

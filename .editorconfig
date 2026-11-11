@@ -1,0 +1,30 @@
+# Editor defaults. Line endings are normalized by .gitattributes; C++
+# layout beyond indentation is .clang-format's.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# Windows PowerShell 5.1 needs a BOM in scripts with non-ASCII text
+# (tools/check-layout.ps1).
+[*.ps1]
+charset = utf-8-bom
+
+[src/terminal/vendor/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset

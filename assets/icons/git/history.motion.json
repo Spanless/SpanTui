@@ -1,0 +1,23 @@
+{
+  "parts": [
+    {"id": "ring", "path": "ring", "origin": [12, 12], "tint": "accent"},
+    {"id": "min", "path": "min", "origin": [12, 12], "wrap": 360, "tint": "accent"},
+    {"id": "hour", "path": "hour", "origin": [12, 12], "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "ring", "prop": "rotate", "dur": 900, "keys": [[0, 0], [0.4, -28, "o"], [1, 0, "io"]]},
+    {"part": "min", "prop": "rotate", "dur": 1000, "keys": [[0, 0], [1, -360, "io"]]},
+    {"part": "hour", "prop": "rotate", "dur": 1000, "keys": [[0, 0], [1, -30, "io"]]}
+  ],
+  "press": [
+    {"part": "ring", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "ring", "prop": "rotate", "dur": 900, "keys": [[0, 0], [0.4, -28, "o"], [1, 0, "io"]]},
+    {"part": "min", "prop": "rotate", "dur": 1000, "keys": [[0, 0], [1, -450, "io"]]},
+    {"part": "hour", "prop": "rotate", "dur": 1000, "keys": [[0, 0], [1, -75, "io"]]},
+    {"part": "ring", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "min", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "hour", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

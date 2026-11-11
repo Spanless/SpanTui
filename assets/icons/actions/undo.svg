@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="hook" d="M4 9L14.5 9A5.25 5.25 0 0 1 19.75 14.25A5.25 5.25 0 0 1 14.5 19.5L10.5 19.5"/>
+  <path id="head" d="M8.5 13.5L4 9L8.5 4.5"/>
+  <defs>
+    <path id="hook-to" d="M2.4 9L14.5 9A5.25 5.25 0 0 1 19.75 14.25A5.25 5.25 0 0 1 14.5 19.5L10.5 19.5"/>
+  </defs>
+</svg>

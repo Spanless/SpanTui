@@ -1,0 +1,27 @@
+{
+  "parts": [
+    {"id": "p", "origin": [12, 12], "wrap": 90},
+    {"id": "h0", "path": "h0", "origin": [12, 12], "parent": "p", "length": 7, "tint": "accent"},
+    {"id": "h1", "path": "h1", "origin": [12, 12], "parent": "p", "length": 7, "tint": "accent"},
+    {"id": "h2", "path": "h2", "origin": [12, 12], "parent": "p", "length": 7, "tint": "accent"},
+    {"id": "h3", "path": "h3", "origin": [12, 12], "parent": "p", "length": 7, "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "p", "prop": "rotate", "dur": 480, "keys": [[0, 0], [1, 90, "back"]]},
+    {"part": "p", "prop": "scale", "dur": 480, "keys": [[0, 0], [0.45, 0.12, "o"], [1, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "h0", "prop": "draw", "dur": 380, "keys": [[0, 0], [0.3, -0.45, "o"], [1, 0, "back"]]},
+    {"part": "h1", "prop": "draw", "dur": 380, "delay": 20, "keys": [[0, 0], [0.3, -0.45, "o"], [1, 0, "back"]]},
+    {"part": "h2", "prop": "draw", "dur": 380, "delay": 40, "keys": [[0, 0], [0.3, -0.45, "o"], [1, 0, "back"]]},
+    {"part": "h3", "prop": "draw", "dur": 380, "delay": 60, "keys": [[0, 0], [0.3, -0.45, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "p", "prop": "rotate", "dur": 520, "keys": [[0, 0], [1, 90, "back"]]},
+    {"part": "p", "prop": "scale", "dur": 520, "keys": [[0, 0], [1, 0.06, "back"]]},
+    {"part": "h0", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "h1", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "h2", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "h3", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

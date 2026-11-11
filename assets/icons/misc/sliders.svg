@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="t0" d="M3.5 7L12.8 7M17.2 7L20.5 7"/>
+  <path id="k0" d="M12.8 7A2.2 2.2 0 0 1 15 4.8A2.2 2.2 0 0 1 17.2 7A2.2 2.2 0 0 1 15 9.2A2.2 2.2 0 0 1 12.8 7Z"/>
+  <path id="t1" d="M3.5 12L6.3 12M10.7 12L20.5 12"/>
+  <path id="k1" d="M6.3 12A2.2 2.2 0 0 1 8.5 9.8A2.2 2.2 0 0 1 10.7 12A2.2 2.2 0 0 1 8.5 14.2A2.2 2.2 0 0 1 6.3 12Z"/>
+  <path id="t2" d="M3.5 17L10.8 17M15.2 17L20.5 17"/>
+  <path id="k2" d="M10.8 17A2.2 2.2 0 0 1 13 14.8A2.2 2.2 0 0 1 15.2 17A2.2 2.2 0 0 1 13 19.2A2.2 2.2 0 0 1 10.8 17Z"/>
+  <defs>
+    <path id="t0-to" d="M3.5 7L6.3 7M10.7 7L20.5 7"/>
+    <path id="t1-to" d="M3.5 12L13.3 12M17.7 12L20.5 12"/>
+    <path id="t2-to" d="M3.5 17L7.3 17M11.7 17L20.5 17"/>
+  </defs>
+</svg>

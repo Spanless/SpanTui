@@ -1,0 +1,32 @@
+{
+  "parts": [
+    {"id": "moon", "path": "moon", "origin": [12, 12], "tint": "accent"},
+    {"id": "face", "path": "moon", "origin": [12, 12], "parent": "moon", "solid": true, "tint": "accent", "rest": {"fill": 0}},
+    {"id": "spark", "path": "spark", "origin": [18.314, 6.304], "tint": "accent", "rest": {"opacity": 0}},
+    {"id": "dot", "path": "dot", "origin": [15.114, 4.504], "tint": "accent", "rest": {"opacity": 0}}
+  ],
+  "hover": [
+    {"part": "moon", "prop": "rotate", "dur": 850, "keys": [[0, 0], [0.35, -20, "o"], [0.7, 5, "io"], [1, 0, "io"]]},
+    {"part": "moon", "prop": "tint", "dur": 420, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "spark", "prop": "tint", "dur": 1, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "dot", "prop": "tint", "dur": 1, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "spark", "prop": "opacity", "dur": 850, "keys": [[0, 0], [0.35, 0], [0.7, 1, "o"], [1, 1]]},
+    {"part": "spark", "prop": "scale", "dur": 850, "keys": [[0, -1], [0.35, -1], [0.7, 0.25, "o"], [1, 0, "io"]]},
+    {"part": "spark", "prop": "rotate", "dur": 1100, "keys": [[0, 0], [1, 90, "o"]]},
+    {"part": "dot", "prop": "opacity", "dur": 850, "delay": 180, "keys": [[0, 0], [0.35, 0], [0.7, 1, "o"], [1, 1]]}
+  ],
+  "press": [
+    {"part": "moon", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "moon", "prop": "rotate", "dur": 800, "keys": [[0, 0], [0.4, -20, "o"], [1, 0, "back"]]},
+    {"part": "moon", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "face", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "spark", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "dot", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "face", "prop": "fill", "dur": 420, "delay": 260, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "spark", "prop": "opacity", "dur": 800, "keys": [[0, 0], [0.35, 0], [0.7, 1, "o"], [1, 1]]},
+    {"part": "spark", "prop": "scale", "dur": 800, "keys": [[0, -1], [0.35, -1], [1, 0, "back"]]},
+    {"part": "dot", "prop": "opacity", "dur": 800, "delay": 150, "keys": [[0, 0], [0.35, 0], [0.7, 1, "o"], [1, 1]]}
+  ]
+}

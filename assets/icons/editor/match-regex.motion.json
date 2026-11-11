@@ -1,0 +1,20 @@
+{
+  "parts": [
+    {"id": "dot", "path": "dot", "origin": [6.731, 17.55], "tint": "accent"},
+    {"id": "ast", "path": "ast", "origin": [14.231, 10.05], "wrap": 60, "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "ast", "prop": "rotate", "dur": 560, "keys": [[0, 0], [1, 60, "back"]]},
+    {"part": "dot", "prop": "ty", "dur": 640, "keys": [[0, 0], [0.3, -1.6, "o"], [0.6, 0, "i"], [0.78, -0.4, "o"], [0.95, 0, "i"]]}
+  ],
+  "press": [
+    {"part": "ast", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "ast", "prop": "rotate", "dur": 700, "keys": [[0, 0], [1, 120, "back"]]},
+    {"part": "ast", "prop": "scale", "dur": 700, "keys": [[0, 0], [0.4, 0.18, "o"], [1, 0, "io"]]},
+    {"part": "dot", "prop": "ty", "dur": 640, "keys": [[0, 0], [0.3, -1.6, "o"], [0.6, 0, "i"], [0.78, -0.4, "o"], [0.95, 0, "i"]]},
+    {"part": "ast", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "dot", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

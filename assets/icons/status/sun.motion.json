@@ -1,0 +1,28 @@
+{
+  "parts": [
+    {"id": "core", "path": "core", "origin": [12, 12], "tint": "warning"},
+    {"id": "disc", "path": "core", "origin": [12, 12], "solid": true, "tint": "warning", "rest": {"fill": 0}},
+    {"id": "rays", "path": "rays", "origin": [12, 12], "wrap": 45, "tint": "warning"}
+  ],
+  "hover": [
+    {"part": "rays", "prop": "rotate", "dur": 700, "keys": [[0, 0], [1, 45, "back"]]},
+    {"part": "core", "prop": "scale", "dur": 700, "keys": [[0, 0], [0.4, 0.14, "o"], [1, 0, "io"]]},
+    {"part": "rays", "prop": "scale", "dur": 700, "keys": [[0, 0], [0.3, -0.12, "o"], [0.7, 0.06, "io"], [1, 0, "io"]]},
+    {"part": "core", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "rays", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "rays", "prop": "rotate", "dur": 600, "keys": [[0, 0], [1, 90, "o"]]},
+    {"part": "core", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "rays", "prop": "rotate", "dur": 700, "keys": [[0, 0], [1, 45, "back"]]},
+    {"part": "rays", "prop": "scale", "dur": 700, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0.07, "back"]]},
+    {"part": "core", "prop": "scale", "dur": 700, "keys": [[0, 0], [0.3, -0.12, "o"], [1, 0, "back"]]},
+    {"part": "disc", "prop": "scale", "dur": 700, "keys": [[0, -0.12], [0.3, -0.12, "o"], [1, 0, "back"]]},
+    {"part": "disc", "prop": "fill", "dur": 400, "delay": 200, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "core", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "rays", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "disc", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "parts": [
+    {"id": "l", "path": "l", "origin": [12, 12], "length": 5.5},
+    {"id": "r", "path": "r", "origin": [12, 12], "length": 5.5},
+    {"id": "ring", "path": "ring", "origin": [12, 12], "tint": "accent"},
+    {"id": "dot", "path": "ring", "origin": [12, 12], "parent": "ring", "solid": true, "tint": "accent", "rest": {"fill": 0}}
+  ],
+  "hover": [
+    {"part": "ring", "prop": "scale", "dur": 520, "keys": [[0, 0], [0.45, 0.32, "back"], [1, 0.16, "io"]]},
+    {"part": "l", "prop": "draw", "dur": 520, "keys": [[0, 0], [0.45, -0.2, "o"], [1, -0.1, "io"]]},
+    {"part": "r", "prop": "draw", "dur": 520, "keys": [[0, 0], [0.45, -0.2, "o"], [1, -0.1, "io"]]},
+    {"part": "ring", "prop": "tint", "dur": 260, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "ring", "prop": "scale", "dur": 340, "keys": [[0, 0], [0.3, -0.25, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "ring", "prop": "scale", "dur": 520, "keys": [[0, 0], [0.45, 0.32, "back"], [1, 0.16, "io"]]},
+    {"part": "l", "prop": "draw", "dur": 520, "keys": [[0, 0], [0.45, -0.2, "o"], [1, -0.1, "io"]]},
+    {"part": "r", "prop": "draw", "dur": 520, "keys": [[0, 0], [0.45, -0.2, "o"], [1, -0.1, "io"]]},
+    {"part": "ring", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "dot", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "dot", "prop": "fill", "dur": 300, "delay": 250, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

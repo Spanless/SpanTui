@@ -1,0 +1,22 @@
+{
+  "parts": [
+    {"id": "folder", "path": "folder", "origin": [12, 19.5], "tint": "success"},
+    {"id": "p", "path": "p", "origin": [12, 12.75], "parent": "folder", "wrap": 90, "tint": "success"}
+  ],
+  "hover": [
+    {"part": "folder", "prop": "scale", "dur": 560, "keys": [[0, 0], [0.35, 0.04, "o"], [1, 0, "io"]]},
+    {"part": "p", "prop": "rotate", "dur": 520, "keys": [[0, 0], [1, 90, "back"]]},
+    {"part": "p", "prop": "scale", "dur": 520, "keys": [[0, 0], [0.45, 0.25, "o"], [1, 0, "io"]]},
+    {"part": "p", "prop": "tint", "dur": 260, "keys": [[0, 0], [1, 1, "o"]]}
+  ],
+  "press": [
+    {"part": "folder", "prop": "scale", "dur": 280, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "folder", "prop": "scale", "dur": 560, "keys": [[0, 0], [0.35, 0.04, "o"], [1, 0, "io"]]},
+    {"part": "p", "prop": "rotate", "dur": 520, "keys": [[0, 0], [1, 90, "back"]]},
+    {"part": "p", "prop": "scale", "dur": 520, "keys": [[0, 0], [1, 0.15, "back"]]},
+    {"part": "p", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "folder", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

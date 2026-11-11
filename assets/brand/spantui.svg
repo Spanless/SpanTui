@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <title>SpanTui Carbon Prompt</title>
+  <defs>
+    <linearGradient id="terminal_logo_carbonBg" x1="32" y1="32" x2="480" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#232733" />
+      <stop offset="50%" stop-color="#12141C" />
+      <stop offset="100%" stop-color="#07080B" />
+    </linearGradient>
+
+    <linearGradient id="terminal_logo_metalSheen" x1="60" y1="450" x2="450" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0" />
+      <stop offset="48%" stop-color="#FFFFFF" stop-opacity="0.03" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.08" />
+      <stop offset="52%" stop-color="#FFFFFF" stop-opacity="0.03" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+
+    <linearGradient id="terminal_logo_outerBevel" x1="256" y1="32" x2="256" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5" />
+      <stop offset="25%" stop-color="#94A3B8" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.05" />
+    </linearGradient>
+
+    <linearGradient id="terminal_logo_chamberRim" x1="256" y1="52" x2="256" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.12" />
+    </linearGradient>
+
+    <!-- Machined Titanium Upper Blade -->
+    <linearGradient id="terminal_logo_bladeTop" x1="120" y1="140" x2="265" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="65%" stop-color="#E2E8F0" />
+      <stop offset="100%" stop-color="#94A3B8" />
+    </linearGradient>
+
+    <!-- Shadowed Gunmetal Lower Blade -->
+    <linearGradient id="terminal_logo_bladeBottom" x1="120" y1="370" x2="265" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#475569" />
+      <stop offset="50%" stop-color="#64748B" />
+      <stop offset="100%" stop-color="#CBD5E1" />
+    </linearGradient>
+
+    <!-- High-Energy Laser Cursor Gradient -->
+    <linearGradient id="terminal_logo_laserGrad" x1="272" y1="330" x2="388" y2="362" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="50%" stop-color="#CBD5E1" />
+      <stop offset="100%" stop-color="#64748B" />
+    </linearGradient>
+
+    <filter id="terminal_logo_laserGlow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="14" result="glow1" />
+      <feMerge>
+        <feMergeNode in="glow1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="terminal_logo_dropShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000000" flood-opacity="0.65" />
+    </filter>
+  </defs>
+
+  <!-- Carbon Anodized Titanium Squircle -->
+  <g filter="url(#terminal_logo_dropShadow)">
+    <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#terminal_logo_carbonBg)" />
+    <!-- Subtle Diagonal Brushed Metal Sheen -->
+    <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#terminal_logo_metalSheen)" />
+    <!-- Recessed Inner Chamber -->
+    <rect x="52" y="52" width="408" height="408" rx="86" fill="#08090C" stroke="url(#terminal_logo_chamberRim)" stroke-width="1.5" />
+    <!-- Precision Outer Metallic Edge -->
+    <rect x="33" y="33" width="446" height="446" rx="103" fill="none" stroke="url(#terminal_logo_outerBevel)" stroke-width="2" />
+  </g>
+  <!-- Precision Sliced Architectural Chevron '>' -->
+  <g>
+    <!-- Upper Chiseled Facet -->
+    <polygon points="126,142 168,142 272,246 218,246" fill="url(#terminal_logo_bladeTop)" />
+    <!-- Lower Chiseled Facet (Separated by a razor 12px architectural gap) -->
+    <polygon points="218,262 272,262 168,366 126,366" fill="url(#terminal_logo_bladeBottom)" />
+
+    <!-- Accent Laser Reflection Line Inside Chevron Gap -->
+    <line x1="212" y1="254" x2="274" y2="254" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity="0.9" />
+
+    <!-- Laser Cursor '_' -->
+    <rect x="272" y="330" width="116" height="32" rx="8" fill="url(#terminal_logo_laserGrad)" filter="url(#terminal_logo_laserGlow)" />
+    <rect x="272" y="330" width="116" height="32" rx="8" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-opacity="0.65" />
+  </g>
+</svg>

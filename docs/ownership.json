@@ -1,0 +1,220 @@
+{
+  "comment": "Path globs → owning docs and checks. highImpact: search callers before changing API or behavior. Query with tools/check-ownership.ps1.",
+  "entries": [
+    {
+      "name": "qml",
+      "paths": ["qml/*"],
+      "docs": ["docs/ui/overview.md"],
+      "checks": ["tools/check-style.ps1", "dev.bat test -R qml_style_check -R translation_catalog", "dev.bat run --smoke"]
+    },
+    {
+      "name": "qml-shared",
+      "paths": ["qml/components/base/*", "qml/components/common/*"],
+      "docs": ["docs/ui/components/overview.md"],
+      "checks": ["tools/check-style.ps1", "tools/check-docs.ps1"]
+    },
+    {
+      "name": "qml-workspace",
+      "paths": ["qml/components/business/workspace/*", "qml/Main.qml"],
+      "docs": ["docs/ui/layout/workspace-composition.md", "docs/ui/layout/viewport-transitions.md"],
+      "checks": ["dev.bat run --smoke"]
+    },
+    {
+      "name": "qml-git",
+      "paths": ["qml/components/business/git/*"],
+      "docs": ["docs/services/git/reads-history-diff.md"],
+      "checks": []
+    },
+    {
+      "name": "qml-messages",
+      "paths": ["qml/components/business/messages/*"],
+      "docs": ["docs/services/application/messages-task-progress.md"],
+      "checks": []
+    },
+    {
+      "name": "qml-files-editor",
+      "paths": ["qml/components/business/files/*", "qml/components/business/editor/*", "qml/components/business/preview/*"],
+      "docs": ["docs/services/workspace/file-tree.md", "docs/services/workspace/editor.md", "docs/services/workspace/markdown.md"],
+      "checks": []
+    },
+    {
+      "name": "qml-terminal",
+      "paths": ["qml/components/business/terminal/*"],
+      "docs": ["docs/services/terminal/overview.md"],
+      "checks": ["dev.bat test -R terminal_view_binding"]
+    },
+    {
+      "name": "update",
+      "paths": ["src/update/*"],
+      "docs": ["docs/services/update/updater.md"],
+      "checks": ["dev.bat test -R update_service"]
+    },
+    {
+      "name": "runtime",
+      "paths": ["src/main.cpp", "src/application/runtime/*"],
+      "docs": ["docs/architecture/runtime-modes.md", "docs/services/application/startup-single-instance.md"],
+      "checks": ["dev.bat run --smoke", "dev.bat test -R launch_options -R single_instance"]
+    },
+    {
+      "name": "application",
+      "paths": ["src/application/*"],
+      "docs": ["docs/architecture/state-ownership.md"],
+      "checks": ["dev.bat test -R settings_test -R workspace_controller -R message_center -R task_progress -R project_workspace -R session_routing"]
+    },
+    {
+      "name": "single-instance",
+      "paths": ["src/application/single_instance_router.*"],
+      "docs": ["docs/services/application/startup-single-instance.md"],
+      "checks": ["dev.bat test -R single_instance"]
+    },
+    {
+      "name": "settings",
+      "paths": ["src/application/settings_store.*", "src/application/*_settings.*", "src/application/preferences.*", "src/application/clipboard.*", "src/application/shortcut_registry.*", "qml/components/business/settings/*"],
+      "docs": ["docs/services/application/settings-appearance.md"],
+      "checks": ["dev.bat test -R settings_test -R shortcut_registry -R qml_style_check -R translation_catalog"]
+    },
+    {
+      "name": "core",
+      "paths": ["src/core/*"],
+      "docs": ["docs/services/storage/roots-migration.md", "docs/reference/paths-configuration.md"],
+      "checks": ["dev.bat test -R migration -R settings_test -R launch_options -R git_repository_concurrency"]
+    },
+    {
+      "name": "workspace",
+      "paths": ["src/workspace/*"],
+      "docs": ["docs/ui/layout/workspace-composition.md", "docs/services/workspace/file-tree.md", "docs/services/workspace/layout-tiles.md"],
+      "checks": ["dev.bat test -R workspace_layout -R file_tree -R file_icon_theme"]
+    },
+    {
+      "name": "sessions",
+      "paths": ["src/workspace/session_model.*", "src/workspace/scope.h", "src/application/session_terminal_routing.*"],
+      "docs": ["docs/services/application/projects-sessions.md"],
+      "checks": ["dev.bat test -R session_model -R session_routing -R workspace_controller -R settings_test"]
+    },
+    {
+      "name": "documents",
+      "paths": ["src/documents/*"],
+      "docs": ["docs/services/workspace/editor.md", "docs/services/workspace/markdown.md", "docs/services/storage/documents-recovery.md"],
+      "checks": ["dev.bat test -R document_manager -R editor_controller -R markdown"]
+    },
+    {
+      "name": "terminal",
+      "paths": ["src/terminal/*"],
+      "docs": ["docs/services/terminal/overview.md"],
+      "checks": ["dev.bat test -R terminal -R ghostty -R conpty"]
+    },
+    {
+      "name": "terminal-engine",
+      "paths": ["src/terminal/core/ghostty_engine.*", "src/terminal/core/terminal_core_worker.*", "src/terminal/vendor/libghostty-vt/*", "tools/update-libghostty.ps1"],
+      "docs": ["docs/services/terminal/rendering-scrollback.md", "docs/legal/libghostty-vt.md"],
+      "checks": ["dev.bat test -R ghostty_engine -R terminal_core_worker -R terminal_session"]
+    },
+    {
+      "name": "terminal-input",
+      "paths": ["src/terminal/core/terminal_win32_input.*", "src/terminal/render/terminal_view.*", "src/terminal/render/terminal_scroll_model.*", "src/terminal/render/terminal_input_routing.*", "src/terminal/render/terminal_ime_*"],
+      "docs": ["docs/services/terminal/input-protocols.md"],
+      "checks": ["dev.bat test -R terminal"]
+    },
+    {
+      "name": "remote",
+      "paths": ["src/remote/*", "src/platform/windows/credential_protection.*", "qml/components/business/remote/*"],
+      "docs": ["docs/services/remote/ssh-remote.md"],
+      "checks": ["dev.bat test -R ssh_ -R remote_ -R translation_catalog"]
+    },
+    {
+      "name": "git",
+      "paths": ["src/git/*"],
+      "docs": ["docs/services/git/overview.md"],
+      "checks": ["dev.bat test -R git_"]
+    },
+    {
+      "name": "storage",
+      "paths": ["src/core/workspace_database_migration.*"],
+      "docs": ["docs/services/storage/roots-migration.md", "docs/services/storage/database-schema.md"],
+      "checks": ["dev.bat test -R migration -R settings_test"]
+    },
+    {
+      "name": "platform",
+      "paths": ["src/platform/*"],
+      "docs": ["docs/architecture/security-boundaries.md", "docs/architecture/process-lifecycle.md"],
+      "checks": ["dev.bat test -R process_containment -R window_chrome -R shell_extension"]
+    },
+    {
+      "name": "monitoring",
+      "paths": ["src/monitoring/*", "src/application/terminal_resource_targets.*", "qml/components/business/terminal/ResourceStrip.qml"],
+      "docs": ["docs/services/monitoring/resource-monitoring.md"],
+      "checks": ["dev.bat test -R gpu_engine -R resource_monitor -R terminal_resource_targets -R ui_health"]
+    },
+    {
+      "name": "tests",
+      "paths": ["tests/*"],
+      "docs": ["docs/workflow/testing.md"],
+      "checks": ["dev.bat test -R <changed test>"]
+    },
+    {
+      "name": "terminal-lab",
+      "paths": ["tools/terminal_stress_tui/*", "tui_test.bat"],
+      "docs": ["docs/services/terminal/lab/stress-tui.md"],
+      "checks": ["tools/terminal_stress_tui/build.ps1"]
+    },
+    {
+      "name": "build",
+      "paths": ["CMakeLists.txt", "src/CMakeLists.txt", "src/*/CMakeLists.txt", "*.bat", "tools/*"],
+      "docs": ["docs/workflow/build.md", "docs/workflow/verification.md"],
+      "checks": ["tools/check-layout.ps1", "dev.bat build", "dev.bat test -R <affected tests>"]
+    },
+    {
+      "name": "installer",
+      "paths": ["installer/*"],
+      "docs": ["docs/workflow/release.md"],
+      "checks": ["dev.bat package"]
+    },
+    {
+      "name": "legal",
+      "paths": ["LICENSE", "docs/legal/*"],
+      "docs": ["docs/legal/third-party-notices.md", "docs/workflow/release.md"],
+      "checks": ["tools/check-docs.ps1", "dev.bat package"]
+    },
+    {
+      "name": "repo-meta",
+      "paths": [".gitignore", ".gitattributes", ".env.example", ".githooks/*", ".github/*"],
+      "docs": ["docs/workflow/overview.md", "docs/workflow/build.md", "docs/workflow/verification.md", "docs/reference/paths-configuration.md"],
+      "checks": ["tools/check-layout.ps1", "git diff --check"]
+    },
+    {
+      "name": "shaders",
+      "paths": ["shaders/*"],
+      "docs": ["docs/ui/pixel-boundaries.md"],
+      "checks": ["dev.bat run --smoke"]
+    },
+    {
+      "name": "assets",
+      "paths": ["assets/*"],
+      "docs": ["docs/ui/icons.md"],
+      "checks": ["dev.bat test -R ui_icon_catalog -R file_icon_theme -R brand_icon"]
+    },
+    {
+      "name": "translations",
+      "paths": ["translations/*"],
+      "docs": ["docs/workflow/localization.md"],
+      "checks": ["dev.bat test -R translation_catalog"]
+    },
+    {
+      "name": "docs",
+      "paths": ["docs/*", "AGENTS.md", "README.md", "README.zh-CN.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md"],
+      "docs": ["docs/workflow/documentation.md"],
+      "checks": ["tools/check-docs.ps1", "git diff --check"]
+    }
+  ],
+  "highImpact": [
+    { "object": "SettingsStore", "path": "src/application/settings_store.*" },
+    { "object": "Appearance", "path": "src/application/appearance_settings.*" },
+    { "object": "WorkspaceController", "path": "src/application/workspace_controller.*" },
+    { "object": "WorkspaceLayout", "path": "src/workspace/workspace_layout.*" },
+    { "object": "Theme.qml", "path": "qml/Theme.qml" },
+    { "object": "AppPopup", "path": "qml/components/common/AppPopup.qml" },
+    { "object": "DesktopScrollView", "path": "qml/components/common/DesktopScrollView.qml" },
+    { "object": "GlideHighlight", "path": "qml/components/common/GlideHighlight.qml" },
+    { "object": "ListItem", "path": "qml/components/common/ListItem.qml" }
+  ]
+}

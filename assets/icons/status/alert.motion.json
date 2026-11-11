@@ -1,0 +1,23 @@
+{
+  "parts": [
+    {"id": "tri", "path": "tri", "origin": [12, 19.5], "tint": "warning"},
+    {"id": "plate", "path": "tri", "origin": [12, 19.5], "parent": "tri", "solid": true, "tint": "warning", "rest": {"fill": 0}},
+    {"id": "bang", "path": "bang", "origin": [12, 16.5], "parent": "tri", "tint": "warning"}
+  ],
+  "hover": [
+    {"part": "tri", "prop": "rotate", "dur": 620, "keys": [[0, 0], [0.12, -7, "io"], [0.3, 6, "io"], [0.48, -4, "io"], [0.66, 2.5, "io"], [0.84, -1, "io"], [1, 0, "io"]]},
+    {"part": "tri", "prop": "tint", "dur": 200, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "bang", "prop": "tint", "dur": 200, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "bang", "prop": "scale", "dur": 620, "keys": [[0, 0], [0.1, 0.25, "o"], [0.5, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "bang", "prop": "scale", "dur": 300, "keys": [[0, 0], [0.3, 0.2, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "tri", "prop": "rotate", "dur": 620, "keys": [[0, 0], [0.12, -7, "io"], [0.3, 6, "io"], [0.48, -4, "io"], [0.66, 2.5, "io"], [0.84, -1, "io"], [1, 0, "io"]]},
+    {"part": "tri", "prop": "tint", "dur": 200, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "bang", "prop": "tint", "dur": 200, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "plate", "prop": "tint", "dur": 200, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "plate", "prop": "fill", "dur": 400, "delay": 300, "keys": [[0, 0], [1, 0.2, "o"]]}
+  ]
+}

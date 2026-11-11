@@ -1,0 +1,18 @@
+{
+  "parts": [
+    {"id": "t", "path": "t", "origin": [10.059, 10.059], "tint": "accent"},
+    {"id": "tf", "path": "t", "origin": [10.059, 10.059], "parent": "t", "solid": true, "tint": "accent", "rest": {"fill": 0}}
+  ],
+  "hover": [
+    {"part": "t", "prop": "rotate", "dur": 1000, "keys": [[0, 0], [0.2, 14, "io"], [0.4, -9, "io"], [0.6, 5, "io"], [0.8, -2, "io"], [1, 0, "io"]]}
+  ],
+  "press": [
+    {"part": "t", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "t", "prop": "rotate", "dur": 800, "keys": [[0, 0], [0.3, 14, "o"], [0.6, -14, "io"], [1, -8, "io"]]},
+    {"part": "t", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "tf", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "tf", "prop": "fill", "dur": 360, "delay": 350, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

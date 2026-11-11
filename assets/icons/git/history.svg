@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path id="ring" d="M3.5 12A8.5 8.5 0 0 0 19.85 15.25A8.5 8.5 0 0 0 5.99 5.99M5.99 2.59L5.99 5.99L9.39 5.99"/>
+  <path id="min" d="M12 7.5L12 12"/>
+  <path id="hour" d="M12 12L15 14"/>
+</svg>

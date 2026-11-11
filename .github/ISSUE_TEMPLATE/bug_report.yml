@@ -1,0 +1,35 @@
+name: Bug report / 问题报告
+description: Something does not work as expected. / 某个功能与预期不符。
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: SpanTui version / 版本
+      description: The version field in spantui-build.json next to SpanTui.exe. / SpanTui.exe 旁 spantui-build.json 中的 version。
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version / Windows 版本
+      placeholder: Windows 11 24H2 (26100)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior / 预期与实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots / 日志或截图
+      description: Remove paths, host names and anything else private before posting. / 贴出前请去掉路径、主机名等隐私信息。

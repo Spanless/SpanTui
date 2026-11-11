@@ -1,0 +1,22 @@
+{
+  "parts": [
+    {"id": "frame", "path": "frame", "origin": [12, 12]},
+    {"id": "prompt", "path": "prompt", "origin": [12, 12], "tint": "success"},
+    {"id": "cursor", "path": "cursor", "origin": [12.5, 14.5], "length": 4, "tint": "cursor"}
+  ],
+  "hover": [
+    {"part": "prompt", "prop": "tx", "dur": 520, "keys": [[0, 0], [0.3, 1.2, "o"], [1, 0, "back"]]},
+    {"part": "prompt", "prop": "tint", "dur": 160, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "cursor", "prop": "tint", "dur": 300, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "cursor", "prop": "opacity", "dur": 1060, "delay": 300, "loop": true, "keys": [[0, 0], [0.25, 0], [0.25, -1], [0.5, -1], [0.5, 0], [1, 0]]}
+  ],
+  "press": [
+    {"part": "cursor", "prop": "draw", "dur": 420, "keys": [[0, -0.75], [0.35, -0.75], [0.35, -0.5], [0.6, -0.5], [0.6, -0.25], [0.85, -0.25], [0.85, 0], [1, 0]]}
+  ],
+  "active": [
+    {"part": "prompt", "prop": "tx", "dur": 520, "keys": [[0, 0], [0.3, 1.2, "o"], [1, 0.5, "back"]]},
+    {"part": "cursor", "prop": "draw", "dur": 520, "delay": 120, "keys": [[0, -0.75], [0.35, -0.75], [0.35, -0.5], [0.6, -0.5], [0.6, -0.25], [0.85, -0.25], [0.85, 0], [1, 0]]},
+    {"part": "prompt", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "cursor", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

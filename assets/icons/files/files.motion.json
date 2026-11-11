@@ -1,0 +1,21 @@
+{
+  "parts": [
+    {"id": "back", "path": "back", "origin": [4.25, 17.5], "tint": "accent"},
+    {"id": "front", "path": "front", "origin": [13.25, 21], "tint": "accent"}
+  ],
+  "hover": [
+    {"part": "back", "prop": "rotate", "dur": 420, "keys": [[0, 0], [1, -7, "back"]]},
+    {"part": "front", "prop": "rotate", "dur": 420, "keys": [[0, 0], [1, 3, "back"]]},
+    {"part": "front", "prop": "ty", "dur": 420, "keys": [[0, 0], [0.4, -0.9, "o"], [1, -0.4, "io"]]}
+  ],
+  "press": [
+    {"part": "front", "prop": "scale", "dur": 260, "keys": [[0, 0], [0.3, -0.16, "o"], [1, 0, "back"]]}
+  ],
+  "active": [
+    {"part": "back", "prop": "rotate", "dur": 420, "keys": [[0, 0], [1, -7, "back"]]},
+    {"part": "front", "prop": "rotate", "dur": 420, "keys": [[0, 0], [1, 3, "back"]]},
+    {"part": "front", "prop": "ty", "dur": 420, "keys": [[0, 0], [0.4, -0.9, "o"], [1, -0.4, "io"]]},
+    {"part": "front", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]},
+    {"part": "back", "prop": "tint", "dur": 360, "keys": [[0, 0], [1, 1, "o"]]}
+  ]
+}

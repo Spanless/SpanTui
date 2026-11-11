@@ -1,0 +1,233 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>图标动效预览</title>
+<style>
+:root{--paper:#131211;--plate:#1b1a18;--text:#ebe7df;--muted:#a29d94;--line:rgba(235,231,223,.12);--hover:rgba(235,231,223,.10);--sel:rgba(147,165,216,.24)}
+body.light{--paper:#f5f3ef;--plate:#fbfaf8;--text:#26231e;--muted:#716b62;--line:rgba(38,35,30,.12);--hover:rgba(38,35,30,.06);--sel:rgba(70,97,179,.14)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--text);font:13px/1.5 "Segoe UI","Microsoft YaHei UI",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:2;display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:12px 20px;background:var(--paper);border-bottom:1px solid var(--line)}
+header h1{font-size:15px;margin:0 12px 0 0;font-weight:600}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button,.btn{background:none;border:0;color:var(--muted);padding:4px 10px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--sel);color:var(--text)}
+.btn{border:1px solid var(--line);border-radius:6px}
+.btn:hover,.seg button:hover{color:var(--text)}
+.hint{color:var(--muted);font-size:12px}
+main{padding:8px 20px 40px}
+h2{font-size:13px;font-weight:600;color:var(--muted);margin:22px 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.card{background:var(--plate);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;user-select:none;transition:background .14s}
+.card.hov{background:color-mix(in srgb,var(--plate),var(--text) 4%)}
+.stage{flex:none;width:76px;height:76px;border-radius:8px;display:grid;place-items:center;transition:background .14s}
+.card.hov .stage{background:var(--hover)}
+.card.sel .stage{background:var(--sel)}
+.meta{min-width:0;flex:1}
+.name{font-weight:600;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.note{color:var(--muted);font-size:12px;margin:3px 0 8px}
+.small{display:flex;gap:6px;align-items:center}
+.chip{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:5px;transition:background .14s;font-size:12px}
+.card.hov .chip{background:var(--hover)}
+.card.sel .chip{background:var(--sel)}
+.tags{display:flex;gap:4px;margin-left:auto}
+.tag{font-size:10px;padding:0 5px;border-radius:3px;border:1px solid var(--line);color:var(--muted)}
+.tag.sel{border-color:var(--sel);color:var(--text)}
+svg{overflow:visible;display:block}
+</style>
+<header>
+  <h1>图标动效预览</h1>
+  <div class="seg" id="theme"><button data-v="dark" class="on">深色</button><button data-v="light">浅色</button></div>
+  <div class="seg" id="speed"><button data-v="1" class="on">1×</button><button data-v="0.5">0.5×</button><button data-v="0.25">0.25×</button></div>
+  <button class="btn" id="demo">依次演示悬浮</button>
+  <button class="btn" id="allActive">全部激活 / 取消</button>
+  <span class="hint">悬浮看悬浮态，按下看点击态，点击切换激活态（激活态静止）</span>
+</header>
+<main id="main"></main>
+<script>
+const SPECS = /*SPECS*/;
+const GROUPS = /*GROUPS*/;
+const PAL = {
+  // Mirrors the Theme roles Icon.qml maps tints onto.
+  dark: {text:'#ebe7df', muted:'#a29d94', accent:'#93a5d8', danger:'#f0808e', success:'#69c798', warning:'#dca45e', cursor:'#d86575'},
+  light:{text:'#26231e', muted:'#716b62', accent:'#4661b3', danger:'#b52d43', success:'#247650', warning:'#8a581f', cursor:'#d86575'}
+};
+let pal = PAL.dark, speed = 1, clock = 0, last = performance.now();
+const SETTLE = 280, BASE_FADE = 140;
+
+// ---- easing ---------------------------------------------------------------
+const EASE = {l:null, i:[.5,0,.75,0], o:[.22,1,.36,1], io:[.65,0,.35,1], back:[.34,1.56,.64,1]};
+const bz = (a,b,t) => 3*a*(1-t)*(1-t)*t + 3*b*(1-t)*t*t + t*t*t;
+function ease(name, x){
+  const p = EASE[name||'io']; if(!p) return x;
+  let lo=0, hi=1, t=x;
+  for(let i=0;i<24;i++){ t=(lo+hi)/2; if(bz(p[0],p[2],t)<x) lo=t; else hi=t; }
+  return bz(p[1],p[3],t);
+}
+const easeOut = x => ease('o', x);
+
+function sampleTrack(tr, ms){
+  const k = tr.keys; let t = (ms - tr.delay) / tr.dur;
+  if(t < 0) return k[0][1];
+  if(tr.loop) t = t % 1; else if(t >= 1) return k[k.length-1][1];
+  for(let i=1;i<k.length;i++){
+    if(t <= k[i][0]){
+      const a=k[i-1], b=k[i];
+      if(b[0] <= a[0]) return b[1];
+      return a[1] + (b[1]-a[1]) * ease(b[2], (t-a[0])/(b[0]-a[0]));
+    }
+  }
+  return k[k.length-1][1];
+}
+const shotLen = tracks => Math.max(0, ...tracks.map(t => t.delay + t.dur));
+
+// ---- colour -----------------------------------------------------------------
+const hex = h => [1,3,5].map(i => parseInt(h.substr(i,2),16));
+function mix(a,b,t){ const A=hex(a),B=hex(b); return '#'+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,'0')).join(''); }
+
+// ---- morph ------------------------------------------------------------------
+const NUM = /-?\d*\.?\d+/g;
+function morpher(d, to){
+  const a = d.match(NUM).map(Number), b = to.match(NUM).map(Number), s = d.split(NUM);
+  return m => { let o = s[0]; for(let i=0;i<a.length;i++) o += (+(a[i]+(b[i]-a[i])*m).toFixed(3)) + s[i+1]; return o; };
+}
+
+// ---- layer --------------------------------------------------------------------
+class Layer {
+  constructor(tracks, wraps, shot){ this.tracks=tracks; this.wraps=wraps; this.shot=shot; this.active=false; this.start=0; this.from=null; this.fromAt=0; this.res=null; this.resAt=0; }
+  raw(now){
+    const v = {};
+    if(this.active){
+      const ms = now - this.start;
+      if(this.shot && ms >= shotLen(this.tracks)) this.active = false;
+      else for(const tr of this.tracks){ const key = tr.part+'|'+tr.prop; v[key] = (v[key]||0) + sampleTrack(tr, ms); }
+    } else if(this.from){
+      const p = Math.min(1, (now - this.fromAt) / SETTLE), e = easeOut(p);
+      if(p >= 1) this.from = null;
+      else for(const key in this.from){ const v0=this.from[key], w=this.wrapOf(key); const tgt = w ? Math.round(v0/w)*w : 0; v[key] = v0 + (tgt-v0)*e; }
+    }
+    if(this.res){
+      const p = Math.min(1, (now - this.resAt) / SETTLE), e = 1 - easeOut(p);
+      if(p >= 1) this.res = null;
+      else for(const key in this.res) v[key] = (v[key]||0) + this.res[key]*e;
+    }
+    return v;
+  }
+  weight(now){
+    if(this.active){ const len = shotLen(this.tracks); return len ? Math.min(1, (now - this.start) / len) : 1; }
+    if(this.from) return 1 - easeOut(Math.min(1, (now - this.fromAt) / SETTLE));
+    return 0;
+  }
+  wrapOf(key){ const [part, prop] = key.split('|'); return prop === 'rotate' ? this.wraps[part] : 0; }
+  norm(v){ const o = {}; for(const k in v){ const w=this.wrapOf(k); o[k] = w ? v[k] - Math.round(v[k]/w)*w : v[k]; } return o; }
+  on(now){ const cur = this.raw(now); this.res = Object.keys(cur).length ? this.norm(cur) : null; this.resAt = now; this.from = null; this.active = true; this.start = now; }
+  off(now){ if(this.shot) return; const cur = this.raw(now); this.active = false; this.res = null; this.from = cur; this.fromAt = now; }
+}
+
+// ---- icon instance ------------------------------------------------------------
+const SVGNS = 'http://www.w3.org/2000/svg';
+class Anim {
+  constructor(name){
+    const s = SPECS[name]; this.s = s; this.views = []; this.hover = false; this.selected = false; this.base = 0;
+    const wraps = {}; s.parts.forEach(p => { if(p.wrap) wraps[p.id] = p.wrap; });
+    this.L = {hover:new Layer(s.hover, wraps, false), press:new Layer(s.press, wraps, true), active:new Layer(s.active, wraps, false)};
+    this.owned = new Set(s.active.map(t => t.part+'|'+t.prop));
+    this.morph = {}; s.parts.forEach(p => { if(p.to) this.morph[p.id] = morpher(p.d, p.to); });
+  }
+  view(size){
+    const svg = document.createElementNS(SVGNS,'svg');
+    svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('width',size); svg.setAttribute('height',size);
+    const nodes = {};
+    for(const p of this.s.parts){
+      const g = document.createElementNS(SVGNS,'g'), path = document.createElementNS(SVGNS,'path');
+      path.setAttribute('d', p.d); path.setAttribute('stroke-linecap','round'); path.setAttribute('stroke-linejoin','round');
+      if(p.fill){ path.setAttribute('stroke','none'); path.setAttribute('fill-rule','evenodd'); }
+      else { path.setAttribute('fill','none'); path.setAttribute('stroke-width','1.5'); path.setAttribute('pathLength','1'); }
+      g.appendChild(path);
+      (p.parent ? nodes[p.parent].g : svg).appendChild(g);
+      nodes[p.id] = {g, path};
+    }
+    this.views.push(nodes);
+    return svg;
+  }
+  setHover(h){ if(h===this.hover) return; this.hover=h; h ? this.L.hover.on(clock) : this.L.hover.off(clock); }
+  press(){ if(this.s.press.length) this.L.press.on(clock); }
+  setSelected(v){ if(v===this.selected) return; this.selected=v; v ? this.L.active.on(clock) : this.L.active.off(clock); }
+  frame(dt){
+    const want = (this.hover || this.selected) ? 1 : 0;
+    this.base += Math.sign(want - this.base) * Math.min(Math.abs(want - this.base), dt / BASE_FADE);
+    const baseColor = mix(pal.muted, pal.text, this.base);
+    const sum = {};
+    const aw = this.L.active.weight(clock);
+    for(const [name, l] of Object.entries(this.L)){
+      const v = l.raw(clock);
+      for(const k in v) sum[k] = (sum[k]||0) + (name === 'hover' && this.owned.has(k) ? v[k]*(1-aw) : v[k]);
+    }
+    const g = (id, prop) => sum[id+'|'+prop] || 0;
+    for(const p of this.s.parts){
+      const rest = p.rest || {}, o = p.origin;
+      const r=g(p.id,'rotate'), tx=g(p.id,'tx'), ty=g(p.id,'ty'), sc=1+g(p.id,'scale');
+      const op = Math.max(0, Math.min(1, (rest.opacity ?? 1) + g(p.id,'opacity')));
+      const draw = Math.max(0, Math.min(1, 1 + g(p.id,'draw')));
+      const tint = Math.max(0, Math.min(1, g(p.id,'tint')));
+      const fill = Math.max(0, Math.min(1, (rest.fill ?? 1) + g(p.id,'fill')));
+      const col = tint > 0 && p.tint ? mix(baseColor, pal[p.tint], tint) : baseColor;
+      const kx = sc*(1+g(p.id,'sx')), ky = sc*(1+g(p.id,'sy'));
+      const tf = `translate(${tx} ${ty}) translate(${o[0]} ${o[1]}) rotate(${r}) scale(${kx} ${ky}) translate(${-o[0]} ${-o[1]})`;
+      const d = this.morph[p.id] ? this.morph[p.id](g(p.id,'morph')) : null;
+      for(const nodes of this.views){
+        const n = nodes[p.id];
+        n.g.setAttribute('transform', tf);
+        n.g.setAttribute('opacity', draw < 0.002 ? 0 : op);
+        if(p.fill){ n.path.setAttribute('fill', col); n.path.setAttribute('fill-opacity', fill); }
+        else { n.path.setAttribute('stroke', col); n.path.setAttribute('stroke-dasharray', draw > 0.999 ? 'none' : `${draw} 2`); }
+        if(d) n.path.setAttribute('d', d);
+      }
+    }
+  }
+}
+
+// ---- page -----------------------------------------------------------------------
+const anims = [];
+const main = document.getElementById('main');
+for(const [title, names] of GROUPS){
+  const h = document.createElement('h2'); h.textContent = title; main.appendChild(h);
+  const grid = document.createElement('div'); grid.className = 'grid'; main.appendChild(grid);
+  for(const name of names){
+    const s = SPECS[name]; if(!s) continue;
+    const a = new Anim(name); anims.push(a);
+    const card = document.createElement('div'); card.className = 'card';
+    const stage = document.createElement('div'); stage.className = 'stage'; stage.appendChild(a.view(56));
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.innerHTML = `<div class="small"><span class="name">${name}</span></div><div class="note">${s.note}<br><b>激活：</b>${s.activeNote}</div>`;
+    const row = document.createElement('div'); row.className = 'small';
+    for(const sz of [18, 16]){ const chip = document.createElement('div'); chip.className='chip'; chip.appendChild(a.view(sz)); chip.appendChild(document.createTextNode(sz+'px')); row.appendChild(chip); }
+    meta.appendChild(row);
+    card.append(stage, meta); grid.appendChild(card);
+    a.card = card;
+    card.addEventListener('mouseenter', () => { a.setHover(true); card.classList.add('hov'); });
+    card.addEventListener('mouseleave', () => { a.setHover(false); card.classList.remove('hov'); });
+    card.addEventListener('mousedown', () => a.press());
+    card.addEventListener('click', () => { a.setSelected(!a.selected); card.classList.toggle('sel', a.selected); });
+  }
+}
+function tick(now){
+  const dt = Math.min(64, now - last) * speed; last = now; clock += dt;
+  for(const a of anims) a.frame(dt);
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function seg(id, fn){ const el=document.getElementById(id); el.addEventListener('click', e => { const b=e.target.closest('button'); if(!b) return; el.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); fn(b.dataset.v); }); }
+seg('theme', v => { pal = PAL[v]; document.body.classList.toggle('light', v==='light'); });
+seg('speed', v => { speed = +v; });
+document.getElementById('allActive').addEventListener('click', () => {
+  const v = !anims.every(a => a.selected);
+  anims.forEach((a, i) => setTimeout(() => { a.setSelected(v); a.card.classList.toggle('sel', v); }, i*60/speed));
+});
+document.getElementById('demo').addEventListener('click', () => {
+  anims.forEach((a, i) => {
+    setTimeout(() => { a.setHover(true); a.card.classList.add('hov'); }, i*180/speed);
+    setTimeout(() => { a.setHover(false); a.card.classList.remove('hov'); }, (i*180 + 1600)/speed);
+  });
+});
+</script>
