@@ -47,6 +47,8 @@
 - `version`（Linux，仅 dev → master）：`tools/check-version.ps1`（见 [发版](release.md#4-发版)）。
 - `windows`（`windows-2022`）：安装固定版本的 Qt、sccache、lld 后运行 `dev.bat ci`；进 `dev` 的 PR 先从 PyPI 装固定版本 clang-format 跑 `check-format.ps1 -Base <基准> -Require`（runner 自带 LLVM 版本不同）。构建后打印 Ninja 日志的耗时分布（按步骤类别汇总与最慢的 20 步），调优读这里，不为测量额外触发运行。
   - Qt 与 MinGW 整目录一份 actions/cache 归档（约 420 MB），键由固定版本与模块组成；命中时不再运行安装 action——它即使命中自带缓存，也要先装新 Python 并从源码编译 aqtinstall 的依赖，每次约一分钟。未命中时 action 以 `set-env: false`、`add-tools-to-path: false` 安装后保存；两种情况都只靠 `SPANTUI_QT_SDK_ROOT` 找套件，构建环境一致。
-  - sccache 缓存整目录经 actions/cache 传递（无调试信息时每份约 200 MB）。dev 的推送运行与 PR 运行都保存：PR 先恢复本 PR 上次推送的归档，没有时取目标分支的，所以修复后再推只重编改动部分。配额 10 GB，超出时 GitHub 先淘汰最久未访问的；dev 最新的归档每个新 PR 都会读取，不会先被淘汰。
+  - sccache 缓存整目录经 actions/cache 传递（无调试信息时每份约 40 MB）。dev 的推送运行与 PR 运行都保存：PR 先恢复本 PR 上次推送的归档，没有时取目标分支的，所以修复后再推只重编改动部分。PR 之间互相看不到归档：dev 的推送运行保存之前开的 PR 会全量编译一次。配额 10 GB，超出时 GitHub 先淘汰最久未访问的；dev 最新的归档每个新 PR 都会读取，不会先被淘汰。
+  - sccache 版本固定在 `tools/toolchain-versions.json`（action 默认取最新发布）。命中率看 "Compiler cache statistics" 步骤；action 的收尾注释关闭——它统计的是我们的服务停止后新起的空服务，总显示 "0 hits"。
+  - rcc 把每个资源文件的修改时间写进生成的 qrc 源码，而每次检出的时间都不同，qrc 目标（字体资源单个编译 10–16 秒）因此永远不命中缓存。CI 设 `QT_RCC_SOURCE_DATE_OVERRIDE` 为常量时间，使其可复现；只在 CI 设置，发版构建在维护者本机完成。
 
-action 固定到提交 SHA（行尾注释标签），Dependabot 每月更新；`reuse`、`version` 限时 10 分钟，`windows` 90 分钟。
+action 固定到提交 SHA（行尾注释标签），Dependabot 每月更新；Linux 任务写明镜像版本（`ubuntu-24.04`），不用会随时迁移的 `ubuntu-latest`。`reuse`、`version` 限时 10 分钟，`windows` 90 分钟。

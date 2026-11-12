@@ -31,7 +31,9 @@
 
 后两项作为同名 CMake 选项传给每棵构建树，变化后自动重新配置。CI 设 `SPANTUI_LINKER=lld`、`SPANTUI_DEBUG_INFO=OFF`。
 
-CI 与发版的 Qt、MinGW、clang-format 版本固定在 `tools/toolchain-versions.json`；`dev.bat release` 核对本机版本，不一致即拒绝发版。
+CI 与发版的 Qt、MinGW、clang-format 版本（以及 CI 的 sccache 版本）固定在 `tools/toolchain-versions.json`；`dev.bat release` 核对本机版本，不一致即拒绝发版。
+
+配置时不打印两条无信息量的告警：私有模块告警（`QT_NO_PRIVATE_MODULE_WARNING`，有意使用 `GuiPrivate`/`QuickPrivate` 且 Qt 版本固定）与 Qt Gui 可选依赖 `WrapVulkanHeaders` 的查找（`CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders`，本项目不用 Vulkan）。
 
 ## 1. dev.bat 命令
 

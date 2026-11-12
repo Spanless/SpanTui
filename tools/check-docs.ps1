@@ -114,13 +114,12 @@ $codeFiles = @(Get-ChildItem $codeRoots -Recurse -File -Include *.cpp, *.h, *.qm
 $codeFiles += Get-Item (Join-Path $repoRoot 'CMakeLists.txt')
 foreach ($file in $codeFiles) {
     if ($file.FullName -eq $PSCommandPath) { continue }
-    $lineNo = 0
-    foreach ($line in (Get-Content -LiteralPath $file.FullName -Encoding utf8)) {
-        $lineNo++
-        foreach ($m in [regex]::Matches($line, '\bdocs/[\w./-]+\.md')) {
-            if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $m.Value))) {
-                Add-Violation 'backref' ("{0}:{1}" -f (Get-RelativePath $file.FullName), $lineNo) "missing doc: $($m.Value)"
-            }
+    # Whole-file match: reading line by line made this the slowest part of the check.
+    $text = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8)
+    foreach ($m in [regex]::Matches($text, '\bdocs/[\w./-]+\.md')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $m.Value))) {
+            $lineNo = $text.Substring(0, $m.Index).Split("`n").Count
+            Add-Violation 'backref' ("{0}:{1}" -f (Get-RelativePath $file.FullName), $lineNo) "missing doc: $($m.Value)"
         }
     }
 }
@@ -157,7 +156,7 @@ foreach ($binary in $vendorBinaries) {
     }
 }
 
-# Ownership map consistency lives in check-ownership.ps1; one ctest covers both.
+# Ownership map consistency lives in check-ownership.ps1; it runs as part of this check.
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'check-ownership.ps1') -Quiet
 $ownershipFailed = $LASTEXITCODE -ne 0
 
