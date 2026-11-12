@@ -102,7 +102,7 @@
 
 z 值：通用 `zBelow`/`zRaised`；主窗口根兄弟 `zWorkspace` → `zChrome` → `zToast` → `zModal`；组件内部层序写成命名属性。
 
-## 6. 样式检查（`qml_style_check`）
+## 6. 样式检查
 
 `tools/check-style.ps1` 逐行扫描 `qml/`，拦截退役 token、`compact:` 布尔、裸数值（间距、圆角、尺寸、几何、字号、透明度、时长、z）、裸 tooltip 时序、裸 `Text {}`、调色板外十六进制色，以及：
 

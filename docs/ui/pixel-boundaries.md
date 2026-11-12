@@ -15,4 +15,4 @@
 - 相邻面板接缝只由一侧画线。
 - 瓦片内侧直角贴合，外圆角由最外层容器负责。
 
-验证：`--boundary-gallery-theme=<mode>` 或 `--boundary-gallery-shot=<path>` 打开 `qml/BoundaryGallery.qml`，由维护者在 100%–200% 五档缩放下人工查看；高对比焦点框的圆角外缘不应比直边更深。测试：`tests/application/pixel_snap_test.cpp`。
+验证：`--boundary-gallery-theme=<mode>` 或 `--boundary-gallery-shot=<path>` 打开 `qml/BoundaryGallery.qml`，由维护者在 100%–200% 五档缩放下人工查看；高对比焦点框的圆角外缘不应比直边更深。像素对齐不做自动化测试（见 [测试设计规范](../workflow/testing.md#1-测什么)）。

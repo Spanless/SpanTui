@@ -33,6 +33,17 @@ QStringList tableColumns(QSqlDatabase &database, const QString &table)
     return columns;
 }
 
+// Every settings row as "key=value", ordered by key.
+QStringList settingRows(QSqlDatabase &database)
+{
+    QStringList rows;
+    QSqlQuery query(database);
+    if (query.exec(QStringLiteral("select key, value from settings order by key"))) {
+        while (query.next()) rows << query.value(0).toString() + QLatin1Char('=') + query.value(1).toString();
+    }
+    return rows;
+}
+
 int userVersion(QSqlDatabase &database)
 {
     QSqlQuery query(database);
@@ -223,13 +234,8 @@ void WorkspaceDatabaseMigrationTest::versionNineRenamesSettingKeys()
         QString error;
         QVERIFY2(span::core::migrateWorkspaceDatabase(database, &error), qPrintable(error));
         QCOMPARE(userVersion(database), span::core::kWorkspaceDatabaseVersion);
-        QVERIFY(query.exec(QStringLiteral("select key, value from settings order by key")));
-        QStringList rows;
-        while (query.next()) {
-            rows << query.value(0).toString() + QLatin1Char('=') + query.value(1).toString();
-        }
         QCOMPARE(
-            rows,
+            settingRows(database),
             (QStringList{QStringLiteral("terminal.cursorStyle=bar"), QStringLiteral("themeMode=dark"),
                          QStringLiteral("window.x=20"), QStringLiteral("workspace.scriptRunMode=independentWindow")}));
         database.close();

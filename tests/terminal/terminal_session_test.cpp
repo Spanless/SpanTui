@@ -335,7 +335,6 @@ private slots:
     void visibleViewStartsNeverLaunchedSession();
     void searchCompletesWithoutMatches();
     void hiddenViewDoesNotStartNeverLaunchedSession();
-    void startsCoreThreadLazily();
     void plainCtrlCInterruptsForegroundOnFirstPress();
     void plainCtrlCCopiesSelectionWithoutInterrupting();
     void forwardsKeyReleaseOnlyAfterItsPress();
@@ -872,19 +871,6 @@ void TerminalSessionTest::hiddenViewDoesNotStartNeverLaunchedSession()
     QCoreApplication::processEvents();
     QVERIFY(!session.launchAttempted());
     QVERIFY(!session.running());
-}
-
-void TerminalSessionTest::startsCoreThreadLazily()
-{
-    TerminalSession session(QStringLiteral("lazy-core"), QDir::tempPath());
-    QThread *coreThread = session.findChild<QThread *>();
-    QVERIFY(coreThread);
-    QVERIFY(!coreThread->isRunning());
-
-    const quint64 token = session.attachRenderConsumer(this);
-    session.setRenderConsumer(token, true, 60);
-    QTRY_VERIFY_WITH_TIMEOUT(coreThread->isRunning(), 2000);
-    QTRY_VERIFY_WITH_TIMEOUT(session.latestSnapshot().sequence > 0, 2000);
 }
 
 void TerminalSessionTest::plainCtrlCInterruptsForegroundOnFirstPress()

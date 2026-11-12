@@ -5,7 +5,7 @@
       "name": "qml",
       "paths": ["qml/*"],
       "docs": ["docs/ui/overview.md"],
-      "checks": ["tools/check-style.ps1", "dev.bat test -R qml_style_check -R translation_catalog", "dev.bat run --smoke"]
+      "checks": ["tools/check-style.ps1", "tools/check-translations.ps1", "tools/check-icons.ps1", "dev.bat run --smoke"]
     },
     {
       "name": "qml-shared",
@@ -71,7 +71,7 @@
       "name": "settings",
       "paths": ["src/application/settings_store.*", "src/application/*_settings.*", "src/application/preferences.*", "src/application/clipboard.*", "src/application/shortcut_registry.*", "qml/components/business/settings/*"],
       "docs": ["docs/services/application/settings-appearance.md"],
-      "checks": ["dev.bat test -R settings_test -R shortcut_registry -R qml_style_check -R translation_catalog"]
+      "checks": ["dev.bat test -R settings_test -R shortcut_registry", "tools/check-style.ps1", "tools/check-translations.ps1"]
     },
     {
       "name": "core",
@@ -119,7 +119,7 @@
       "name": "remote",
       "paths": ["src/remote/*", "src/platform/windows/credential_protection.*", "qml/components/business/remote/*"],
       "docs": ["docs/services/remote/ssh-remote.md"],
-      "checks": ["dev.bat test -R ssh_ -R remote_ -R translation_catalog"]
+      "checks": ["dev.bat test -R ssh_ -R remote_", "tools/check-translations.ps1"]
     },
     {
       "name": "git",
@@ -191,13 +191,13 @@
       "name": "assets",
       "paths": ["assets/*"],
       "docs": ["docs/ui/icons.md"],
-      "checks": ["dev.bat test -R ui_icon_catalog -R file_icon_theme -R brand_icon"]
+      "checks": ["tools/check-icons.ps1", "dev.bat build", "dev.bat test -R file_icon_theme"]
     },
     {
       "name": "translations",
       "paths": ["translations/*"],
       "docs": ["docs/workflow/localization.md"],
-      "checks": ["dev.bat test -R translation_catalog"]
+      "checks": ["tools/check-translations.ps1"]
     },
     {
       "name": "docs",

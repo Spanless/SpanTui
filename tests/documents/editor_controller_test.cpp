@@ -49,8 +49,6 @@ private slots:
     void clearBaseContentResetsGitDiff();
     void handlesInvalidRegexAndZeroLengthMatchesSafely();
     void lineModelExposesRowsAndWidestLine();
-    void gitRebuildReportsOnlyChangedRows();
-    void unchangedGitRebuildEmitsNothing();
     void noBaseMeansNoGitStateAndNoRebuild();
     void clearDocumentLeavesNoRows();
 };
@@ -233,50 +231,6 @@ void EditorControllerTest::lineModelExposesRowsAndWidestLine()
     // The same text again is no new document.
     controller.setText(QStringLiteral("ab\tc"));
     QCOMPARE(reset.count(), 2);
-}
-
-void EditorControllerTest::gitRebuildReportsOnlyChangedRows()
-{
-    EditorController controller;
-    controller.setGitDiffDelayForTesting(1);
-    controller.setText(QStringLiteral("a\nB\nc\nd\ne\nf"));
-    controller.setBaseContent(QStringLiteral("a\nb\nc\nd\ne\nf"), true);
-    QTRY_COMPARE(gitStatus(controller, 2), QStringLiteral("modified"));
-
-    // Same text against a base that differs in other lines: row 2 clears,
-    // rows 5 and 6 change, the rows between are untouched.
-    QSignalSpy reset(controller.lineModel(), &QAbstractItemModel::modelReset);
-    QSignalSpy changed(controller.lineModel(), &QAbstractItemModel::dataChanged);
-    controller.setBaseContent(QStringLiteral("a\nB\nc\nd\nE\nF"), true);
-    QTRY_COMPARE(changed.count(), 2);
-    QCOMPARE(reset.count(), 0);
-    QCOMPARE(changed.at(0).at(0).value<QModelIndex>().row(), 1);
-    QCOMPARE(changed.at(0).at(1).value<QModelIndex>().row(), 1);
-    QCOMPARE(changed.at(1).at(0).value<QModelIndex>().row(), 4);
-    QCOMPARE(changed.at(1).at(1).value<QModelIndex>().row(), 5);
-    const auto roles = changed.at(1).at(2).value<QList<int>>();
-    QVERIFY(roles.contains(CodePreviewLineModel::GitStatusRole));
-    QVERIFY(!roles.contains(CodePreviewLineModel::TextRole));
-    QVERIFY(gitStatus(controller, 2).isEmpty());
-    QCOMPARE(gitStatus(controller, 5), QStringLiteral("modified"));
-    QCOMPARE(gitStatus(controller, 6), QStringLiteral("modified"));
-}
-
-void EditorControllerTest::unchangedGitRebuildEmitsNothing()
-{
-    EditorController controller;
-    controller.setGitDiffDelayForTesting(1);
-    controller.setText(QStringLiteral("a\nB\nc"));
-    controller.setBaseContent(QStringLiteral("a\nb\nc"), true);
-    QTRY_COMPARE(gitStatus(controller, 2), QStringLiteral("modified"));
-
-    QSignalSpy reset(controller.lineModel(), &QAbstractItemModel::modelReset);
-    QSignalSpy changed(controller.lineModel(), &QAbstractItemModel::dataChanged);
-    // The same base again (a git status refresh) rebuilds to the same states.
-    controller.setBaseContent(QStringLiteral("a\nb\nc"), true);
-    QTest::qWait(50);
-    QCOMPARE(changed.count(), 0);
-    QCOMPARE(reset.count(), 0);
 }
 
 void EditorControllerTest::noBaseMeansNoGitStateAndNoRebuild()

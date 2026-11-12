@@ -120,6 +120,19 @@ QStringList addedTexts(const QVariant &body)
     return added;
 }
 
+// Adds `count` detached worktrees without checkouts, extra-0 upwards in `root`.
+bool addDetachedWorktrees(const QString &repository, const QTemporaryDir &root, int count)
+{
+    for (int index = 0; index < count; ++index) {
+        if (!run(repository,
+                 {QStringLiteral("worktree"), QStringLiteral("add"), QStringLiteral("--detach"),
+                  QStringLiteral("--no-checkout"), root.filePath(QStringLiteral("extra-%1").arg(index))})
+                 .succeeded())
+            return false;
+    }
+    return true;
+}
+
 // `count` commits of file.txt holding their index, subjects commit-0 upwards.
 QList<ImportedCommit> numberedCommits(int count)
 {
@@ -459,12 +472,7 @@ void GitRepositoryReadTest::probesWorktreeChangesInBackground()
 
     // One round checks at most kGitWorktreeProbeLimit worktrees; the manual
     // refresh probes the list it re-read.
-    for (int i = 0; i < kGitWorktreeProbeLimit; ++i) {
-        QVERIFY(run(repository,
-                    {QStringLiteral("worktree"), QStringLiteral("add"), QStringLiteral("--detach"),
-                     QStringLiteral("--no-checkout"), root.filePath(QStringLiteral("extra-%1").arg(i))})
-                    .succeeded());
-    }
+    QVERIFY(addDetachedWorktrees(repository, root, kGitWorktreeProbeLimit));
     service.refreshRefs();
     GIT_TRY_COMPARE(service.worktrees()->count(), kGitWorktreeProbeLimit + 2, 5000);
     GIT_TRY_COMPARE(service.worktreeChanges().size(), kGitWorktreeProbeLimit, 20000);

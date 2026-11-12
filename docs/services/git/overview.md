@@ -38,7 +38,7 @@
 ## 3. 代码与测试
 
 - `src/git/`：`git_repository_service`、`git_lane_scheduler`、`git_repository_refresh`、`git_repository_parsers`、`git_repository_diff`、`git_diff_store`
-- 测试：`git_lane_scheduler_test`（排队、顶替、进度配对、车道路由）、`git_repository_read_test`（含工作树、手动刷新、领先/落后与工作树改动探测）、`git_repository_concurrency_test`、`git_parsers_test`（含 `parseWorktrees`、上游跟踪字段）、`git_item_model_test`、`workspace_controller_test`（前台项目集合、`openProjectFolder`）
+- 测试：`git_lane_scheduler_test`（排队、顶替、进度配对、车道路由）、`git_repository_read_test`（含工作树、手动刷新、领先/落后与工作树改动探测）、`git_repository_concurrency_test`、`git_parsers_test`（含 `parseWorktrees`、上游跟踪字段）、`workspace_controller_test`（前台项目集合、`openProjectFolder`）
 
 ## 4. 本域改动完成标准
 

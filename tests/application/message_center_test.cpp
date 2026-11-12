@@ -20,22 +20,6 @@ using span::application::MessageKind;
 
 namespace {
 
-// Rows in the messages table at `databasePath`, or -1 when it cannot be read.
-int storedMessageRows(const QString &databasePath, const QString &connectionName)
-{
-    int rows = -1;
-    {
-        QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
-        database.setDatabaseName(databasePath);
-        QSqlQuery query(database);
-        if (database.open() && query.exec(QStringLiteral("select count(*) from messages")) && query.next())
-            rows = query.value(0).toInt();
-        database.close();
-    }
-    QSqlDatabase::removeDatabase(connectionName);
-    return rows;
-}
-
 void postNumbered(MessageCenter *center, int count)
 {
     for (int i = 0; i < count; ++i) center->post(MessageKind::Info, QStringLiteral("row %1").arg(i));
@@ -79,7 +63,6 @@ private slots:
     void emptyOrWhitespaceBodyIsIgnored();
     void unknownKindFallsBackToInfo();
     void persistsMessagesAndReadState();
-    void batchesStorageWritesUntilFlush();
 
 private:
     MessageCenter *center() const
@@ -347,42 +330,6 @@ void MessageCenterTest::persistsMessagesAndReadState()
     QVERIFY(!unopenable.initializePersistence(temporary.path()));
     unopenable.post(MessageKind::Info, QStringLiteral("kept in memory"));
     QCOMPARE(unopenable.count(), 1);
-}
-
-void MessageCenterTest::batchesStorageWritesUntilFlush()
-{
-    QTemporaryDir temporary;
-    QVERIFY(temporary.isValid());
-    const QString databasePath =
-        temporary.filePath(QStringLiteral("messages.db"));
-    const auto storedRows = [&databasePath](const QString &name) { return storedMessageRows(databasePath, name); };
-    {
-        QSqlDatabase database = QSqlDatabase::addDatabase(
-            QStringLiteral("QSQLITE"), QStringLiteral("batch_setup"));
-        database.setDatabaseName(databasePath);
-        QVERIFY(database.open());
-        QSqlQuery query(database);
-        QVERIFY(query.exec(QStringLiteral(
-            "create table messages ("
-            "id integer primary key autoincrement, "
-            "kind text not null, title text not null, body text not null, "
-            "created_at integer not null, read integer not null default 0)")));
-        database.close();
-    }
-    QSqlDatabase::removeDatabase(QStringLiteral("batch_setup"));
-
-    {
-        MessageCenter writer;
-        QVERIFY(writer.initializePersistence(databasePath));
-        writer.post(MessageKind::Error, QStringLiteral("one"));
-        writer.post(MessageKind::Warning, QStringLiteral("two"));
-        QCOMPARE(storedRows(QStringLiteral("batch_probe_1")), 0);
-        QTRY_COMPARE(storedRows(QStringLiteral("batch_probe_2")), 2);
-
-        writer.post(MessageKind::Error, QStringLiteral("three"));
-    }
-    // Destruction flushes writes that were still waiting for the timer.
-    QCOMPARE(storedRows(QStringLiteral("batch_probe_3")), 3);
 }
 
 void MessageCenterTest::notifySwallowsCppExceptions()

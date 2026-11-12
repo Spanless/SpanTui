@@ -86,4 +86,4 @@ askpass 管道无法监听时（告警），ssh 用自己的控制台提示：�
 
 - [ ] ssh/sftp 参数以独立 argv 传递；用户输入先过 `checkEndpoint()`，远端路径经 `shellQuote()`/`sftpQuote()`。
 - [ ] 凭据只以 DPAPI 密文落盘，不进日志、消息中心或 QML；私钥只以仅当前用户可访问的副本存在于 `ssh-keys\`。
-- [ ] `dev.bat test -R ssh_ -R remote_ -R session_model -R workspace_controller -R migration -R translation_catalog`。
+- [ ] `dev.bat test -R ssh_ -R remote_ -R session_model -R workspace_controller -R migration`、`tools/check-translations.ps1`。

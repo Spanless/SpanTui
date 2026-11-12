@@ -19,14 +19,18 @@
 - `run --smoke`：须得到 `SMOKE_OK`。`package` 在 smoke 通过后执行。
 - 测试正则合并为一次 `dev.bat test -R a -R b`；不写 `"a|b"`——PowerShell 调 `.bat` 时去掉引号，cmd 把 `|` 当管道。
 - 窗口验证由维护者完成；未经要求不开可见窗口、不截图（`--workspace-shot`/`--boundary-gallery-shot` 同）。交付时写明未做视觉验收及需查看的界面。
-- `qml_style_check`（`tools/check-style.ps1`）：规则见 [设计系统](../ui/design-system.md)，特例用 `// style-ok: 原因` 豁免。
-- `translation_catalog_test`：见 [国际化](localization.md)。
-
 ## 3. 静态检查
 
-`tools/agent-check.ps1` 按改动文件运行 QML 样式、C++ 格式、`check-docs`、`check-layout`、`check-ownership -Changed`（列出应读文档、高影响对象、收尾检查；代码改了而主责文档未动时 WARN）与 `git diff --check`，成功输出 `AGENT_CHECK_OK`。
+`dev.bat check`（CI 与 pre-push 同）运行 `check-docs`、`check-layout`、`check-style`、`check-translations`、`check-icons`，成功输出 `CHECK_OK`；它们不注册为 CTest 测试。
+
+- `tools/check-style.ps1`：QML 设计 token 规则见 [设计系统](../ui/design-system.md)，特例用 `// style-ok: 原因` 豁免。
+- `tools/check-translations.ps1`：译文目录与源码逐条对应，见 [国际化](localization.md)。
+- `tools/check-icons.ps1`：图标名唯一、SVG 与动效文件可加载、QML 与文件图标映射引用的名字都有 SVG，见 [图标](../ui/icons.md)。
+
+`tools/agent-check.ps1` 按改动文件运行 QML 样式、译文（`qml/`、`src/`、`translations/`）、图标（`qml/`、`assets/icons/`）、C++ 格式、`check-docs`、`check-layout`、`check-ownership -Changed`（列出应读文档、高影响对象、收尾检查；代码改了而主责文档未动时 WARN）与 `git diff --check`，成功输出 `AGENT_CHECK_OK`。
 
 - `.githooks/pre-commit` 运行 `agent-check -Staged`：改动清单、格式、ownership、空白取暂存内容，其余读工作树；暂存区为空时直接通过。启用：`git config core.hooksPath .githooks`（agent 不自行修改 git 配置）。
+- 两个钩子启动 Windows PowerShell 5.1 前清除 `PSModulePath`：pwsh 7 的模块路径经 git 这类非 PowerShell 进程传下来后，5.1 会加载 pwsh 的 `Microsoft.PowerShell.Utility`，`Get-FileHash` 等脚本定义的 cmdlet 随之失效。pwsh 7 直接启动 5.1 时自己会清理，所以只在这条链路上出现。
 - `.githooks/pre-push` 拒绝直接推送 `master`、`dev`，其余推送先跑 `dev.bat check`（`CHECK_OK`）。
 - C++ 格式：`tools/check-format.ps1` 按 `.clang-format` 只查新增或修改的行（新文件查全文），`-Fix` 就地格式化；`src/terminal/vendor/` 保持上游格式。本机无 clang-format 或主版本与 `tools/toolchain-versions.json` 不同时给 WARN。
 

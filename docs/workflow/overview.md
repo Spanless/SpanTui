@@ -67,7 +67,7 @@ dev.bat worktree remove feat/xxx
 
 ### 构建脚本（`CMakeLists.txt`、`dev.bat`、`tools/devtool/`、`tools/toolchain.ps1`）
 - [ ] 新测试目标出现在 `dev.bat test --list -R <名称>`。
-- [ ] `dev.bat test -R toolchain_self_test` 通过。
+- [ ] `dev.bat check` 输出 `CHECK_OK`；改到的 `dev.bat` 子命令实际跑通一次。
 - [ ] [构建规范](build.md)、[验证门禁](verification.md) 的命令与输出标记与实现一致。
 
 ### 顶层目录或产出位置

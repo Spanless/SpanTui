@@ -84,4 +84,4 @@
 - [ ] 新增/删除组件：同步 `CMakeLists.txt` 登记与本文 §2；删除时全库清除引用及 [术语表](../../reference/glossary.md) 条目。
 - [ ] 修改组件 API 或行为：全库搜索调用方；改动生命周期或关闭策略时确认 `AppPopup`/`PopupLayerStack` 协议不受影响。
 - [ ] common/base 未引入领域字段或 `TerminalSettings`/`WorkspaceSettings`；business 未直接实例化 base。
-- [ ] `qml_style_check` 通过。
+- [ ] `tools/check-style.ps1` 通过。
