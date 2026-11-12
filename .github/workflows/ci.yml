@@ -341,9 +341,11 @@ jobs:
 
       # dev's push runs save for the pull requests that branch from it; a
       # pull request saves for its own next push, so a fix-up rebuilds only
-      # what it changed. An archive is about 200 MB without debug info, far
-      # inside the repository's 10 GB quota; GitHub evicts the least recently
-      # used first, and dev's newest is restored by every new pull request.
+      # what it changed. Pull requests cannot see each other's archives: one
+      # opened before dev's push run has saved compiles everything once. An
+      # archive is about 40 MB without debug info, far inside the
+      # repository's 10 GB quota; GitHub evicts the least recently used
+      # first, and dev's newest is restored by every new pull request.
       # A failed build or test run still saves what it compiled.
       - name: Save the compiler cache
         if: ${{ !cancelled() && env.BUILD == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
