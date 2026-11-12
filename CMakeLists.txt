@@ -44,6 +44,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
+# GuiPrivate/QuickPrivate are used on purpose and the Qt version is pinned
+# (tools/toolchain-versions.json); the per-configure warning says nothing new.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+# Optional for Qt Gui and unused here; looking for it only prints
+# "Could NOT find WrapVulkanHeaders".
+set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders TRUE)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Gui GuiPrivate Network Qml Quick QuickPrivate QuickControls2 ShaderTools Sql Svg Test LinguistTools)
 
 qt_policy(SET QTP0001 NEW)

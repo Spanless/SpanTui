@@ -41,8 +41,10 @@ jobs:
   # gets the static checks without a build. Push runs always build, so the run
   # after the merge stays a full safety net.
   # A failure here never skips anything.
+  # Linux jobs name the image version: the moving ubuntu-latest label changes
+  # image under the jobs and annotates every run while a migration is pending.
   reuse:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -101,7 +103,7 @@ jobs:
   # can list origin's tags.
   version:
     if: github.event_name == 'pull_request' && github.base_ref == 'master'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -137,6 +139,12 @@ jobs:
       SPANTUI_LINKER: lld
       # Part of the Qt cache key: a different module set is a different kit.
       QT_MODULES: qtshadertools qtimageformats qttasktree
+      # rcc writes each file's modification time into the generated qrc
+      # sources, and a fresh checkout has new times every run, so those
+      # objects (the font resource alone compiles 10-16 s) never hit the
+      # compiler cache. A constant time (2000-01-01) makes them reproducible.
+      # CI only: release builds come from the maintainer's machine.
+      QT_RCC_SOURCE_DATE_OVERRIDE: '946684800'
     steps:
       # Two commits deep: a core run diffs the tested merge against its first
       # parent.
@@ -154,6 +162,7 @@ jobs:
           "qt=$($v.qt)" >> $env:GITHUB_OUTPUT
           "mingw=$($v.mingwTool)" >> $env:GITHUB_OUTPUT
           "clang_format=$($v.clangFormat)" >> $env:GITHUB_OUTPUT
+          "sccache=$($v.sccache)" >> $env:GITHUB_OUTPUT
           "qt_dir=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_OUTPUT
           "qt_key=qt-windows-$($v.qt)-$($v.mingwTool)-$($env:QT_MODULES -replace ' ', '+')" >> $env:GITHUB_OUTPUT
 
@@ -233,10 +242,16 @@ jobs:
       # CMakeLists.txt picks sccache up from PATH as the compiler launcher
       # (configure prints "Compiler cache: ..."). The server is started here
       # so a cache failure shows in this step instead of silently falling back
-      # to uncached compiles.
+      # to uncached compiles. The version is pinned: by default the action
+      # takes the newest sccache release. Its post step would annotate the run
+      # with the statistics of a fresh, empty server (ours has been stopped by
+      # then: "0% - 0 hits"); the statistics step below prints the real ones.
       - name: Set up sccache
         if: env.BUILD == 'true'
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v${{ steps.versions.outputs.sccache }}
+          disable_annotations: true
 
       - name: Start sccache
         if: env.BUILD == 'true'
@@ -285,8 +300,14 @@ jobs:
         run: |
           $log = 'target\build\.ninja_log'
           if (-not (Test-Path -LiteralPath $log)) { Write-Host 'No Ninja log.'; exit 0 }
+          $seen = @{}
           $steps = Get-Content -LiteralPath $log | Where-Object { $_ -notmatch '^#' } | ForEach-Object {
             $f = $_ -split "`t"
+            # A step with several outputs (moc, qmlcachegen) logs one line per
+            # output with the same times and command hash; count it once.
+            $id = "$($f[0])/$($f[1])/$($f[4])"
+            if ($seen.ContainsKey($id)) { return }
+            $seen[$id] = $true
             $out = $f[3]
             $kind = switch -Regex ($out) {
               'qmlcache/.*\.obj$' { 'compile (QML)'; break }
