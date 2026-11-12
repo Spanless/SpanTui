@@ -472,15 +472,25 @@ Item {
                             ? "99+" : String(MessageCenter.unreadCount)
                         readonly property color badgeFill: hasError ? Theme.danger : Theme.accent
                         readonly property color badgeInk: hasError ? Theme.dangerText : Theme.accentText
-                        readonly property int badgeH: PixelGrid.snapSize(13, root.renderDpr)
+                        // The digits' ink, relative to the baseline. The circle
+                        // grows with the UI font, and the label centres on its
+                        // ink: centred by its line box, the empty descent pushes
+                        // the digits up, out of a 13 px circle at larger sizes.
+                        readonly property rect labelInk: badgeMetrics.tightBoundingRect(badgeLabel)
+                        readonly property int badgeH: PixelGrid.snapSize(
+                            Math.max(13, Math.ceil(labelInk.height) + Theme.spaceSm), root.renderDpr)
                         readonly property int badgePad: PixelGrid.snapSize(
                             badgeLabel.length > 1 ? Theme.spaceSm : 0, root.renderDpr)
 
                         visible: show
-                        clip: true
                         width: show ? Math.max(badgeH,
                             badgeText.implicitWidth + badgePad * 2) : 0
                         height: badgeH
+
+                        FontMetrics {
+                            id: badgeMetrics
+                            font: badgeText.font
+                        }
 
                         CrispSurface {
                             anchors.fill: parent
@@ -493,12 +503,13 @@ Item {
                         }
                         RenderText {
                             id: badgeText
-                            anchors.centerIn: parent
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            y: PixelGrid.snap(parent.height / 2 - baselineOffset
+                                - parent.labelInk.y - parent.labelInk.height / 2, root.renderDpr)
                             text: parent.badgeLabel
                             color: parent.badgeInk
                             font: Appearance.uiAuxFont(Theme.uiSm, Appearance.fontRevision)
                             horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
                         }
                     }
                 }

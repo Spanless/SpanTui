@@ -32,6 +32,15 @@
 | `editor` | `PreviewPane.qml` | 只读查看 |
 | `terminal` | `TerminalPane.qml` | 终端会话 |
 
+### 终端头部
+
+`ContentContainer.qml` 的 `terminalHeader`：终端图标、标题（占满剩余宽度），右侧依次是分支组、资源读数组与窗格关闭按钮，组间用竖向 `PixelLine`（高 `Theme.iconSm`）分隔，控件统一 `ChromeButton` `size: "sm"`、图标 `Theme.iconSm`、间距 `Theme.spaceSm`。
+
+- **分支组**：分支按钮（图标与名称同属一个点击目标，浮窗打开时 `selected`；按钮接走了头部的按下事件，所以点击时自己调用 `activateThis()` 聚焦瓦片，和按在头部空白处一样）与有改动时的 `DiffStat`（见 [Git 读取 §4](../../services/git/reads-history-diff.md#4-引用与工作树)）。
+- **资源读数组**：`ResourceStrip`，随瓦片聚焦滑入滑出（见 [资源监控 §2](../../services/monitoring/resource-monitoring.md#2-标题栏读数resourcestripqml)）。
+- **弹层互斥**：分支浮窗与资源详情从不同时打开——两者都向下展开、相邻锚定，同时开着会互相叠压（分支浮窗的筛选框被挡）。打开分支浮窗前调用 `resourceStrip.dismiss()`；资源读数发出 `detailOpening()` 时关闭分支浮窗。固定的资源详情改用 `Theme.zBelow`，之后打开的弹层与菜单压在它上面。
+- **窄宽度**：标题保底 `min(标题自然宽, Theme.dialogSm / 4)`；放不下时依次让出：资源读数（收起）→ 改动统计 → 分支名（`ChromeButton.maxWidth` 末尾省略，余量不足 `minLabelWidth` 时只留图标）→ 分支按钮。预算只读各控件的自然宽度（`naturalWidth`、`implicitWidth`），不读分配后的宽度，不形成绑定环；分支名被截断时悬停提示显示全名。
+
 ## 3. 栅格
 
 - 任意列数；每列一个全高瓦片（`rowSpan = 2`）或上下两个半高瓦片。

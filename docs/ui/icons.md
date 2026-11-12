@@ -45,4 +45,7 @@
 - Shell 扩展包的 `StoreLogo.png`（50）、`Square44x44Logo.png`、`Square150x150Logo.png` 不随构建生成：改 SVG 后从新 ICO 的 256 帧以 Lanczos 缩放导出，同轮提交。
 - 程序自带图标（Shell 等）走 `ProgramIcon.qml` + `src/platform/windows/program_icon_provider.*`，不属于矢量图标库。
 
-测试：`tests/workspace/file_icon_theme_test.cpp`、`tests/application/ui_icon_catalog_test.cpp`、`tests/application/icon_motion_test.cpp`。
+## 5. 检查与测试
+
+- 静态检查 `tools/check-icons.ps1`：图标名唯一；SVG 是合法 XML 且 `<defs>` 外至少一条 `<path d>`；QML 里字面量 `icon:`/`iconName:` 与 `file-icons.json` 引用的名字都有 SVG；`*.motion.json` 旁有同名 SVG、能解析、部件的 `path`/`morph` 是该 SVG 的路径 id。轨道、缓动等其余动效规则只在加载时校验（§2）。
+- 测试：`tests/workspace/file_icon_theme_test.cpp`（文件名到图标的匹配）。图标形状与动效由维护者在界面上查看。

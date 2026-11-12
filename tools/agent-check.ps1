@@ -3,6 +3,8 @@
 # Runs the static checks that apply to the changed files and prints the
 # ownership guidance for them:
 #   * tools/check-style.ps1      when qml/ changed;
+#   * tools/check-translations.ps1  when qml/, src/ or translations/ changed;
+#   * tools/check-icons.ps1      when qml/ or assets/icons/ changed;
 #   * tools/check-format.ps1     when C++ changed: clang-format on the
 #                                changed lines (WARN when it is not installed);
 #   * tools/check-docs.ps1       always (also validates the ownership map);
@@ -47,6 +49,12 @@ if ($changed.Count -eq 0) {
 
 if (@($changed | Where-Object { $_ -like 'qml/*' }).Count -gt 0) {
     Invoke-Step 'QML style' { Invoke-Check 'check-style.ps1' }
+}
+if (@($changed | Where-Object { $_ -like 'qml/*' -or $_ -like 'src/*' -or $_ -like 'translations/*' }).Count -gt 0) {
+    Invoke-Step 'Translations' { Invoke-Check 'check-translations.ps1' }
+}
+if (@($changed | Where-Object { $_ -like 'qml/*' -or $_ -like 'assets/icons/*' }).Count -gt 0) {
+    Invoke-Step 'Icons' { Invoke-Check 'check-icons.ps1' }
 }
 if (@($changed | Where-Object { $_ -match '\.(h|hpp|cpp|cc)$' }).Count -gt 0) {
     $formatArgs = if ($Staged) { @('-Staged') } else { @() }

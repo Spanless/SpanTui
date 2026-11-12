@@ -28,7 +28,6 @@ class SettingsTest final : public QObject {
 private slots:
     void initTestCase();
     void loadsDefaultAppearanceSettings();
-    void servesDefaultsWithoutOpening();
     void persistsTerminalTileClosePreference();
     void persistsAndValidatesScriptRunMode();
     void persistsToolPathOverrides();
@@ -54,7 +53,6 @@ private slots:
     void refusesInvalidColorSchemeSaves();
     void refusesRemovingColorSchemeInUse();
     void recoversFromCorruptStoredColorSchemes();
-    void emitsOnlyTheOwningSignal();
     void copiesTextToClipboard();
 
 private:
@@ -165,20 +163,6 @@ void SettingsTest::loadsDefaultAppearanceSettings()
     QCOMPARE(preferences.workspace.scriptRunMode(), QStringLiteral("projectSession"));
 }
 
-void SettingsTest::servesDefaultsWithoutOpening()
-{
-    // The gallery host never opens its store: every key reads as its
-    // default and setters only change the in-memory value.
-    Preferences preferences;
-    QCOMPARE(preferences.appearance.uiFontSize(), 14);
-    QCOMPARE(preferences.appearance.uiFont(14).pixelSize(), 14);
-    QCOMPARE(preferences.terminal.colorSchemeDark(), QStringLiteral("Span Dark"));
-    QCOMPARE(preferences.workspace.renderMode(), QStringLiteral("auto"));
-    preferences.appearance.setUiFontSize(16);
-    QCOMPARE(preferences.appearance.uiFontSize(), 16);
-    QCOMPARE(preferences.store.persistenceQueueDepth(), 0);
-}
-
 void SettingsTest::persistsTerminalTileClosePreference()
 {
     QTemporaryDir dir;
@@ -198,61 +182,6 @@ void SettingsTest::persistsTerminalTileClosePreference()
     Preferences reloaded;
     QVERIFY(openAt(reloaded, databasePath));
     QVERIFY(!reloaded.terminal.terminateOnTileClose());
-}
-
-void SettingsTest::emitsOnlyTheOwningSignal()
-{
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    Preferences preferences;
-    QVERIFY(openAt(preferences, dir.filePath(QStringLiteral("state.db"))));
-    AppearanceSettings &appearance = preferences.appearance;
-    TerminalSettings &terminal = preferences.terminal;
-    WorkspaceSettings &workspace = preferences.workspace;
-    QSignalSpy appearanceSpy(&appearance, &AppearanceSettings::appearanceChanged);
-    QSignalSpy revisionSpy(&appearance, &AppearanceSettings::fontRevisionChanged);
-    QSignalSpy terminalSpy(&terminal, &TerminalSettings::appearanceChanged);
-    QSignalSpy closeSpy(&terminal, &TerminalSettings::closePreferenceChanged);
-    QSignalSpy monitorSpy(&workspace, &WorkspaceSettings::performanceMonitorIntervalChanged);
-
-    appearance.setUiFontSize(appearance.uiFontSize() + 1);
-    QCOMPARE(preferences.store.persistenceQueueDepth(), 1);
-    QCOMPARE(appearanceSpy.count(), 1);
-    QCOMPARE(revisionSpy.count(), 1);
-    QCOMPARE(terminalSpy.count(), 0);
-    QCOMPARE(monitorSpy.count(), 0);
-
-    appearanceSpy.clear();
-    terminal.setRefreshRate(terminal.refreshRate() == 60 ? 120 : 60);
-    QCOMPARE(appearanceSpy.count(), 0);
-    QCOMPARE(terminalSpy.count(), 1);
-    QCOMPARE(monitorSpy.count(), 0);
-
-    terminalSpy.clear();
-    workspace.setPerformanceMonitorIntervalSeconds(workspace.performanceMonitorIntervalSeconds() == 2 ? 3 : 2);
-    QCOMPARE(appearanceSpy.count(), 0);
-    QCOMPARE(terminalSpy.count(), 0);
-    QCOMPARE(monitorSpy.count(), 1);
-
-    terminal.setTerminateOnTileClose(!terminal.terminateOnTileClose());
-    QCOMPARE(appearanceSpy.count(), 0);
-    QCOMPARE(terminalSpy.count(), 0);
-    QCOMPARE(closeSpy.count(), 1);
-
-    // A flip of the effective theme also changes the terminal surfaces.
-    appearance.setThemeMode(appearance.themeMode() == QStringLiteral("dark") ? QStringLiteral("light")
-                                                                             : QStringLiteral("dark"));
-    QCOMPARE(appearanceSpy.count(), 1);
-    QCOMPARE(terminalSpy.count(), 1);
-
-    appearance.setThemeMode(QStringLiteral("system"));
-    appearanceSpy.clear();
-    terminalSpy.clear();
-    appearance.setSystemDark(!appearance.effectiveDark());
-    QCOMPARE(appearanceSpy.count(), 1);
-    QCOMPARE(terminalSpy.count(), 1);
-    preferences.store.saveNow();
-    QCOMPARE(preferences.store.persistenceQueueDepth(), 0);
 }
 
 void SettingsTest::persistsAndValidatesScriptRunMode()

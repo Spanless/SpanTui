@@ -7,6 +7,8 @@
 #include <QSignalSpy>
 #include <QTest>
 
+#include <algorithm>
+
 using span::terminal::TerminalManager;
 
 class TerminalResourceTargetsTest final : public QObject {
@@ -20,14 +22,26 @@ private slots:
 namespace {
 
 // The production sampler against a real shell: the running session's process
-// tree has memory, the never-started session reports nothing.
-void startShellAndIdleSession(TerminalManager &terminals)
+// tree has memory, the never-started session reports nothing. False when the
+// shell does not start.
+bool startShellAndIdleSession(TerminalManager &terminals)
 {
-    QVERIFY(terminals.createSession(QStringLiteral("shell"), QDir::homePath()));
-    QVERIFY(terminals.createSession(QStringLiteral("stopped"), QDir::homePath()));
+    if (!terminals.createSession(QStringLiteral("shell"), QDir::homePath())
+        || !terminals.createSession(QStringLiteral("stopped"), QDir::homePath()))
+        return false;
     terminals.setActiveSession(QStringLiteral("shell"));
-    QTRY_VERIFY(terminals.session(QStringLiteral("shell"))->running());
-    QVERIFY(!terminals.session(QStringLiteral("stopped"))->running());
+    return QTest::qWaitFor([&terminals] { return terminals.session(QStringLiteral("shell"))->running(); }, 5000)
+        && !terminals.session(QStringLiteral("stopped"))->running();
+}
+
+// The target of session `id`, or an empty one.
+ResourceSampleProvider::SessionTarget targetOf(const QVector<ResourceSampleProvider::SessionTarget> &targets,
+                                               const QString &id)
+{
+    const auto found =
+        std::find_if(targets.cbegin(), targets.cend(),
+                     [&id](const ResourceSampleProvider::SessionTarget &target) { return target.id == id; });
+    return found == targets.cend() ? ResourceSampleProvider::SessionTarget{} : *found;
 }
 
 } // namespace
@@ -35,29 +49,24 @@ void startShellAndIdleSession(TerminalManager &terminals)
 void TerminalResourceTargetsTest::targetsDescribeEachSession()
 {
     TerminalManager terminals;
-    startShellAndIdleSession(terminals);
-    if (QTest::currentTestFailed()) return;
+    QVERIFY(startShellAndIdleSession(terminals));
 
     const QVector<ResourceSampleProvider::SessionTarget> targets = terminalResourceTargets(terminals);
     QCOMPARE(targets.size(), 2);
-    for (const ResourceSampleProvider::SessionTarget &target : targets) {
-        if (target.id == QLatin1String("shell")) {
-            QVERIFY(target.running);
-            QVERIFY(target.rootPid != 0);
-        } else {
-            QCOMPARE(target.id, QStringLiteral("stopped"));
-            QVERIFY(!target.running);
-            QCOMPARE(target.rootPid, quint32(0));
-            QVERIFY(target.jobPids.isEmpty());
-        }
-    }
+    const ResourceSampleProvider::SessionTarget shell = targetOf(targets, QStringLiteral("shell"));
+    QVERIFY(shell.running);
+    QVERIFY(shell.rootPid != 0);
+    const ResourceSampleProvider::SessionTarget stopped = targetOf(targets, QStringLiteral("stopped"));
+    QCOMPARE(stopped.id, QStringLiteral("stopped"));
+    QVERIFY(!stopped.running);
+    QCOMPARE(stopped.rootPid, quint32(0));
+    QVERIFY(stopped.jobPids.isEmpty());
 }
 
 void TerminalResourceTargetsTest::platformSamplerMeasuresRunningSessionsOnly()
 {
     TerminalManager terminals;
-    startShellAndIdleSession(terminals);
-    if (QTest::currentTestFailed()) return;
+    QVERIFY(startShellAndIdleSession(terminals));
 
     ResourceMonitor monitor([&terminals] { return terminalResourceTargets(terminals); });
     QSignalSpy samples(&monitor, &ResourceMonitor::metricsChanged);

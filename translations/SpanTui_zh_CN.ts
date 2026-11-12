@@ -949,8 +949,52 @@
         <translation>选择其他引用或清除筛选</translation>
     </message>
     <message>
-        <source>Filter branches or tags</source>
-        <translation>筛选分支或标签</translation>
+        <source>Filter</source>
+        <translation>筛选</translation>
+    </message>
+    <message>
+        <source>Other worktrees</source>
+        <translation>其他工作树</translation>
+    </message>
+    <message>
+        <source>Refresh branches, tags and worktrees</source>
+        <translation>刷新分支、标签和工作树</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>没有匹配项</translation>
+    </message>
+    <message>
+        <source>No branches yet</source>
+        <translation>还没有分支</translation>
+    </message>
+    <message>
+        <source>Try another name, or clear the filter.</source>
+        <translation>换个名称，或清除筛选。</translation>
+    </message>
+    <message>
+        <source>They appear after the first commit.</source>
+        <translation>完成首次提交后会出现。</translation>
+    </message>
+    <message>
+        <source>Main worktree</source>
+        <translation>主工作树</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>已锁定</translation>
+    </message>
+    <message>
+        <source>bare</source>
+        <translation>裸仓库</translation>
+    </message>
+    <message>
+        <source>detached %1</source>
+        <translation>分离于 %1</translation>
+    </message>
+    <message>
+        <source>detached</source>
+        <translation>分离 HEAD</translation>
     </message>
     <message>
         <source>Initialize Git outside SpanTui, then refresh</source>
@@ -997,12 +1041,64 @@
         <translation>显示提交详情</translation>
     </message>
     <message>
-        <source>Current branch</source>
-        <translation>当前分支</translation>
-    </message>
-    <message>
         <source>Filter commits</source>
         <translation>筛选提交</translation>
+    </message>
+    <message>
+        <source>No upstream branch: never pushed, or not set to track one.</source>
+        <translation>没有上游分支：从未推送，或未设置跟踪。</translation>
+    </message>
+    <message>
+        <source>Upstream %1 is gone: deleted on the remote and pruned here.</source>
+        <translation>上游 %1 已不存在：远程已删除，本地也已清理。</translation>
+    </message>
+    <message>
+        <source>Tracks %1: ↑%2 not pushed, ↓%3 not pulled.</source>
+        <translation>跟踪 %1：↑%2 个未推送，↓%3 个未拉取。</translation>
+    </message>
+    <message>
+        <source>Up to date with %1.</source>
+        <translation>与 %1 同步。</translation>
+    </message>
+    <message>
+        <source>As of the last fetch; this popup never fetches.</source>
+        <translation>以上次抓取为准；此浮窗不会抓取。</translation>
+    </message>
+    <message>
+        <source>Locked: %1</source>
+        <translation>已锁定：%1</translation>
+    </message>
+    <message>
+        <source>Its folder is missing.</source>
+        <translation>目录已不存在。</translation>
+    </message>
+    <message>
+        <source>Uncommitted changes to tracked files.</source>
+        <translation>已跟踪文件有未提交的改动。</translation>
+    </message>
+    <message>
+        <source>Copy branch name</source>
+        <translation>复制分支名</translation>
+    </message>
+    <message>
+        <source>Open in new terminal</source>
+        <translation>在新终端中打开</translation>
+    </message>
+    <message>
+        <source>Open as project</source>
+        <translation>作为项目打开</translation>
+    </message>
+    <message>
+        <source>Open in File Explorer</source>
+        <translation>在文件资源管理器中打开</translation>
+    </message>
+    <message>
+        <source>Copy path</source>
+        <translation>复制路径</translation>
+    </message>
+    <message>
+        <source>Copy tag name</source>
+        <translation>复制标签名</translation>
     </message>
 </context>
 <context>
@@ -1759,12 +1855,12 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>%1%</translation>
     </message>
     <message>
-        <source>CPU %1</source>
-        <translation>CPU %1</translation>
+        <source>CPU</source>
+        <translation>CPU</translation>
     </message>
     <message>
-        <source>Mem %1</source>
-        <translation>内存 %1</translation>
+        <source>Mem</source>
+        <translation>内存</translation>
     </message>
     <message>
         <source>Server resources</source>
@@ -1783,8 +1879,12 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>固定资源面板</translation>
     </message>
     <message>
-        <source>CPU</source>
-        <translation>CPU</translation>
+        <source>Pin</source>
+        <translation>固定</translation>
+    </message>
+    <message>
+        <source>Pinned</source>
+        <translation>已固定</translation>
     </message>
     <message>
         <source>Load %1</source>

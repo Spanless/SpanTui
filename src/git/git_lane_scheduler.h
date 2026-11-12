@@ -17,7 +17,9 @@ class GitLaneScheduler final : public QObject {
     Q_OBJECT
 
 public:
-    enum class Lane : int { History = 0, Status, Diff, Peek, DiffBody, Count };
+    // Probe: the branch popup's per-worktree change check, so a slow
+    // worktree never holds up this repository's own reads.
+    enum class Lane : int { History = 0, Status, Diff, Peek, DiffBody, Probe, Count };
     Q_ENUM(Lane)
 
     using Completion = std::function<void(bool, const QByteArray &, const QByteArray &)>;

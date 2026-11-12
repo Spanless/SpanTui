@@ -1,5 +1,8 @@
 #!/bin/sh
 # Opt-in: git config core.hooksPath .githooks
 # Runs the static gate over the staged change (docs/workflow/verification.md).
+# A pwsh 7 module path inherited through git would hide Windows PowerShell
+# 5.1's own cmdlets (Get-FileHash); unset, 5.1 builds its default.
+unset PSModulePath
 exec powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass \
     -File "$(git rev-parse --show-toplevel)/tools/agent-check.ps1" -Staged

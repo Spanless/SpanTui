@@ -35,7 +35,7 @@ TerminalProcess              无专属线程：重叠读写、退出等待与 re
 
 停止、退出、启动失败与析构共用撤销排队工作的入口，但各自信号与代次语义不合并。
 
-相关测试：`tests/terminal/` 下 `ghostty_engine_test`、`terminal_session_test`、`terminal_core_worker_test`、`terminal_presentation_scheduler_test`、`terminal_frame_preparer_test`、`terminal_glyph_atlas_test`、`win_conpty_process_test`、`shared/terminal_output_queue_test`、`shared/terminal_frame_store_test`。手工压测见 [压测 TUI](lab/stress-tui.md)。
+相关测试：`tests/terminal/` 下 `ghostty_engine_test`、`terminal_session_test`、`terminal_core_worker_test`、`terminal_manager_test`、`terminal_view_binding_test`、`terminal_input_routing_test`、`win_conpty_process_test`。手工压测见 [压测 TUI](lab/stress-tui.md)。
 
 ## 4. 本域改动完成标准
 

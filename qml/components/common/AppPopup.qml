@@ -34,13 +34,15 @@ Popup {
     signal opening(var source)
     signal popupClosed()
 
+    // `opening` runs before sizing and placement: its handlers reset the
+    // content (filters, ratchets), and the popup is placed for that size.
     function openBelow(item) {
         if (!_beginOpen(item))
             return
         anchorItem = item
+        opening(item)
         _applyAutoSize()
         _placeBelow()
-        opening(item)
         open()
     }
 
@@ -48,15 +50,19 @@ Popup {
         if (!_beginOpen(item))
             return
         anchorItem = null
+        opening(item)
         _applyAutoSize()
         const point = item.mapToItem(Overlay.overlay, localX, localY)
         _clampTo(point.x, point.y)
-        opening(item)
         open()
     }
 
+    // Gated on `visible`, not `opened`: `opened` turns true only after the
+    // enter transition, and content laid out on the first visible frame
+    // (implicit sizes settle in polish) would otherwise move the popup only
+    // once that transition ended — a visible jump.
     function reposition() {
-        if (!opened || !anchorItem)
+        if (!visible || !anchorItem)
             return
         _placeBelow()
     }
@@ -157,7 +163,7 @@ Popup {
     // Ancestors move the anchor (window resize, open transitions) without
     // any geometry signal reaching the popup, so it is re-placed per frame.
     FrameAnimation {
-        running: root.opened && root.followAnchor && root.anchorItem !== null
+        running: root.visible && root.followAnchor && root.anchorItem !== null
         onTriggered: root.reposition()
     }
 }

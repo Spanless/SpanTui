@@ -65,6 +65,13 @@ Item {
     readonly property real shadowPaddingPx: shadowEnabled
                                                  ? Math.ceil(shadowBlurPx * 3 + Math.abs(shadowOffsetYPx))
                                                  : 0
+    // The quad reaches one physical pixel past the shape (and its shadow).
+    // The shader snaps each edge to the nearest pixel boundary; a far edge
+    // on an exact half pixel (an odd logical coordinate at 150%) rounds
+    // outward, and that last pixel row or column lay outside an unpadded
+    // quad, whose bottom/right edge rasterization excludes it — the bottom
+    // and right rim came out thin or missing.
+    readonly property real quadPaddingPx: shadowPaddingPx + 1
     readonly property bool softwareRenderer: GraphicsInfo.api === GraphicsInfo.Software
     readonly property bool fallbackActive: softwareRenderer
                                                    || gpuSurface.status === ShaderEffect.Error
@@ -77,7 +84,7 @@ Item {
     ShaderEffect {
         id: gpuSurface
         anchors.fill: parent
-        anchors.margins: -root.shadowPaddingPx / root.devicePixelRatio
+        anchors.margins: -root.quadPaddingPx / root.devicePixelRatio
         visible: root.gpuActive
         blending: true
 

@@ -126,10 +126,10 @@ Core 在自己的线程上先换网格，再通知 ConPTY（流程见 [ConPTY �
 
 ### 5.3 重绘合并
 
-- **resize 后**：全屏 TUI 收到新尺寸会清屏重印整段内容，按帧率呈现会看到从头滚到尾。`TerminalCoreWorker::resize` 换网格后自动进入重绘合并窗口：新网格本身立即发布；此后 750ms 内输出触发的帧等静默 50ms 再发，每段突发最多隐藏 350ms；立即发布路径不受影响。不设全局延迟下限（会拖慢打字）。回归：`terminal_core_worker_test::presentsPostResizeRepaintAsOneSettledFrame`。
-- **ED3 隐式重绘**：部分 TUI（如 omp）每次 resize 发 `CSI 2 J CSI 3 J` 后整段重印，且不带 2026；resize 窗口合并不够——下一轮 resize 会落在重印中途。Core 把 `CSI 3 J` 视为隐式同步开始（`ImplicitRedraw`）：不发布任何帧（含 `resize()` 的立即发布）；队列排空且静默 50ms 后发布，最多保持 1s；期间的 `?2026h` 转交显式事务，孤立的 `?2026l` 不结束它；传输结束或新 transport 清除。回归：`terminal_core_worker_test::presentsScrollbackEraseReprintAsOneFrame`、`terminal_presentation_scheduler_test::capsImplicitRedrawHold`。
+- **resize 后**：全屏 TUI 收到新尺寸会清屏重印整段内容，按帧率呈现会看到从头滚到尾。`TerminalCoreWorker::resize` 换网格后自动进入重绘合并窗口：新网格本身立即发布；此后 750ms 内输出触发的帧等静默 50ms 再发，每段突发最多隐藏 350ms；立即发布路径不受影响。不设全局延迟下限（会拖慢打字）。
+- **ED3 隐式重绘**：部分 TUI（如 omp）每次 resize 发 `CSI 2 J CSI 3 J` 后整段重印，且不带 2026；resize 窗口合并不够——下一轮 resize 会落在重印中途。Core 把 `CSI 3 J` 视为隐式同步开始（`ImplicitRedraw`）：不发布任何帧（含 `resize()` 的立即发布）；队列排空且静默 50ms 后发布，最多保持 1s；期间的 `?2026h` 转交显式事务，孤立的 `?2026l` 不结束它；传输结束或新 transport 清除。
 
-时间规则在 `terminal_presentation_scheduler_test` 用虚拟时钟验证；`terminal_core_worker_test` 只测接线。
+合并与时间窗口属于呈现节奏，没有自动化测试（[测试设计规范](../../workflow/testing.md#1-测什么) 不测帧数与时序）；改动后在 [压测 TUI](lab/stress-tui.md) 或 omp 里反复拖动窗口大小，人工确认不出现从头滚到尾的重印。
 
 ## 6. 协议回复
 
@@ -178,5 +178,5 @@ Core 在自己的线程上先换网格，再通知 ConPTY（流程见 [ConPTY �
 
 ## 8. 测试与基准
 
-- 测试：`ghostty_engine_test`、`terminal_session_test`（含 `graphicsDisappearAcrossSessionBinding`、`restartReplacesTheBoundViewsGrid`）、`terminal_row_layout_test`、`terminal_cursor_animation_test`、`terminal_scroll_model_test`、`terminal_frame_preparer_test`、`terminal_glyph_atlas_test`、`terminal_scene_graph_test`、`terminal_presentation_scheduler_test`、`terminal_core_worker_test`。
+- 测试：`ghostty_engine_test`、`terminal_session_test`（含 `graphicsDisappearAcrossSessionBinding`、`restartReplacesTheBoundViewsGrid`）、`terminal_core_worker_test`、`terminal_view_binding_test`。行布局、字形图集、光标动画与场景图这类绘制细节不做自动化测试，由维护者人工查看。
 - `tests/terminal/terminal_render_benchmark.cpp`（手动，不进 CTest）：真实 `TerminalView` + `TerminalSession` 经 `QQuickRenderControl` 在 offscreen 下渲染进 D3D11 纹理，固定节拍代替垂直同步。每行首格背景色编码行号或帧号，回读像素测量滞后、冻结与撕裂。场景覆盖滚轮与持续滚动、拖动滚动条（含边刷屏边拖的 `scrollbar-drag-flood`；测滞后用较小 `--history`，否则裁剪使行号偏移）、日志刷屏、备用屏整屏刷新、四终端同时刷新。offscreen 字体走 FreeType，结果只用于同一基准前后对比。`--json <文件>`、`--list`。

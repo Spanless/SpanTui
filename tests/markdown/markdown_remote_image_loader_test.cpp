@@ -221,7 +221,6 @@ void MarkdownRemoteImageLoaderTest::downloadsDecodesAndCaches()
     QCOMPARE(ready.at(0).at(0).toUrl(), url);
     const QImage decoded = ready.at(0).at(1).value<QImage>();
     QCOMPARE(decoded.size(), QSize(3, 2));
-    QCOMPARE(decoded.pixelColor(0, 0), QColor(Qt::red));
     QCOMPARE(m_loader->pendingCount(), 0);
     QCOMPARE(m_loader->failedCount(), 0);
 

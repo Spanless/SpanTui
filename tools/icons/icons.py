@@ -490,6 +490,11 @@ def chevron_down():
 
 
 @icon("navigation")
+def chevron_up():
+    return Path().M(6, 15).L(12, 9).L(18, 15)
+
+
+@icon("navigation")
 def chevron_right():
     return Path().M(9, 6).L(15, 12).L(9, 18)
 

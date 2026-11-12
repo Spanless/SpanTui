@@ -135,6 +135,8 @@ jobs:
       # of the run. The build scripts find ld.lld in the LLVM the runner image
       # preinstalls (configure prints "Linker: lld").
       SPANTUI_LINKER: lld
+      # Part of the Qt cache key: a different module set is a different kit.
+      QT_MODULES: qtshadertools qtimageformats qttasktree
     steps:
       # Two commits deep: a core run diffs the tested merge against its first
       # parent.
@@ -152,6 +154,8 @@ jobs:
           "qt=$($v.qt)" >> $env:GITHUB_OUTPUT
           "mingw=$($v.mingwTool)" >> $env:GITHUB_OUTPUT
           "clang_format=$($v.clangFormat)" >> $env:GITHUB_OUTPUT
+          "qt_dir=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_OUTPUT
+          "qt_key=qt-windows-$($v.qt)-$($v.mingwTool)-$($env:QT_MODULES -replace ' ', '+')" >> $env:GITHUB_OUTPUT
 
       # Pull requests into dev: the lines they add or change must match
       # .clang-format (tools/check-format.ps1). The runner's own LLVM has
@@ -171,13 +175,28 @@ jobs:
           ./tools/check-format.ps1 -Base $base -Require
           exit $LASTEXITCODE
 
+      # Qt and MinGW travel as one actions/cache archive (about 420 MB) keyed
+      # on the pinned versions and modules; on a hit nothing else runs. The
+      # install action's own cache still cost a minute per run: it set up a
+      # fresh Python and built aqtinstall's dependencies from source before
+      # looking at its cache. The action sets no environment or PATH either
+      # way — the build scripts find the kit through SPANTUI_QT_SDK_ROOT — so
+      # a hit builds exactly like the miss that filled the cache.
+      - name: Restore Qt and MinGW
+        id: qt-cache
+        if: env.BUILD == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.versions.outputs.qt_dir }}
+          key: ${{ steps.versions.outputs.qt_key }}
+
       # aqtinstall 3.3.0 (the newest on PyPI) cannot read the per-arch
       # repository layout Qt 6.11+ is published in, so it comes from a pinned
       # upstream commit until a release supports it. qttasktree is optional for
       # the build, but without it Qt's own QML asset downloader package fails
       # to load and CMake warns on every configure.
       - name: Install Qt and MinGW
-        if: env.BUILD == 'true'
+        if: env.BUILD == 'true' && steps.qt-cache.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
         with:
           aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
@@ -185,15 +204,24 @@ jobs:
           host: windows
           target: desktop
           arch: win64_mingw
-          modules: 'qtshadertools qtimageformats qttasktree'
+          modules: ${{ env.QT_MODULES }}
           tools: ${{ steps.versions.outputs.mingw }}
-          cache: true
+          cache: false
+          set-env: false
+          add-tools-to-path: false
+
+      - name: Save Qt and MinGW
+        if: env.BUILD == 'true' && steps.qt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.versions.outputs.qt_dir }}
+          key: ${{ steps.versions.outputs.qt_key }}
 
       # One archive instead of one cache request per object: with sccache's
       # GitHub Actions backend a fully cached build still spent minutes
-      # fetching ~450 objects one by one. Only dev's push runs save an archive
-      # (see the save step); every run restores the newest one it can see,
-      # which for a pull request is its base branch's.
+      # fetching ~450 objects one by one. Every run restores the newest
+      # archive it can see: a pull request its own from an earlier push, else
+      # its base branch's.
       - name: Restore the compiler cache
         if: env.BUILD == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -247,6 +275,37 @@ jobs:
           & .\dev.bat @ciArgs
           exit $LASTEXITCODE
 
+      # Where the build time went, read from Ninja's log: busy time per kind
+      # of step (summed over parallel jobs) and the slowest steps. Tuning
+      # reads this from runs that happen anyway instead of extra runs.
+      - name: Build profile
+        if: ${{ always() && env.BUILD == 'true' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $log = 'target\build\.ninja_log'
+          if (-not (Test-Path -LiteralPath $log)) { Write-Host 'No Ninja log.'; exit 0 }
+          $steps = Get-Content -LiteralPath $log | Where-Object { $_ -notmatch '^#' } | ForEach-Object {
+            $f = $_ -split "`t"
+            $out = $f[3]
+            $kind = switch -Regex ($out) {
+              'qmlcache/.*\.obj$' { 'compile (QML)'; break }
+              '\.obj$' { 'compile (C++)'; break }
+              'qmlcache/.*\.cpp$' { 'qmlcachegen'; break }
+              '_autogen/|mocs_compilation|moc_' { 'moc'; break }
+              'qrc_|\.rcc/' { 'rcc'; break }
+              '\.(exe|dll)$' { 'link'; break }
+              '\.a$' { 'archive'; break }
+              default { 'other' }
+            }
+            [pscustomobject]@{ Seconds = ([int64]$f[1] - [int64]$f[0]) / 1000; Kind = $kind; Output = $out }
+          }
+          $steps | Group-Object Kind | ForEach-Object {
+            [pscustomobject]@{ Kind = $_.Name; Steps = $_.Count; Seconds = [math]::Round(($_.Group | Measure-Object Seconds -Sum).Sum) }
+          } | Sort-Object Seconds -Descending | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+          $steps | Sort-Object Seconds -Descending | Select-Object -First 20 |
+            Format-Table @{ n = 'Seconds'; e = { '{0:N1}' -f $_.Seconds } }, Kind, Output -AutoSize | Out-String -Width 250 | Write-Host
+
       - name: Checks only (documentation change)
         if: env.BUILD != 'true'
         shell: cmd
@@ -259,12 +318,14 @@ jobs:
         shell: pwsh
         run: sccache --stop-server
 
-      # Only dev's push runs save: each archive is about 2 GB, and pull
-      # request archives (usable only by that pull request) would push dev's
-      # out of the repository's cache quota. A failed build or test run
-      # still saves what it compiled.
+      # dev's push runs save for the pull requests that branch from it; a
+      # pull request saves for its own next push, so a fix-up rebuilds only
+      # what it changed. An archive is about 200 MB without debug info, far
+      # inside the repository's 10 GB quota; GitHub evicts the least recently
+      # used first, and dev's newest is restored by every new pull request.
+      # A failed build or test run still saves what it compiled.
       - name: Save the compiler cache
-        if: ${{ !cancelled() && env.BUILD == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        if: ${{ !cancelled() && env.BUILD == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}\sccache

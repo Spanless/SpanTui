@@ -1,5 +1,6 @@
 #include "git/git_repository_service.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QHash>
 #include <QMap>
@@ -264,7 +265,11 @@ QVariantList GitRepositoryService::parseBranches(const QByteArray &output) {
             const int slash = name.indexOf(QLatin1Char('/'));
             if (slash > 0) group = name.left(slash);
         }
+        // `%(upstream:track)` compares with the local remote-tracking ref as
+        // of the last fetch: "[ahead N, behind M]", "[gone]" when the
+        // configured upstream ref no longer exists, or empty.
         int ahead = 0, behind = 0;
+        const QString upstream = decode(fields.at(3));
         const QString track = decode(fields.at(4));
         static const QRegularExpression aheadPattern(QStringLiteral(R"(ahead (\d+))"));
         static const QRegularExpression behindPattern(QStringLiteral(R"(behind (\d+))"));
@@ -272,6 +277,7 @@ QVariantList GitRepositoryService::parseBranches(const QByteArray &output) {
         if (match.hasMatch()) ahead = match.captured(1).toInt();
         match = behindPattern.match(track);
         if (match.hasMatch()) behind = match.captured(1).toInt();
+        const bool upstreamGone = track == QStringLiteral("[gone]");
         result.push_back(QVariantMap{{QStringLiteral("fullRef"), fullRef},
                                      {QStringLiteral("name"), name},
                                      {QStringLiteral("kind"), kind},
@@ -283,13 +289,95 @@ QVariantList GitRepositoryService::parseBranches(const QByteArray &output) {
                                      {QStringLiteral("remote"), remote},
                                      {QStringLiteral("local"), local},
                                      {QStringLiteral("current"), fields.at(2) == "*"},
-                                     {QStringLiteral("upstream"), decode(fields.at(3))},
+                                     {QStringLiteral("upstream"), upstream},
+                                     // A local branch with an upstream configured; with
+                                     // upstreamGone its ref was deleted (pruned), so
+                                     // ahead/behind are 0 and mean nothing.
+                                     {QStringLiteral("hasUpstream"), local && !upstream.isEmpty()},
+                                     {QStringLiteral("upstreamGone"), local && upstreamGone},
                                      {QStringLiteral("ahead"), ahead},
                                      {QStringLiteral("behind"), behind},
                                      {QStringLiteral("date"), decode(fields.at(5))}});
     }
     return result;
 }
+
+QVariantList GitRepositoryService::parseWorktrees(const QByteArray &output)
+{
+    // `git worktree list --porcelain`: one block per worktree, blank-line
+    // separated, `key value` lines (`detached`, `bare`, `locked` and
+    // `prunable` may carry no value). `-z` would be safer for exotic paths
+    // but needs git 2.36; the supported floor is 2.16.
+    QVariantList result;
+    QVariantMap block;
+    QString mainPath;
+    const auto flush = [&result, &block, &mainPath]() {
+        const QString rawPath = block.value(QStringLiteral("rawPath")).toString();
+        if (!rawPath.isEmpty()) {
+            const QString path = QDir::cleanPath(rawPath);
+            const QString head = block.value(QStringLiteral("head")).toString();
+            QString branch = block.value(QStringLiteral("branchRef")).toString();
+            static const QString headsPrefix = QStringLiteral("refs/heads/");
+            if (branch.startsWith(headsPrefix)) branch = branch.mid(headsPrefix.size());
+            const QString leaf = QFileInfo(path).fileName();
+            if (result.isEmpty()) mainPath = path;
+            // Linked worktrees read shorter from the main one (a sibling is
+            // `..\name`); the main one itself has no relative form.
+            const QString relativePath =
+                result.isEmpty() ? QString() : QDir::toNativeSeparators(QDir(mainPath).relativeFilePath(path));
+            result.push_back(QVariantMap{
+                {QStringLiteral("path"), path},
+                {QStringLiteral("displayPath"), QDir::toNativeSeparators(path)},
+                {QStringLiteral("relativePath"), relativePath},
+                {QStringLiteral("name"), leaf.isEmpty() ? path : leaf},
+                {QStringLiteral("branch"), branch},
+                {QStringLiteral("head"), head.left(7)},
+                {QStringLiteral("headId"), head},
+                {QStringLiteral("detached"), block.value(QStringLiteral("detached")).toBool()},
+                {QStringLiteral("bare"), block.value(QStringLiteral("bare")).toBool()},
+                {QStringLiteral("locked"), block.value(QStringLiteral("locked")).toBool()},
+                {QStringLiteral("lockReason"), block.value(QStringLiteral("lockReason")).toString()},
+                {QStringLiteral("prunable"), block.value(QStringLiteral("prunable")).toBool()},
+                {QStringLiteral("prunableReason"), block.value(QStringLiteral("prunableReason")).toString()},
+                // git lists the main worktree first.
+                {QStringLiteral("main"), result.isEmpty()},
+                // The service marks the one it is reading.
+                {QStringLiteral("current"), false}});
+        }
+        block.clear();
+    };
+    for (QByteArray line : output.split('\n')) {
+        if (line.endsWith('\r')) line.chop(1);
+        if (line.isEmpty()) {
+            flush();
+            continue;
+        }
+        const int space = line.indexOf(' ');
+        const QByteArray key = space < 0 ? line : line.left(space);
+        const QString value = space < 0 ? QString() : decode(line.mid(space + 1));
+        if (key == "worktree") {
+            flush();
+            block.insert(QStringLiteral("rawPath"), value);
+        } else if (key == "HEAD") {
+            block.insert(QStringLiteral("head"), value);
+        } else if (key == "branch") {
+            block.insert(QStringLiteral("branchRef"), value);
+        } else if (key == "detached") {
+            block.insert(QStringLiteral("detached"), true);
+        } else if (key == "bare") {
+            block.insert(QStringLiteral("bare"), true);
+        } else if (key == "locked") {
+            block.insert(QStringLiteral("locked"), true);
+            block.insert(QStringLiteral("lockReason"), value);
+        } else if (key == "prunable") {
+            block.insert(QStringLiteral("prunable"), true);
+            block.insert(QStringLiteral("prunableReason"), value);
+        }
+    }
+    flush();
+    return result;
+}
+
 namespace {
 using HistoryGraphState = GitRepositoryService::HistoryGraph;
 

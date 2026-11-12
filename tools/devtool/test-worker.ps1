@@ -69,8 +69,8 @@ $selector = @()
 if (-not $Label -and -not [string]::IsNullOrWhiteSpace($Regex)) { $selector = @('-R', $Regex) }
 
 # CTest's JSON model names each test's command; a command that is an image in
-# the build tree maps back to the target that produces it. Script tests (e.g.
-# qml_style_check via powershell) need no build step.
+# the build tree maps back to the target that produces it; any other command
+# needs no build step.
 $json = & $toolchain.CTest --test-dir $build -N --show-only=json-v1 @selector
 if ($LASTEXITCODE -ne 0) { Fail 'Could not enumerate CTest entries.' }
 $model = ($json -join "`n") | ConvertFrom-Json
