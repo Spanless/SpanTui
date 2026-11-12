@@ -1,6 +1,7 @@
 #include "git/git_constants.h"
 #include "git/git_repository_service.h"
 
+#include <QDir>
 #include <QTest>
 #include <QVariantList>
 #include <QVariantMap>
@@ -56,6 +57,8 @@ private slots:
     void boundsDiffBodies();
     void parsesNumstatSummary();
     void parsesCommitPreview();
+    void parsesWorktreeList();
+    void parsesBranchTracking();
 };
 
 void GitParsersTest::parsesPublicGitFormats()
@@ -409,6 +412,129 @@ void GitParsersTest::parsesCommitPreview()
     empty += '\0';
     QVERIFY(!GitRepositoryService::parseCommitPreview(empty)
                  .value(QStringLiteral("hasStats")).toBool());
+}
+
+void GitParsersTest::parsesWorktreeList()
+{
+    // `git worktree list --porcelain`: blank-line separated blocks, the main
+    // worktree first, flags without values, spaces and non-ASCII in paths.
+    const QByteArray output = "worktree D:/repos/main project\n"
+                              "HEAD 0123456789abcdef0123456789abcdef01234567\n"
+                              "branch refs/heads/main\n"
+                              "\n"
+                              "worktree D:/repos/\xe5\xb7\xa5\xe4\xbd\x9c-\xe6\xa0\x91\n"
+                              "HEAD fedcba9876543210fedcba9876543210fedcba98\n"
+                              "detached\n"
+                              "locked in use on a usb drive\n"
+                              "\n"
+                              "worktree D:/repos/feature/topic\n"
+                              "HEAD 1111111111111111111111111111111111111111\n"
+                              "branch refs/heads/feature/topic\n"
+                              "prunable gitdir file points to non-existent location\n"
+                              "\n"
+                              "worktree D:/repos/bare.git\r\n"
+                              "bare\n";
+    const QVariantList items = GitRepositoryService::parseWorktrees(output);
+    QCOMPARE(items.size(), 4);
+
+    const QVariantMap main = items.at(0).toMap();
+    QCOMPARE(main.value(QStringLiteral("path")).toString(), QStringLiteral("D:/repos/main project"));
+    QCOMPARE(main.value(QStringLiteral("displayPath")).toString(),
+             QDir::toNativeSeparators(QStringLiteral("D:/repos/main project")));
+    QCOMPARE(main.value(QStringLiteral("name")).toString(), QStringLiteral("main project"));
+    QCOMPARE(main.value(QStringLiteral("branch")).toString(), QStringLiteral("main"));
+    QCOMPARE(main.value(QStringLiteral("head")).toString(), QStringLiteral("0123456"));
+    QCOMPARE(main.value(QStringLiteral("headId")).toString(),
+             QStringLiteral("0123456789abcdef0123456789abcdef01234567"));
+    QVERIFY(main.value(QStringLiteral("main")).toBool());
+    QVERIFY(!main.value(QStringLiteral("detached")).toBool());
+    // The service decides which one it is reading.
+    QVERIFY(!main.value(QStringLiteral("current")).toBool());
+    // Linked worktrees are placed relative to the main one; it has none.
+    QVERIFY(main.value(QStringLiteral("relativePath")).toString().isEmpty());
+
+    const QVariantMap detached = items.at(1).toMap();
+    QCOMPARE(detached.value(QStringLiteral("name")).toString(), QString::fromUtf8("工作-树"));
+    QCOMPARE(detached.value(QStringLiteral("relativePath")).toString(),
+             QDir::toNativeSeparators(QString::fromUtf8("../工作-树")));
+    QVERIFY(detached.value(QStringLiteral("branch")).toString().isEmpty());
+    QVERIFY(detached.value(QStringLiteral("detached")).toBool());
+    QVERIFY(detached.value(QStringLiteral("locked")).toBool());
+    QCOMPARE(detached.value(QStringLiteral("lockReason")).toString(), QStringLiteral("in use on a usb drive"));
+    QVERIFY(!detached.value(QStringLiteral("main")).toBool());
+
+    // A branch name keeps its own slashes; only refs/heads/ is dropped.
+    const QVariantMap prunable = items.at(2).toMap();
+    QCOMPARE(prunable.value(QStringLiteral("branch")).toString(), QStringLiteral("feature/topic"));
+    QCOMPARE(prunable.value(QStringLiteral("name")).toString(), QStringLiteral("topic"));
+    QCOMPARE(prunable.value(QStringLiteral("relativePath")).toString(),
+             QDir::toNativeSeparators(QStringLiteral("../feature/topic")));
+    QVERIFY(prunable.value(QStringLiteral("prunable")).toBool());
+    QVERIFY(!prunable.value(QStringLiteral("locked")).toBool());
+
+    const QVariantMap bare = items.at(3).toMap();
+    QVERIFY(bare.value(QStringLiteral("bare")).toBool());
+    QCOMPARE(bare.value(QStringLiteral("path")).toString(), QStringLiteral("D:/repos/bare.git"));
+
+    // Rows are identified by path, so the model can update them in place.
+    GitItemModel model;
+    QVERIFY(model.replace(items));
+    QCOMPARE(model.count(), 4);
+    QVERIFY(GitRepositoryService::parseWorktrees(QByteArray()).isEmpty());
+}
+
+void GitParsersTest::parsesBranchTracking()
+{
+    // `for-each-ref` records: refname, short name, HEAD mark, upstream,
+    // upstream:track, date, object id, peeled object id, NUL separated.
+    const auto record = [](const char *ref, const char *name, const char *head, const char *upstream,
+                           const char *track) {
+        QByteArray line;
+        for (const char *field : {ref, name, head, upstream, track, "2026-01-02T03:04:05+00:00",
+                                  "0123456789abcdef0123456789abcdef01234567", ""}) {
+            line += field;
+            line += '\0';
+        }
+        line.chop(1);
+        return line + '\n';
+    };
+    QByteArray output;
+    output += record("refs/heads/main", "main", "*", "origin/main", "[ahead 2, behind 1]");
+    output += record("refs/heads/synced", "synced", " ", "origin/synced", "");
+    output += record("refs/heads/local-only", "local-only", " ", "", "");
+    output += record("refs/heads/pruned", "pruned", " ", "origin/pruned", "[gone]");
+    output += record("refs/remotes/origin/main", "origin/main", " ", "", "");
+    const QVariantList refs = GitRepositoryService::parseBranches(output);
+    QCOMPARE(refs.size(), 5);
+    const auto field = [&refs](int row, const char *key) {
+        return refs.at(row).toMap().value(QString::fromLatin1(key));
+    };
+
+    // Ahead (not pushed) and behind (not pulled) of the upstream.
+    QVERIFY(field(0, "current").toBool());
+    QVERIFY(field(0, "hasUpstream").toBool());
+    QVERIFY(!field(0, "upstreamGone").toBool());
+    QCOMPARE(field(0, "ahead").toInt(), 2);
+    QCOMPARE(field(0, "behind").toInt(), 1);
+
+    // Up to date: an upstream and an empty track.
+    QVERIFY(field(1, "hasUpstream").toBool());
+    QCOMPARE(field(1, "ahead").toInt(), 0);
+    QCOMPARE(field(1, "behind").toInt(), 0);
+
+    // No upstream configured.
+    QVERIFY(!field(2, "hasUpstream").toBool());
+    QVERIFY(!field(2, "upstreamGone").toBool());
+
+    // Configured, but its remote-tracking ref is gone.
+    QVERIFY(field(3, "hasUpstream").toBool());
+    QVERIFY(field(3, "upstreamGone").toBool());
+    QCOMPARE(field(3, "ahead").toInt(), 0);
+
+    // Remote branches carry no tracking state of their own.
+    QCOMPARE(field(4, "kind").toString(), QStringLiteral("remote"));
+    QVERIFY(!field(4, "hasUpstream").toBool());
+    QVERIFY(!field(4, "upstreamGone").toBool());
 }
 
 QTEST_MAIN(GitParsersTest)

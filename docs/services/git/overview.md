@@ -1,6 +1,6 @@
 # Git 子系统
 
-只读：工作区变更、Diff、提交历史、分支列表。写仓库在终端里完成；MERGE/REVERT/rebase 状态只展示，不在 GUI 中继续或中止。
+只读：工作区变更、Diff、提交历史、分支与标签列表、工作树列表及其改动标记。写仓库（含切换、拉取、抓取）在终端里完成；MERGE/REVERT/rebase 状态只展示，不在 GUI 中继续或中止。
 
 ## 1. 结构
 
@@ -12,11 +12,12 @@
 
 | 车道 | 操作 | 说明 |
 |---|---|---|
-| `History` (0) | log、rev-list、branch | 分页读取（见 [历史](reads-history-diff.md#2-提交历史)），输出上限 128 MB |
+| `History` (0) | log、rev-list、branches、worktrees | 分页读取（见 [历史](reads-history-diff.md#2-提交历史)），输出上限 128 MB；`branches` 与 `worktrees` 是静默的引用类读取（见 [引用与工作树](reads-history-diff.md#4-引用与工作树)） |
 | `Status` (1) | status、discover、base-content | 只有前台项目轮询（见 [状态](reads-history-diff.md#1-状态与轮询)）；未知操作也落在这里 |
 | `Diff` (2) | 工作区统计、提交文件列表 | 只含元数据，不带 diff 行 |
 | `Peek` (3) | `commit-preview` | 悬停卡片；静默，新顶旧；独立成道以免排在提交加载之后 |
 | `DiffBody` (4) | `diff-body` | 单文件正文（见 [差异](reads-history-diff.md#3-差异)）；服务自己排队、一次一个——放在 Diff 车道上会被新顶旧，滚动时连续请求互相丢失 |
+| `Probe` (5) | `worktree-status` | 分支浮窗的工作树改动探测（见 [引用与工作树](reads-history-diff.md#4-引用与工作树)）：静默，一次一个工作树，新一轮顶替在跑的探测；独立成道，慢工作树不拖本仓库的读取，也不挡刷新合并 |
 
 ### 调度规则
 
@@ -32,16 +33,17 @@
 - 参数只经 `QStringList`；路径置于 `--` 之后，只带引用的命令也以 `--` 结尾（避免分支名与目录同名时歧义）。
 - `resolveWorktreePath`/`isSafeGitRef`/`isSafeGitObjectId` 拒绝越界路径与非法引用；对象 ID 接受 7–64 位十六进制（兼容 SHA-256）。
 - 不截获、不缓存凭据；错误输出中远程 URL 的令牌脱敏。
+- 所有进程带 `GIT_OPTIONAL_LOCKS=0`：`status` 不顺手刷新索引，探测别的工作树也不写它的 `index`。
 
 ## 3. 代码与测试
 
 - `src/git/`：`git_repository_service`、`git_lane_scheduler`、`git_repository_refresh`、`git_repository_parsers`、`git_repository_diff`、`git_diff_store`
-- 测试：`git_lane_scheduler_test`（排队、顶替、进度配对）、`git_repository_read_test`、`git_repository_concurrency_test`、`git_parsers_test`、`git_item_model_test`、`workspace_controller_test`（前台项目集合）
+- 测试：`git_lane_scheduler_test`（排队、顶替、进度配对、车道路由）、`git_repository_read_test`（含工作树、手动刷新、领先/落后与工作树改动探测）、`git_repository_concurrency_test`、`git_parsers_test`（含 `parseWorktrees`、上游跟踪字段）、`git_item_model_test`、`workspace_controller_test`（前台项目集合、`openProjectFolder`）
 
 ## 4. 本域改动完成标准
 
 ### Git 操作
-- [ ] 仍只读，不引入 commit、add、push、checkout、reset 等写命令。
+- [ ] 仍只读，不引入 commit、add、push、fetch、pull、checkout、reset 等写命令（`fetch` 会改远程跟踪引用，也算写）。
 - [ ] 参数经 `QStringList`，用户可控路径在 `--` 之后并经 `resolveWorktreePath`，引用与对象名经 `isSafeGitRef`/`isSafeGitObjectId`。
 - [ ] 归入正确车道；未知操作不落入写路径。
 - [ ] 异步结果按代次丢弃陈旧响应，切换仓库或关闭项目后不回写。

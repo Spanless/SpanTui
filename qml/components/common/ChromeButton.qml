@@ -29,7 +29,20 @@ Button {
     readonly property bool compact: size === "sm"
     property real iconSize: compact ? Theme.iconSm : Theme.iconMd
 
-    readonly property bool iconOnly: iconName.length > 0 && text.length === 0
+    // Caps a labeled button's width: the label elides at its end, and once
+    // less than minLabelWidth of it would show, an icon button keeps only
+    // its icon (the label stays its accessible name). 0 = no cap.
+    property real maxWidth: 0
+    property real minLabelWidth: Theme.sizeLg * 2
+    readonly property bool labelShown: {
+        if (text.length === 0)
+            return false
+        if (maxWidth <= 0 || iconName.length === 0)
+            return true
+        const room = maxWidth - labelPad * 2 - iconSpan
+        return room >= Math.min(labelText.implicitWidth, minLabelWidth)
+    }
+    readonly property bool iconOnly: iconName.length > 0 && !labelShown
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
     readonly property real controlSize: PixelGrid.snapSize(
                                                 compact ? Theme.sizeSm
@@ -90,6 +103,13 @@ Button {
     // Labeled buttons breathe wider than the row padding; compact ones keep
     // the tighter tool-strip inset.
     readonly property real labelPad: compact ? Theme.spaceMd : Theme.spaceMd + Theme.spaceSm
+    readonly property real iconSpan: iconName.length > 0 ? iconSize + labelRow.spacing : 0
+    // Width with the label uncapped. It reads the text and implicit sizes
+    // only, never maxWidth, so a host may derive the cap from it.
+    readonly property real naturalWidth: text.length === 0
+                                         ? controlSize
+                                         : Math.max(controlSize, Math.ceil(iconSpan + labelText.implicitWidth)
+                                                                 + labelPad * 2)
     implicitWidth: iconOnly ? controlSize
                             : Math.max(controlSize, Math.ceil(labelRow.implicitWidth) + labelPad * 2)
 
@@ -163,8 +183,14 @@ Button {
             }
 
             UiText {
-                visible: control.text.length > 0
+                id: labelText
+                visible: control.labelShown
                 anchors.verticalCenter: parent.verticalCenter
+                width: control.maxWidth > 0
+                       ? Math.max(0, Math.min(implicitWidth,
+                                              control.maxWidth - control.labelPad * 2 - control.iconSpan))
+                       : implicitWidth
+                elide: Text.ElideRight
                 text: control.text
                 color: control.fg
                 emphasis: control.kind === "primary" || control.kind === "selected"

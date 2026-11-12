@@ -246,12 +246,48 @@ Item {
             }
             readonly property bool sessionRunning: termSession !== null && termSession.running
             spacing: Theme.spaceSm
+
+            // Right of the title sit two status groups, branch (name and
+            // diff stat) and resource readout, then the pane's close button;
+            // hairlines split the groups. A narrow header gives way in a
+            // fixed order: the readout first, then the diff stat, then the
+            // branch name (elided, then icon only, then gone). The budget
+            // reads natural widths only, never allocated ones, so it cannot
+            // feed back into itself.
+            readonly property real titleFloor: Math.min(titleText.implicitWidth, Theme.dialogSm / 4)
+            readonly property real dividerSpan: spacing + statusDivider.implicitWidth
+            readonly property real baseNeed: statusIcon.implicitWidth + spacing + titleFloor
+            readonly property bool branchOn: Boolean(root.projectGit && root.projectGit.available)
+            readonly property string branchName: branchOn && root.projectGit.currentBranch.length > 0
+                                                 ? root.projectGit.currentBranch : qsTr("HEAD")
+            // The chip and the hairline after it.
+            readonly property real branchNeed: branchOn ? spacing + terminalBranchButton.naturalWidth + dividerSpan : 0
+            readonly property bool diffOn: branchOn && (root.projectGit.diffAdditions > 0
+                                                        || root.projectGit.diffDeletions > 0)
+            readonly property real diffNeed: diffOn ? spacing + terminalDiffStat.implicitWidth : 0
+            // The readout and the hairline after it.
+            readonly property real resourceNeed: resourceStrip.active
+                                                 ? spacing + resourceStrip.implicitWidth + dividerSpan : 0
+            readonly property bool resourcesFit: baseNeed + branchNeed + diffNeed + resourceNeed <= width
+            readonly property bool diffShown: diffOn && baseNeed + branchNeed + diffNeed <= width
+            // What is left for the chip once everything ahead of it in the
+            // order is placed.
+            readonly property real branchRoom: width - baseNeed - dividerSpan - spacing
+                                               - (diffShown ? diffNeed : 0)
+                                               - (resourceStrip.shown ? resourceNeed : 0)
+            // The chip elides its name and then keeps only its icon (see
+            // ChromeButton.maxWidth); below an icon's room it goes.
+            readonly property bool branchShown: branchOn && branchRoom >= terminalBranchButton.controlSize
+            readonly property bool branchTruncated: branchRoom < terminalBranchButton.naturalWidth
+
             Icon {
+                id: statusIcon
                 name: "terminal"
                 size: Theme.iconSm
                 color: terminalHeaderRow.statusColor
             }
             UiText {
+                id: titleText
                 Layout.fillWidth: true
                 size: "md"
                 color: terminalHeaderRow.statusColor
@@ -265,37 +301,48 @@ Item {
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
             }
+            // Branch group. Icon and name are one control: a single click
+            // target whose hover and pressed fill covers both.
             ChromeButton {
                 id: terminalBranchButton
                 size: "sm"
-                kind: "ghost"
-                visible: Boolean(root.projectGit && root.projectGit.available)
-                text: root.projectGit && root.projectGit.currentBranch.length > 0
-                      ? root.projectGit.currentBranch : qsTr("HEAD")
-                onClicked: terminalBranchPopup.openBelow(this)
+                kind: terminalBranchPopup.opened ? "selected" : "ghost"
+                iconName: "git-branch"
+                visible: terminalHeaderRow.branchShown
+                text: terminalHeaderRow.branchName
+                maxWidth: Math.max(controlSize, terminalHeaderRow.branchRoom)
+                tip: terminalHeaderRow.branchTruncated ? terminalHeaderRow.branchName : ""
+                // The header's two popups never stand together: each closes
+                // the other (a pinned resource panel included) as it opens.
+                // The button takes the press from the header, so it focuses
+                // the tile itself, as a press anywhere else on the header does.
+                onClicked: {
+                    root.activateThis()
+                    if (!terminalBranchPopup.opened)
+                        resourceStrip.dismiss()
+                    terminalBranchPopup.openBelow(this)
+                }
             }
-            Row {
-                id: terminalGitDiffRow
-                visible: Boolean(root.projectGit && root.projectGit.available)
+            DiffStat {
+                id: terminalDiffStat
                 Layout.alignment: Qt.AlignVCenter
-                spacing: Theme.spaceMd
-
-                Icon {
-                    anchors.verticalCenter: parent.verticalCenter
-                    name: "git-commit"
-                    size: Theme.iconSm
-                    color: Theme.muted
-                }
-
-                DiffStat {
-                    anchors.verticalCenter: parent.verticalCenter
-                    additions: root.projectGit ? root.projectGit.diffAdditions : 0
-                    deletions: root.projectGit ? root.projectGit.diffDeletions : 0
-                }
+                visible: terminalHeaderRow.diffShown
+                additions: root.projectGit ? root.projectGit.diffAdditions : 0
+                deletions: root.projectGit ? root.projectGit.diffDeletions : 0
             }
+            PixelLine {
+                vertical: true
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: implicitWidth
+                Layout.preferredHeight: Theme.iconSm
+                visible: terminalHeaderRow.branchShown && resourceStrip.shown
+            }
+            // Resource group: slides in and out with tile focus. Once slid
+            // out it leaves the layout, so its spacing goes with it.
             Item {
                 id: metricsSlot
                 clip: true
+                visible: Layout.preferredWidth > 0
                 Layout.fillHeight: true
                 Layout.preferredWidth: resourceStrip.shown ? resourceStrip.implicitWidth : 0
                 Behavior on Layout.preferredWidth {
@@ -312,12 +359,23 @@ Item {
                     sessionId: root.sessionId
                     running: terminalHeaderRow.sessionRunning
                     focused: root.isFocused
+                    collapsed: active && !terminalHeaderRow.resourcesFit
+                    onDetailOpening: terminalBranchPopup.close()
                     opacity: shown ? 1 : 0
                     visible: opacity > 0.01
                     Behavior on opacity {
                         NumberAnimation { duration: Theme.durFast }
                     }
                 }
+            }
+            // Splits the status groups from the close button.
+            PixelLine {
+                id: statusDivider
+                vertical: true
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: implicitWidth
+                Layout.preferredHeight: Theme.iconSm
+                visible: terminalHeaderRow.branchShown || resourceStrip.shown
             }
         }
     }

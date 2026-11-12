@@ -58,6 +58,11 @@ public:
                                        bool terminateSession);
     Q_INVOKABLE bool removeSession(const QString &sessionId);
     Q_INVOKABLE bool removeProject(const QString &projectPath);
+    // Registers a folder as a project (a no-op when it already is one) and
+    // shows it: its last focused session, else a new terminal; with
+    // `newTerminal`, always a new terminal. Returns the terminal tile id,
+    // empty when the folder cannot be a project.
+    Q_INVOKABLE QString openProjectFolder(const QString &path, bool newTerminal = false);
     // Opens a new ssh terminal for a saved host.
     Q_INVOKABLE QString createRemoteSession(const QString &hostId);
     // Ends every session of the host, then deletes the saved host.

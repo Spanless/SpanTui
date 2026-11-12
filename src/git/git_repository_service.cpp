@@ -262,8 +262,12 @@ GitRepositoryService::GitRepositoryService(QObject *parent)
       m_git([this](const QByteArray &stderrData) {
           return m_errorMessage.isEmpty() ? cleanError(stderrData) : m_errorMessage;
       }),
-      m_branches(this), m_history(this),
-      m_commitChanges(this), m_commitDiffFiles(this) {
+      m_branches(this),
+      m_worktrees(this),
+      m_history(this),
+      m_commitChanges(this),
+      m_commitDiffFiles(this)
+{
     connect(&m_git, &GitLaneScheduler::busyChanged, this, &GitRepositoryService::busyChanged);
     connect(&m_git, &GitLaneScheduler::taskStarted, this, &GitRepositoryService::taskStarted);
     connect(&m_git, &GitLaneScheduler::taskFinished, this, &GitRepositoryService::taskFinished);
@@ -362,6 +366,18 @@ QString GitRepositoryService::errorMessage() const { return m_errorMessage; }
 QString GitRepositoryService::selectedCommit() const { return m_selectedCommit; }
 QVariantMap GitRepositoryService::selectedCommitDetails() const { return m_selectedCommitDetails; }
 GitItemModel *GitRepositoryService::branches() { return &m_branches; }
+GitItemModel *GitRepositoryService::worktrees()
+{
+    return &m_worktrees;
+}
+bool GitRepositoryService::refsRefreshing() const
+{
+    return m_refsRefreshing;
+}
+QVariantMap GitRepositoryService::worktreeChanges() const
+{
+    return m_worktreeChanges;
+}
 GitItemModel *GitRepositoryService::history() { return &m_history; }
 bool GitRepositoryService::historyHasMore() const
 {

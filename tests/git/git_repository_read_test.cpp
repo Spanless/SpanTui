@@ -22,6 +22,8 @@ class GitRepositoryReadTest final : public QObject {
 private slots:
     void initTestCase();
     void readsRepositoryStatesAndLinkedWorktree();
+    void refreshesRefsAndWorktreesOnRequest();
+    void probesWorktreeChangesInBackground();
     void pollIntervalFollowsIdleFlag();
     void pollRunsStatusOnlyAfterWorkTreeChanges();
     void baseContentKeepsRefreshChain();
@@ -67,6 +69,35 @@ QVariantMap rowWithPath(GitItemModel *model, const QString &path)
         if (item.value(QStringLiteral("path")).toString() == path) return item;
     }
     return QVariantMap();
+}
+
+// The row of `model` whose "path" names the same directory as `path`
+// (git may spell the drive letter in another case), or an empty map.
+QVariantMap worktreeAt(GitItemModel *model, const QString &path)
+{
+    for (int row = 0; row < model->count(); ++row) {
+        const QVariantMap item = model->itemAt(row);
+        if (item.value(QStringLiteral("path")).toString().compare(QDir::cleanPath(path), Qt::CaseInsensitive) == 0)
+            return item;
+    }
+    return QVariantMap();
+}
+
+// The ref row of `kind` named `name`, or an empty map.
+QVariantMap refRow(GitItemModel *branches, const QString &kind, const QString &name)
+{
+    for (int row = 0; row < branches->count(); ++row) {
+        const QVariantMap item = branches->itemAt(row);
+        if (item.value(QStringLiteral("kind")).toString() == kind
+            && item.value(QStringLiteral("name")).toString() == name)
+            return item;
+    }
+    return QVariantMap();
+}
+
+bool hasRef(GitItemModel *branches, const QString &kind, const QString &name)
+{
+    return !refRow(branches, kind, name).isEmpty();
 }
 
 bool headDecorated(GitItemModel *history, int row)
@@ -274,6 +305,178 @@ void GitRepositoryReadTest::readsRepositoryStatesAndLinkedWorktree()
     GIT_TRY_COMPARE(
         linkedService.statusMap().value(QStringLiteral("tracked.txt")).toString(),
         QStringLiteral("modified"), 5000);
+}
+
+void GitRepositoryReadTest::refreshesRefsAndWorktreesOnRequest()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const QString repository = root.filePath(QStringLiteral("repository"));
+    const QString linked = root.filePath(QStringLiteral("linked tree"));
+    const QString plain = root.filePath(QStringLiteral("plain"));
+    QVERIFY(QDir().mkpath(repository));
+    QVERIFY(QDir().mkpath(plain));
+    QVERIFY(initializeRepository(repository));
+    QVERIFY(commitFile(repository, QStringLiteral("tracked.txt"), "first\n", QStringLiteral("first")));
+
+    // Without a repository there is nothing to read and nothing to wait for.
+    GitRepositoryService idle;
+    idle.refreshRefs();
+    QVERIFY(!idle.refsRefreshing());
+
+    GitRepositoryService service;
+    QSignalSpy refreshingSpy(&service, &GitRepositoryService::refsRefreshingChanged);
+    service.setProjectPath(repository);
+    GIT_TRY_COMPARE(service.history()->count(), 1, 5000);
+    GIT_TRY_VERIFY(!service.busy(), 5000);
+    // A repository without linked worktrees lists only itself.
+    GIT_TRY_COMPARE(service.worktrees()->count(), 1, 5000);
+    const QVariantMap only = service.worktrees()->itemAt(0);
+    QVERIFY(only.value(QStringLiteral("main")).toBool());
+    QVERIFY(only.value(QStringLiteral("current")).toBool());
+    QCOMPARE(only.value(QStringLiteral("branch")).toString(), QStringLiteral("main"));
+    // The reads that follow repository changes are not a manual refresh.
+    QVERIFY(!service.refsRefreshing());
+    QCOMPARE(refreshingSpy.count(), 0);
+
+    QVERIFY(run(repository, {QStringLiteral("tag"), QStringLiteral("v1")}).succeeded());
+    QVERIFY(
+        run(repository,
+            {QStringLiteral("worktree"), QStringLiteral("add"), QStringLiteral("-b"), QStringLiteral("topic"), linked})
+            .succeeded());
+
+    service.refreshRefs();
+    QVERIFY(service.refsRefreshing());
+    QCOMPARE(refreshingSpy.count(), 1);
+    GIT_TRY_VERIFY(!service.refsRefreshing(), 5000);
+    QCOMPARE(refreshingSpy.count(), 2);
+    QVERIFY(service.errorMessage().isEmpty());
+    QVERIFY(hasRef(service.branches(), QStringLiteral("tag"), QStringLiteral("v1")));
+    QVERIFY(hasRef(service.branches(), QStringLiteral("local"), QStringLiteral("topic")));
+    QCOMPARE(service.worktrees()->count(), 2);
+    const QVariantMap mainTree = worktreeAt(service.worktrees(), repository);
+    QVERIFY(mainTree.value(QStringLiteral("main")).toBool());
+    QVERIFY(mainTree.value(QStringLiteral("current")).toBool());
+    const QVariantMap linkedTree = worktreeAt(service.worktrees(), linked);
+    QCOMPARE(linkedTree.value(QStringLiteral("branch")).toString(), QStringLiteral("topic"));
+    QCOMPARE(linkedTree.value(QStringLiteral("name")).toString(), QStringLiteral("linked tree"));
+    QVERIFY(!linkedTree.value(QStringLiteral("main")).toBool());
+    QVERIFY(!linkedTree.value(QStringLiteral("current")).toBool());
+
+    // A service inside the linked worktree marks that one as current.
+    GitRepositoryService linkedService;
+    linkedService.setProjectPath(linked);
+    GIT_TRY_COMPARE(linkedService.worktrees()->count(), 2, 5000);
+    QVERIFY(worktreeAt(linkedService.worktrees(), linked).value(QStringLiteral("current")).toBool());
+    QVERIFY(!worktreeAt(linkedService.worktrees(), repository).value(QStringLiteral("current")).toBool());
+
+    // Switching repository ends the refresh and drops what it was reading:
+    // the late results of the old repository must not come back.
+    QVERIFY(run(repository, {QStringLiteral("tag"), QStringLiteral("v2")}).succeeded());
+    service.refreshRefs();
+    QVERIFY(service.refsRefreshing());
+    service.setProjectPath(plain);
+    QVERIFY(!service.refsRefreshing());
+    QCOMPARE(service.worktrees()->count(), 0);
+    QCOMPARE(service.branches()->count(), 0);
+    QTest::qWait(500);
+    QVERIFY(!service.refsRefreshing());
+    QCOMPARE(service.worktrees()->count(), 0);
+    QCOMPARE(service.branches()->count(), 0);
+}
+
+void GitRepositoryReadTest::probesWorktreeChangesInBackground()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    const QString repository = root.filePath(QStringLiteral("repository"));
+    const QString linked = root.filePath(QStringLiteral("linked tree"));
+    const QString plain = root.filePath(QStringLiteral("plain"));
+    QVERIFY(QDir().mkpath(repository));
+    QVERIFY(QDir().mkpath(plain));
+    QVERIFY(initializeRepository(repository));
+    QVERIFY(commitFile(repository, QStringLiteral("tracked.txt"), "first\n", QStringLiteral("first")));
+    QVERIFY(
+        run(repository,
+            {QStringLiteral("worktree"), QStringLiteral("add"), QStringLiteral("-b"), QStringLiteral("topic"), linked})
+            .succeeded());
+    // topic tracks main, with one commit of its own (not pushed) and one of
+    // main's it lacks (not pulled).
+    QVERIFY(
+        run(repository, {QStringLiteral("branch"), QStringLiteral("--set-upstream-to=main"), QStringLiteral("topic")})
+            .succeeded());
+    QVERIFY(commitFile(linked, QStringLiteral("topic.txt"), "topic\n", QStringLiteral("topic")));
+    QVERIFY(commitFile(repository, QStringLiteral("main.txt"), "main\n", QStringLiteral("main")));
+    // gone tracks a branch deleted since; solo tracks nothing.
+    QVERIFY(run(repository, {QStringLiteral("branch"), QStringLiteral("doomed")}).succeeded());
+    QVERIFY(run(repository,
+                {QStringLiteral("branch"), QStringLiteral("--track"), QStringLiteral("gone"), QStringLiteral("doomed")})
+                .succeeded());
+    QVERIFY(run(repository, {QStringLiteral("branch"), QStringLiteral("-D"), QStringLiteral("doomed")}).succeeded());
+    QVERIFY(run(repository, {QStringLiteral("branch"), QStringLiteral("solo")}).succeeded());
+    // The linked worktree edits a tracked file; the main one only gains an
+    // untracked file, which the probe leaves out.
+    QVERIFY(writeFile(QDir(linked).filePath(QStringLiteral("tracked.txt")), "edited\n"));
+    QVERIFY(writeFile(QDir(repository).filePath(QStringLiteral("untracked.txt")), "new\n"));
+
+    GitRepositoryService service;
+    service.setProjectPath(repository);
+    GIT_TRY_COMPARE(service.worktrees()->count(), 2, 5000);
+    GIT_TRY_VERIFY(hasRef(service.branches(), QStringLiteral("local"), QStringLiteral("solo")), 5000);
+
+    // Ahead/behind compare with the upstream ref as it is locally.
+    const QVariantMap topic = refRow(service.branches(), QStringLiteral("local"), QStringLiteral("topic"));
+    QVERIFY(topic.value(QStringLiteral("hasUpstream")).toBool());
+    QVERIFY(!topic.value(QStringLiteral("upstreamGone")).toBool());
+    QCOMPARE(topic.value(QStringLiteral("ahead")).toInt(), 1);
+    QCOMPARE(topic.value(QStringLiteral("behind")).toInt(), 1);
+    const QVariantMap gone = refRow(service.branches(), QStringLiteral("local"), QStringLiteral("gone"));
+    QVERIFY(gone.value(QStringLiteral("hasUpstream")).toBool());
+    QVERIFY(gone.value(QStringLiteral("upstreamGone")).toBool());
+    QVERIFY(!refRow(service.branches(), QStringLiteral("local"), QStringLiteral("solo"))
+                 .value(QStringLiteral("hasUpstream"))
+                 .toBool());
+
+    // The probe returns at once and answers as each check lands.
+    const QString mainPath = worktreeAt(service.worktrees(), repository).value(QStringLiteral("path")).toString();
+    const QString linkedPath = worktreeAt(service.worktrees(), linked).value(QStringLiteral("path")).toString();
+    service.probeWorktreeChanges();
+    QVERIFY(service.worktreeChanges().isEmpty());
+    GIT_TRY_COMPARE(service.worktreeChanges().size(), 2, 5000);
+    QVERIFY(service.worktreeChanges().value(linkedPath).toBool());
+    QVERIFY(!service.worktreeChanges().value(mainPath).toBool());
+    // Read only: the edit is still unstaged in its worktree.
+    QVERIFY(run(linked, {QStringLiteral("diff"), QStringLiteral("--cached"), QStringLiteral("--quiet")}).succeeded());
+    QVERIFY(!run(linked, {QStringLiteral("diff"), QStringLiteral("--quiet")}).succeeded());
+
+    // A newer round supersedes the running one and still converges.
+    QVERIFY(run(linked, {QStringLiteral("checkout"), QStringLiteral("--"), QStringLiteral("tracked.txt")}).succeeded());
+    service.probeWorktreeChanges();
+    service.probeWorktreeChanges();
+    GIT_TRY_VERIFY(!service.worktreeChanges().value(linkedPath, true).toBool(), 5000);
+    QCOMPARE(service.worktreeChanges().size(), 2);
+    QVERIFY(service.errorMessage().isEmpty());
+
+    // One round checks at most kGitWorktreeProbeLimit worktrees; the manual
+    // refresh probes the list it re-read.
+    for (int i = 0; i < kGitWorktreeProbeLimit; ++i) {
+        QVERIFY(run(repository,
+                    {QStringLiteral("worktree"), QStringLiteral("add"), QStringLiteral("--detach"),
+                     QStringLiteral("--no-checkout"), root.filePath(QStringLiteral("extra-%1").arg(i))})
+                    .succeeded());
+    }
+    service.refreshRefs();
+    GIT_TRY_COMPARE(service.worktrees()->count(), kGitWorktreeProbeLimit + 2, 5000);
+    GIT_TRY_COMPARE(service.worktreeChanges().size(), kGitWorktreeProbeLimit, 20000);
+    QTest::qWait(300);
+    QCOMPARE(service.worktreeChanges().size(), kGitWorktreeProbeLimit);
+
+    // A repository switch drops the round: none of its results come back.
+    service.probeWorktreeChanges();
+    service.setProjectPath(plain);
+    QVERIFY(service.worktreeChanges().isEmpty());
+    QTest::qWait(500);
+    QVERIFY(service.worktreeChanges().isEmpty());
 }
 
 void GitRepositoryReadTest::pollIntervalFollowsIdleFlag()

@@ -208,6 +208,23 @@ bool WorkspaceController::removeProject(const QString &projectPath)
     return true;
 }
 
+QString WorkspaceController::openProjectFolder(const QString &path, bool newTerminal)
+{
+    // The registry reports a folder that cannot be a project.
+    if (!m_projects->addProject(path)) {
+        return {};
+    }
+    const QString canonical = m_projects->canonicalProjectPath(path);
+    const int row = newTerminal ? -1 : m_sessions->activeIndexForProject(canonical);
+    if (row >= 0) {
+        const QString tileId = showSession(m_sessions->sessionIdAt(row));
+        if (!tileId.isEmpty()) {
+            return tileId;
+        }
+    }
+    return createSession(canonical);
+}
+
 QString WorkspaceController::createRemoteSession(const QString &hostId)
 {
     if (!m_remotes || !m_remotes->contains(hostId)) {

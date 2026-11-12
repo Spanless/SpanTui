@@ -257,6 +257,7 @@ qt_add_qml_module(SpanTui
         qml/components/business/git/GitPane.qml
         qml/components/business/git/GitRefBadge.qml
         qml/components/business/git/GitRefsTree.qml
+        qml/components/business/git/RefsSectionHeader.qml
         qml/components/business/messages/MessageCard.qml
         qml/components/business/messages/MessageCenterPopup.qml
         qml/components/business/messages/MessageToastStack.qml

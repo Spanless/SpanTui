@@ -70,6 +70,7 @@ GitLaneScheduler::OperationTraits GitLaneScheduler::operationTraits(const QStrin
         {kGitOperationHistory, {Lane::History, nullptr, true}},
         {kGitOperationHistoryParse, {Lane::History, nullptr, false}},
         {kGitOperationBranches, {Lane::History, nullptr, false}},
+        {kGitOperationWorktrees, {Lane::History, nullptr, false}},
         // Discovery and refresh both read the worktree state.
         {kGitOperationDiscover, {Lane::Status, kGitOperationRefresh.data(), false}},
         // One commit view loads in steps; a newer selection supersedes
@@ -80,6 +81,8 @@ GitLaneScheduler::OperationTraits GitLaneScheduler::operationTraits(const QStrin
         {QLatin1StringView("diff-stats"), {Lane::Diff, nullptr, false}},
         {QLatin1StringView("commit-preview"), {Lane::Peek, nullptr, false}},
         {QLatin1StringView("diff-body"), {Lane::DiffBody, nullptr, false}},
+        // One worktree at a time; a new round supersedes the running probe.
+        {kGitOperationWorktreeStatus, {Lane::Probe, nullptr, false}},
     };
     for (const Row &row : rows) {
         if (operation == row.name) return row.traits;

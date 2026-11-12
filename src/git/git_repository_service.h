@@ -71,11 +71,20 @@ class GitRepositoryService : public QObject {
     Q_PROPERTY(QString selectedCommit READ selectedCommit NOTIFY selectedCommitChanged FINAL)
     Q_PROPERTY(QVariantMap selectedCommitDetails READ selectedCommitDetails NOTIFY selectedCommitChanged FINAL)
     Q_PROPERTY(GitItemModel *branches READ branches CONSTANT FINAL)
+    // `git worktree list`, main worktree first; see parseWorktrees.
+    Q_PROPERTY(GitItemModel *worktrees READ worktrees CONSTANT FINAL)
+    // A refreshRefs() read of branches, tags and worktrees is in flight.
+    Q_PROPERTY(bool refsRefreshing READ refsRefreshing NOTIFY refsRefreshingChanged FINAL)
     Q_PROPERTY(GitItemModel *history READ history CONSTANT FINAL)
     Q_PROPERTY(GitItemModel *commitChanges READ commitChanges CONSTANT FINAL)
     Q_PROPERTY(GitItemModel *commitDiffFiles READ commitDiffFiles CONSTANT FINAL)
     Q_PROPERTY(int diffAdditions READ diffAdditions NOTIFY diffStatsChanged FINAL)
     Q_PROPERTY(int diffDeletions READ diffDeletions NOTIFY diffStatsChanged FINAL)
+    // Worktree path (as `worktrees` lists it) -> true when it has staged or
+    // unstaged changes to tracked files, from the last probeWorktreeChanges()
+    // round; a path without an entry is unknown (not probed yet, past the
+    // cap, or its check failed).
+    Q_PROPERTY(QVariantMap worktreeChanges READ worktreeChanges NOTIFY worktreeChangesChanged FINAL)
 
 public:
     explicit GitRepositoryService(QObject *parent = nullptr);
@@ -93,11 +102,14 @@ public:
     QString selectedCommit() const;
     QVariantMap selectedCommitDetails() const;
     GitItemModel *branches();
+    GitItemModel *worktrees();
+    bool refsRefreshing() const;
     GitItemModel *history();
     GitItemModel *commitChanges();
     GitItemModel *commitDiffFiles();
     int diffAdditions() const;
     int diffDeletions() const;
+    QVariantMap worktreeChanges() const;
     int pollIntervalMs() const;
     void setIdle(bool idle);
     // In the background (no tile shows the project) it neither polls nor
@@ -124,6 +136,18 @@ public:
 
     Q_INVOKABLE void setProjectPath(const QString &path);
     Q_INVOKABLE void refresh();
+    // Re-reads branches, tags and worktrees (the branch popup's refresh
+    // button); refsRefreshing holds until both reads have landed. The
+    // worktree list it reads is then probed again (probeWorktreeChanges).
+    Q_INVOKABLE void refreshRefs();
+    // Starts a silent round of `status --untracked-files=no` checks, one
+    // worktree at a time on the Probe lane, for at most
+    // kGitWorktreeProbeLimit listed worktrees (bare and missing ones are
+    // skipped; a repository without linked worktrees has none to check);
+    // results land in worktreeChanges as each check ends. Returns at once. A new round, or a repository switch, drops the older round's
+    // pending and running checks. Before the worktree list has loaded, the
+    // round starts when it lands.
+    Q_INVOKABLE void probeWorktreeChanges();
     Q_INVOKABLE void loadMoreHistory();
     bool historyHasMore() const;
     Q_INVOKABLE void clearError();
@@ -145,6 +169,8 @@ public:
     static QVariantMap parseStatus(const QByteArray &output, QVariantList *staged,
                                    QVariantList *working, QHash<QString, QString> *statuses);
     static QVariantList parseBranches(const QByteArray &output);
+    // Output of `worktree list --porcelain`; `current` is left false.
+    static QVariantList parseWorktrees(const QByteArray &output);
     // One `git log` page; `graph` carries the lanes in from the previous
     // page and out to the next one.
     static QVariantList parseHistoryPage(const QByteArray &output, HistoryGraph *graph);
@@ -158,6 +184,7 @@ signals:
     void repositoryChanged();
     void projectPathChanged();
     void busyChanged();
+    void refsRefreshingChanged();
     // Raw operation names; the application layer maps them to titles.
     void taskStarted(const QString &operation);
     void taskFinished(const QString &operation,
@@ -172,6 +199,7 @@ signals:
     // Bodies of these paths in `scope` changed (arrived, were refetched with
     // new content, or were dropped); an empty list means the whole scope.
     void diffLinesChanged(const QString &scope, const QStringList &paths);
+    void worktreeChangesChanged();
 
 private:
     using Completion = GitLaneScheduler::Completion;
@@ -223,7 +251,16 @@ private:
                   const QString &operation, Completion completion, bool reportBusy = true);
     void discoverProject();
     void refreshStatus(bool includeBranches, bool reportBusy = true);
+    // Reads the refs and, alongside, the worktrees.
     void refreshBranches(bool reportBusy = true);
+    void readWorktrees();
+    enum class RefsRead { Branches, Worktrees };
+    // A branches or worktrees read of the current repository finished (or
+    // could not start); the manual refresh ends with the second one.
+    void settleRefsRead(RefsRead read);
+    // A new probe round over the listed worktrees, and its next check.
+    void startWorktreeProbe();
+    void probeNextWorktree();
     void loadHistory(bool reportBusy = true);
     // `first`: the newest page of `ref`; otherwise the page after the loaded
     // rows, continuing `graph`.
@@ -309,6 +346,21 @@ private:
     bool m_pendingIncludeBranches = false;
     QString m_lastHeadIdentity;
     QHash<QString, QString> m_statuses;
+    // Bumped by every repository switch; a branches or worktrees read that
+    // finishes under another epoch belongs to the old repository and is
+    // dropped.
+    quint64 m_refsEpoch = 0;
+    bool m_refsBranchesPending = false;
+    bool m_refsWorktreesPending = false;
+    bool m_refsRefreshing = false;
+    QVariantMap m_worktreeChanges;
+    // Worktrees the current round has yet to check. A check whose
+    // generation is no longer current belongs to an older round (or
+    // repository) and is dropped.
+    QStringList m_worktreeProbeQueue;
+    quint64 m_worktreeProbeGeneration = 0;
+    // A round was asked for before the worktree list landed.
+    bool m_worktreeProbePending = false;
     DiffBodyQueue m_diffBodies[int(DiffScope::Count)];
     // One body fetch runs at a time; the serial ties a completion to the
     // request that is still current (a repository switch bumps it).
@@ -316,6 +368,7 @@ private:
     bool m_diffBodyInFlight = false;
     int m_diffBodyNextScope = 0;
     GitItemModel m_branches;
+    GitItemModel m_worktrees;
     GitItemModel m_history;
     GitItemModel m_commitChanges;
     GitItemModel m_commitDiffFiles;

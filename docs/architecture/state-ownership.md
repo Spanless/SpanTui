@@ -31,7 +31,7 @@
 |---|---|---|
 | `DocumentManager` | `src/documents/document_manager.*` | 打开的文件、外部变更检测、缺失状态；只读 |
 | `EditorController` | `src/documents/editor_controller.*` | 查找、跳转行、行 Git 状态、行模型 `CodePreviewLineModel` |
-| `GitRepositoryService` | `src/git/git_repository_service.*` | History/Status/Diff 三通道调度、取消代次、缓存、历史分页、前台标志、未跟踪文件缓存 |
+| `GitRepositoryService` | `src/git/git_repository_service.*` | 各车道调度、取消代次、缓存、历史分页、前台标志、未跟踪文件缓存、工作树改动探测结果 `worktreeChanges` 与探测代次 |
 
 ## 3. 终端
 
