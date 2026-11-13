@@ -52,6 +52,12 @@ QStringList takeRecordedArguments(const QString &directory)
     return arguments;
 }
 
+// The extension and the application build into the folder of this test image.
+QString builtExtensionPath()
+{
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("SpanTui-shell-extension.dll"));
+}
+
 } // namespace
 
 class ShellExtensionContractTest : public QObject
@@ -61,7 +67,7 @@ class ShellExtensionContractTest : public QObject
 private slots:
     void exposesTwoCommandFlyout()
     {
-        const QString libraryPath = QString::fromUtf8(SPANTUI_SHELL_EXTENSION_PATH);
+        const QString libraryPath = builtExtensionPath();
         QVERIFY2(QFileInfo::exists(libraryPath), qPrintable(libraryPath));
         QVERIFY2(QFileInfo::exists(QDir(QFileInfo(libraryPath).absolutePath()).filePath("SpanTui-test.exe"))
                      || QFileInfo::exists(
@@ -163,7 +169,7 @@ private slots:
         QTemporaryDir stage;
         QVERIFY(stage.isValid());
         const QString libraryPath = stage.filePath(QStringLiteral("SpanTui-shell-extension.dll"));
-        QVERIFY(QFile::copy(QString::fromUtf8(SPANTUI_SHELL_EXTENSION_PATH), libraryPath));
+        QVERIFY(QFile::copy(builtExtensionPath(), libraryPath));
         QVERIFY(QFile::copy(QDir(QCoreApplication::applicationDirPath())
                                 .filePath(QStringLiteral("argv_echo_child.exe")),
                             stage.filePath(QStringLiteral("SpanTui.exe"))));

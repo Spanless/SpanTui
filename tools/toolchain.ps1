@@ -1,11 +1,18 @@
 ﻿# Shared Qt/MinGW/CMake toolchain resolution for the devtool workers and start.bat.
 # Priority: process environment > this checkout's .env > the main checkout's
-# .env (linked worktrees only) > discovery under SPANTUI_QT_SDK_ROOT or C:\Qt >
-# PATH discovery.
+# .env (linked worktrees only) > discovery under the Qt install root
+# (SPANTUI_QT_SDK_ROOT, else <drive>:\Qt, else the root of the Qt tools on
+# PATH) > PATH discovery.
 
 Set-StrictMode -Version Latest
 
 $script:SpanTuiRepoRoot = Split-Path -Parent $PSScriptRoot
+
+# The repository's sccache server listens on a port of its own in this range,
+# picked from the main checkout's path, so it never meets the server other
+# projects start on sccache's default port.
+$script:SpanTuiSccachePortBase = 42300
+$script:SpanTuiSccachePortCount = 500
 
 # A linked worktree has a .git file naming <main>\.git\worktrees\<id>, whose
 # `commondir` leads to the main .git. Name: `main` or `wt-<id>`. Anything else
@@ -33,20 +40,59 @@ function Get-SpanTuiCheckout {
     return [pscustomobject]@{ Root = $checkoutRoot; MainRoot = $checkoutRoot; Name = 'main'; IsWorktree = $false }
 }
 
+# Linked worktrees of a main checkout, read from its .git\worktrees admin
+# folders without starting git: Id, Name (wt-<id>), Path, Exists.
+function Get-SpanTuiLinkedCheckouts {
+    param([Parameter(Mandatory = $true)][string]$MainRoot)
+    $adminRoot = Join-Path $MainRoot '.git\worktrees'
+    $checkouts = @()
+    if (-not (Test-Path -LiteralPath $adminRoot -PathType Container)) { return $checkouts }
+    foreach ($admin in Get-ChildItem -LiteralPath $adminRoot -Directory) {
+        $gitdirFile = Join-Path $admin.FullName 'gitdir'
+        if (-not (Test-Path -LiteralPath $gitdirFile -PathType Leaf)) { continue }
+        $dotGit = Resolve-SpanTuiRepoPath $admin.FullName ([System.IO.File]::ReadAllText($gitdirFile).Trim())
+        $path = Split-Path -Parent $dotGit
+        $checkouts += [pscustomobject]@{
+            Id = $admin.Name
+            Name = "wt-$($admin.Name)"
+            Path = $path
+            Exists = Test-Path -LiteralPath $path -PathType Container
+        }
+    }
+    return $checkouts
+}
+
+# First 16 hex digits of SHA-256 over the lower-cased full path.
+function Get-SpanTuiPathKey([string]$Path) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [BitConverter]::ToString(
+            $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(
+                [System.IO.Path]::GetFullPath($Path).TrimEnd('\').ToLowerInvariant()))).Replace('-', '').Substring(0, 16)
+    } finally {
+        $sha.Dispose()
+    }
+}
+
 # Commands of one checkout share its build tree, so dev.ps1 runs them one at a
 # time under this mutex; `dev worktree remove` takes it to keep a worktree
 # that is building or testing.
 function New-SpanTuiDevMutex {
     param([Parameter(Mandatory = $true)][string]$Root)
-    $sha = [System.Security.Cryptography.SHA256]::Create()
+    return New-Object System.Threading.Mutex($false, "Local\SpanTui.Dev.$(Get-SpanTuiPathKey $Root)")
+}
+
+# True while a dev command holds the checkout's mutex. Never call it for the
+# checkout this process runs in: dev.ps1 holds that mutex itself.
+function Test-SpanTuiCheckoutBusy([string]$Root) {
+    $mutex = New-SpanTuiDevMutex -Root $Root
     try {
-        $key = [BitConverter]::ToString(
-            $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(
-                [System.IO.Path]::GetFullPath($Root).TrimEnd('\').ToLowerInvariant()))).Replace('-', '').Substring(0, 16)
+        try { $free = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $free = $true }
+        if ($free) { $mutex.ReleaseMutex() }
+        return -not $free
     } finally {
-        $sha.Dispose()
+        $mutex.Dispose()
     }
-    return New-Object System.Threading.Mutex($false, "Local\SpanTui.Dev.$key")
 }
 
 # KEY=VALUE, optionally quoted. A variable already set in the process wins. A
@@ -180,6 +226,19 @@ function Test-SpanTuiCacheForeignQt([string]$BuildDir, [string]$QtRoot) {
         (& $normalize $QtRoot), [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+# CMake refuses a cache made for another source folder ("does not match the
+# source used to generate cache"), as after moving the checkout. True when the
+# cache names a source folder other than SourceDir.
+function Test-SpanTuiCacheForeignSource([string]$BuildDir, [string]$SourceDir) {
+    $cache = Join-Path $BuildDir 'CMakeCache.txt'
+    if (-not (Test-Path -LiteralPath $cache -PathType Leaf)) { return $false }
+    $entry = Select-String -LiteralPath $cache -Pattern '^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$' | Select-Object -First 1
+    if (-not $entry) { return $false }
+    $normalize = { param($path) ($path.Trim() -replace '\\', '/').TrimEnd('/') }
+    return -not [string]::Equals((& $normalize $entry.Matches[0].Groups[1].Value), (& $normalize $SourceDir),
+        [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 function Invoke-SpanTuiTimedStep {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -260,23 +319,60 @@ function Resolve-SpanTuiWorktreeRoot {
     return Resolve-SpanTuiRepoPath $main $WorktreeRoot
 }
 
+# Newest <version>\mingw_64 kit under a Qt install root, or $null.
+function Find-SpanTuiQtKit([string]$SdkRoot) {
+    if (-not $SdkRoot -or -not (Test-Path -LiteralPath $SdkRoot -PathType Container)) { return $null }
+    return Get-ChildItem -LiteralPath $SdkRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^\d+(\.\d+){1,2}$' } |
+        Sort-Object { [version]$_.Name } -Descending | ForEach-Object { Join-Path $_.FullName 'mingw_64' } |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_ 'bin\qmake.exe') } | Select-Object -First 1
+}
+
+# The Qt install root (the folder holding <version>\ and Tools\). A set
+# SPANTUI_QT_SDK_ROOT must exist. Otherwise the first root that holds a
+# mingw_64 kit among <drive>:\Qt on the fixed drives (the installer's default
+# is C:\Qt) and the roots of qmake.exe, qtpaths.exe (<root>\<version>\mingw_64\bin)
+# and cmake.exe (<root>\Tools\CMake_64\bin) on PATH; $null when none does.
+function Resolve-SpanTuiQtSdkRoot {
+    if (-not [string]::IsNullOrWhiteSpace($env:SPANTUI_QT_SDK_ROOT)) {
+        if (-not (Test-Path -LiteralPath $env:SPANTUI_QT_SDK_ROOT -PathType Container)) {
+            Fail "SPANTUI_QT_SDK_ROOT=$env:SPANTUI_QT_SDK_ROOT does not exist; point it at the Qt install root (the folder holding 6.x.y\ and Tools\). See docs/workflow/build.md."
+        }
+        return (Resolve-Path -LiteralPath $env:SPANTUI_QT_SDK_ROOT).Path
+    }
+    $candidates = @([System.IO.DriveInfo]::GetDrives() |
+        Where-Object { $_.DriveType -eq [System.IO.DriveType]::Fixed -and $_.IsReady } |
+        ForEach-Object { Join-Path $_.RootDirectory.FullName 'Qt' })
+    foreach ($tool in @('qmake.exe', 'qtpaths.exe', 'cmake.exe')) {
+        foreach ($command in @(Get-Command $tool -CommandType Application -All -ErrorAction SilentlyContinue)) {
+            $up3 = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $command.Source))
+            if ($tool -eq 'cmake.exe') {
+                if ((Split-Path -Leaf $up3) -ieq 'Tools') { $candidates += Split-Path -Parent $up3 }
+            } else {
+                $candidates += Split-Path -Parent $up3
+            }
+        }
+    }
+    foreach ($candidate in $candidates) {
+        if (Find-SpanTuiQtKit $candidate) { return [System.IO.Path]::GetFullPath($candidate).TrimEnd('\') }
+    }
+    return $null
+}
+
 # Qt, MinGW, CMake and Ninja. Each SPANTUI_* variable (environment or .env)
-# sets one piece; the rest is discovered under SPANTUI_QT_SDK_ROOT or C:\Qt
-# (newest <version>\mingw_64 kit, Tools\mingw*\bin, Tools\CMake_64,
-# Tools\Ninja), then on PATH. A miss names the variable that fixes it.
+# sets one piece; the rest is discovered under the Qt install root
+# (Resolve-SpanTuiQtSdkRoot: newest <version>\mingw_64 kit, Tools\mingw*\bin,
+# Tools\CMake_64, Tools\Ninja), then on PATH. A miss names the variable that
+# fixes it.
 function Resolve-SpanTuiToolchain {
     param([switch]$RequireWindeployQt)
 
-    $sdk = Get-FirstExistingPath @($env:SPANTUI_QT_SDK_ROOT, 'C:\Qt') -Directory
+    $sdk = Resolve-SpanTuiQtSdkRoot
     $sdkPath = { param($relative) if ($sdk) { Join-Path $sdk $relative } }
     $onPath = { param($name) $command = Get-Command $name -ErrorAction SilentlyContinue; if ($command) { $command.Source } }
 
     $qtRoot = $env:SPANTUI_QT_ROOT
-    if (-not $qtRoot -and $sdk) {
-        $qtRoot = Get-ChildItem -LiteralPath $sdk -Directory | Where-Object { $_.Name -match '^\d+(\.\d+){1,2}$' } |
-            Sort-Object { [version]$_.Name } -Descending | ForEach-Object { Join-Path $_.FullName 'mingw_64' } |
-            Where-Object { Test-Path -LiteralPath (Join-Path $_ 'bin\qmake.exe') } | Select-Object -First 1
-    }
+    if (-not $qtRoot) { $qtRoot = Find-SpanTuiQtKit $sdk }
     $mingwBin = $env:SPANTUI_MINGW_BIN
     if (-not $mingwBin -and $sdk) {
         $mingwBin = Get-ChildItem -LiteralPath (& $sdkPath 'Tools') -Directory -Filter 'mingw*' -ErrorAction SilentlyContinue |
@@ -292,11 +388,13 @@ function Resolve-SpanTuiToolchain {
     }
 
     $missing = @()
-    if (-not $qtRoot) { $missing += 'Qt mingw_64 kit (SPANTUI_QT_ROOT, or SPANTUI_QT_SDK_ROOT for the Qt install root)' }
+    if (-not $qtRoot) { $missing += 'Qt mingw_64 kit (no <drive>:\Qt and no Qt tools on PATH: set SPANTUI_QT_SDK_ROOT to the Qt install root, or SPANTUI_QT_ROOT to the kit)' }
     if (-not $cmake) { $missing += 'CMake (SPANTUI_CMAKE, or cmake.exe on PATH)' }
     if (-not $mingwBin) { $missing += 'MinGW bin directory (SPANTUI_MINGW_BIN)' }
     if (-not $ninjaDir) { $missing += 'Ninja directory (SPANTUI_NINJA_DIR, or ninja.exe on PATH)' }
-    if ($missing.Count -gt 0) { Fail ('Toolchain not found: ' + ($missing -join '; ') + '. See docs/workflow/build.md.') }
+    if ($missing.Count -gt 0) {
+        Fail ('Toolchain not found: ' + ($missing -join '; ') + '. Put the variables in .env (template: .env.example); dev.bat doctor shows what was found. See docs/workflow/build.md.')
+    }
 
     $qtRoot = [System.IO.Path]::GetFullPath($qtRoot)
     $cmake = [System.IO.Path]::GetFullPath($cmake)
@@ -352,6 +450,114 @@ function Resolve-SpanTuiLinkerDirectory {
 function Use-SpanTuiToolchainPath([pscustomobject]$Toolchain) {
     $env:PATH = "$(Join-Path $Toolchain.QtRoot 'bin');$($Toolchain.MingwBin);$($Toolchain.NinjaDir);$env:PATH"
     if ($Toolchain.LinkerDir) { $env:PATH = "$($Toolchain.LinkerDir);$env:PATH" }
+    Use-SpanTuiCompilerCache
+}
+
+# Compiler cache (docs/workflow/build.md, section 1). CMakeLists.txt compiles
+# through sccache when it is on PATH. All checkouts of the repository share
+# one sccache server of their own: a port derived from the main checkout, a
+# cache folder (SPANTUI_SCCACHE_DIR, default <SPANTUI_BUILD_ROOT>\sccache or
+# <main checkout>\target\sccache), and every checkout root and build tree as
+# base directories, which sccache strips from paths before hashing, so one
+# checkout reuses what another compiled. SPANTUI_SCCACHE=external leaves
+# sccache's environment alone (CI starts its own server).
+function Get-SpanTuiCompilerCacheConfig {
+    param([string]$Root = $script:SpanTuiRepoRoot)
+    $main = (Get-SpanTuiCheckout -Root $Root).MainRoot
+    $checkouts = @($main) + @(Get-SpanTuiLinkedCheckouts -MainRoot $main | Where-Object { $_.Exists } | ForEach-Object { $_.Path })
+    $baseDirs = @()
+    foreach ($checkout in $checkouts) {
+        $baseDirs += $checkout
+        $build = Resolve-SpanTuiBuildDirectory -Root $checkout
+        if (-not "$build\".StartsWith("$checkout\", [System.StringComparison]::OrdinalIgnoreCase)) { $baseDirs += $build }
+    }
+    $directory = $env:SPANTUI_SCCACHE_DIR
+    if ([string]::IsNullOrWhiteSpace($directory)) {
+        $directory = if ([string]::IsNullOrWhiteSpace($env:SPANTUI_BUILD_ROOT)) { 'target\sccache' } else { Join-Path $env:SPANTUI_BUILD_ROOT 'sccache' }
+    }
+    $port = $script:SpanTuiSccachePortBase + [Convert]::ToInt32((Get-SpanTuiPathKey $main).Substring(0, 6), 16) % $script:SpanTuiSccachePortCount
+    return [pscustomobject]@{
+        MainRoot = $main
+        Checkouts = $checkouts
+        Port = $port
+        Directory = Resolve-SpanTuiRepoPath $main $directory
+        # Longest first, so a tree nested in another root is matched as itself.
+        BaseDirs = @($baseDirs | Sort-Object -Unique | Sort-Object -Property Length -Descending)
+    }
+}
+
+# sccache spells paths lower-case with forward slashes and a trailing slash.
+function ConvertTo-SpanTuiSccachePath([string]$Path) {
+    return ($Path.Trim() -replace '\\', '/').TrimEnd('/').ToLowerInvariant() + '/'
+}
+
+# Points this process (and the compiles it starts) at the repository's sccache
+# server and makes sure the server knows every checkout. The server reads its
+# base directories once, at start: when the checkouts changed it is restarted,
+# unless a dev command in another checkout may be compiling through it, which
+# a restart would break; that build then runs without the new checkouts.
+function Use-SpanTuiCompilerCache {
+    param([string]$Root = $script:SpanTuiRepoRoot)
+    switch ("$env:SPANTUI_SCCACHE") {
+        '' { }
+        'external' { return }
+        default { Fail "SPANTUI_SCCACHE=$env:SPANTUI_SCCACHE is not a known value: leave it unset, or set external to keep sccache's own environment. See docs/workflow/build.md." }
+    }
+    $sccache = Get-Command sccache.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $sccache) { return }
+    $config = Get-SpanTuiCompilerCacheConfig -Root $Root
+    New-Item -ItemType Directory -Force -Path $config.Directory | Out-Null
+    $env:SCCACHE_SERVER_PORT = "$($config.Port)"
+    $env:SCCACHE_DIR = $config.Directory
+    $env:SCCACHE_BASEDIRS = $config.BaseDirs -join ';'
+
+    # Starts the server with the variables above when none listens yet.
+    $server = Get-SpanTuiCompilerCacheServer $sccache.Source
+    if (-not $server) {
+        Write-Host 'Compiler cache: sccache did not answer; compiling through it anyway.' -ForegroundColor Yellow
+        return
+    }
+    if ($null -eq $server.BaseDirs) {
+        Write-Host "Compiler cache: sccache $($server.Version) has no base directories; checkouts do not share objects until it is updated." -ForegroundColor Yellow
+        return
+    }
+    $wanted = @($config.BaseDirs | ForEach-Object { ConvertTo-SpanTuiSccachePath $_ } | Sort-Object)
+    $actual = @($server.BaseDirs | ForEach-Object { ConvertTo-SpanTuiSccachePath $_ } | Sort-Object)
+    $sameDirs = ($wanted -join "`n") -ceq ($actual -join "`n")
+    $sameCache = (ConvertTo-SpanTuiSccachePath $server.Directory) -ceq (ConvertTo-SpanTuiSccachePath $config.Directory)
+    if ($sameDirs -and $sameCache) { return }
+
+    $self = (Get-SpanTuiCheckout -Root $Root).Root
+    $busy = @($config.Checkouts | Where-Object { $_ -ine $self -and (Test-SpanTuiCheckoutBusy $_) })
+    if ($busy.Count -gt 0) {
+        Write-Host ("Compiler cache: not restarting sccache while a dev command runs in {0}; this build may miss objects of checkouts it does not know yet." -f ($busy -join ', ')) -ForegroundColor Yellow
+        return
+    }
+    Write-Host ("Compiler cache: restarting sccache (port {0}) for {1} checkout(s)" -f $config.Port, $config.Checkouts.Count)
+    & $sccache.Source --stop-server *> $null
+    & $sccache.Source --start-server *> $null
+    if ($LASTEXITCODE -ne 0) { Write-Host 'Compiler cache: sccache did not restart; compiling through it anyway.' -ForegroundColor Yellow }
+}
+
+# The configuration of the server SCCACHE_SERVER_PORT names (started when
+# none listens): BaseDirs ($null when this sccache has none), Directory, Hits,
+# Misses, Version. $null when sccache fails.
+function Get-SpanTuiCompilerCacheServer([string]$Sccache) {
+    $json = & $Sccache --show-stats --stats-format=json 2> $null
+    if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
+    $stats = ($json -join "`n") | ConvertFrom-Json
+    $directory = if ("$($stats.cache_location)" -match '"(.+)"') { $Matches[1] -replace '\\\\', '\' } else { "$($stats.cache_location)" }
+    $count = { param($counter) $total = 0; foreach ($p in $counter.counts.PSObject.Properties) { $total += [int]$p.Value }; $total }
+    # Assigned, not taken from an if expression, which would turn [] into $null.
+    $baseDirs = $null
+    if ($stats.PSObject.Properties['basedirs']) { $baseDirs = @($stats.basedirs) }
+    return [pscustomobject]@{
+        BaseDirs = $baseDirs
+        Directory = $directory
+        Hits = & $count $stats.stats.cache_hits
+        Misses = & $count $stats.stats.cache_misses
+        Version = "$($stats.version)"
+    }
 }
 
 # Configures the Ninja tree unless it is current. CMake cannot switch
@@ -387,6 +593,11 @@ function Initialize-SpanTuiBuildTree {
     }
     elseif ($foreignQt) {
         Write-Host "Build tree was configured against another Qt; resetting CMake cache in $BuildDir" -ForegroundColor Yellow
+        Remove-Item -LiteralPath (Join-Path $BuildDir 'CMakeCache.txt'), (Join-Path $BuildDir 'CMakeFiles') `
+            -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    elseif (Test-SpanTuiCacheForeignSource -BuildDir $BuildDir -SourceDir $SourceDir) {
+        Write-Host "Build tree was configured for another source folder (moved checkout?); resetting CMake cache in $BuildDir" -ForegroundColor Yellow
         Remove-Item -LiteralPath (Join-Path $BuildDir 'CMakeCache.txt'), (Join-Path $BuildDir 'CMakeFiles') `
             -Recurse -Force -ErrorAction SilentlyContinue
     }

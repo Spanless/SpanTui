@@ -40,7 +40,7 @@ SpanTui 是一款基于 Qt 6 / QML 的 Windows 原生工作区与终端应用。
 - MinGW 13.1 64-bit、CMake ≥ 3.22、Ninja（Qt 安装器的 Tools 中均可选装）
 - 仅打包安装程序时需要 Inno Setup 6 与 Windows SDK
 
-Qt 装在 `C:\Qt` 时构建脚本会自动发现；否则把 `.env.example` 复制为 `.env`，设置 `SPANTUI_QT_SDK_ROOT` 为 Qt 安装根目录（或逐项设置 `SPANTUI_QT_ROOT`、`SPANTUI_CMAKE`、`SPANTUI_MINGW_BIN`、`SPANTUI_NINJA_DIR`）；同名环境变量仍然优先。详见 [构建规范](docs/workflow/build.md)。
+Qt 装在某盘的 `\Qt`（安装器默认 `C:\Qt`）或其 `qmake`/`cmake` 在 `PATH` 上时，构建脚本会自动发现，`dev.bat doctor` 列出找到的工具链；否则把 `.env.example` 复制为 `.env`，设置 `SPANTUI_QT_SDK_ROOT` 为 Qt 安装根目录（或逐项设置 `SPANTUI_QT_ROOT`、`SPANTUI_CMAKE`、`SPANTUI_MINGW_BIN`、`SPANTUI_NINJA_DIR`）；同名环境变量仍然优先。详见 [构建规范](docs/workflow/build.md)。
 
 构建树与安装包放在仓库内已忽略的 `target\`；要放到别处，在 `.env` 里设置 `SPANTUI_BUILD_ROOT` 与 `SPANTUI_ARTIFACT_ROOT`。开发运行、测试与临时文件只写进已忽略的 `.dev\`，不碰你自己的 `%APPDATA%` 与 TEMP；`dev.bat clean` 删除它。
 

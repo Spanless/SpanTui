@@ -44,6 +44,7 @@ PATH 相对条目一律忽略：从资源管理器菜单启动时当前目录是
 |---|---|
 | `target/` | 已忽略；构建树与制品默认位置 |
 | `target/build/` 或 `SPANTUI_BUILD_ROOT\{main,wt-<id>}` | 开发构建树（见 [构建规范](../workflow/build.md#2-输出目录与打包)） |
+| `target/sccache/`、`SPANTUI_BUILD_ROOT\sccache` 或 `SPANTUI_SCCACHE_DIR` | 本仓库各检出共用的 sccache 缓存（见 [编译缓存](../workflow/build.md#编译缓存)） |
 | `.dev/` | 已忽略；`data/` 开发数据根，`tmp/tests/<测试名>/` 测试环境重定向，`tmp/fontbuild/` 字体构建，`tools/` 辅助工具，`debug/` 手工排查 |
 | `.env` | 已忽略；工具链读取的本机配置，应用不读 |
 | `<构建树>/terminal-stress-tui` | 压测 TUI 独立构建树 |

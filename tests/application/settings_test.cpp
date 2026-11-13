@@ -96,16 +96,14 @@ bool containsFontWeight(const QVariantList &options, int weight)
 
 void SettingsTest::initTestCase()
 {
-    const QString regularPath = QStringLiteral(SPANTUI_SOURCE_DIR "/assets/fonts/SpanMono-Regular.ttf");
+    const QString regularPath = QStringLiteral(":/fonts/SpanMono-Regular.ttf");
     const int regularId = QFontDatabase::addApplicationFont(regularPath);
     QVERIFY(regularId >= 0);
     const QStringList regularFamilies = QFontDatabase::applicationFontFamilies(regularId);
     QVERIFY(!regularFamilies.isEmpty());
     m_bundledTerminalFamily = regularFamilies.constFirst();
-    QVERIFY(QFontDatabase::addApplicationFont(QStringLiteral(SPANTUI_SOURCE_DIR "/assets/fonts/SpanMono-Bold.ttf"))
-            >= 0);
-    QVERIFY(QFontDatabase::addApplicationFont(QStringLiteral(SPANTUI_SOURCE_DIR "/assets/fonts/SpanSans-Regular.ttf"))
-            >= 0);
+    QVERIFY(QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/SpanMono-Bold.ttf")) >= 0);
+    QVERIFY(QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/SpanSans-Regular.ttf")) >= 0);
 }
 
 void SettingsTest::loadsDefaultAppearanceSettings()

@@ -33,7 +33,7 @@ You need:
 - MinGW 13.1 64-bit, CMake 3.22 or later, and Ninja (all available in the Qt installer's Tools section)
 - Inno Setup 6 and the Windows SDK, only if you build the installer
 
-If Qt is installed under `C:\Qt`, the build scripts find it on their own. Otherwise copy `.env.example` to `.env` and set `SPANTUI_QT_SDK_ROOT` to the Qt install root (or `SPANTUI_QT_ROOT`, `SPANTUI_CMAKE`, `SPANTUI_MINGW_BIN` and `SPANTUI_NINJA_DIR` one by one); environment variables of the same name still win. See [docs/workflow/build.md](docs/workflow/build.md).
+If Qt is installed in `<drive>:\Qt` (the installer's default `C:\Qt`) or its `qmake`/`cmake` are on `PATH`, the build scripts find it on their own; `dev.bat doctor` shows what they found. Otherwise copy `.env.example` to `.env` and set `SPANTUI_QT_SDK_ROOT` to the Qt install root (or `SPANTUI_QT_ROOT`, `SPANTUI_CMAKE`, `SPANTUI_MINGW_BIN` and `SPANTUI_NINJA_DIR` one by one); environment variables of the same name still win. See [docs/workflow/build.md](docs/workflow/build.md).
 
 Build trees and packages go to the git-ignored `target\` folder of the checkout; set `SPANTUI_BUILD_ROOT` and `SPANTUI_ARTIFACT_ROOT` in `.env` to put them somewhere else. Development runs, tests and scratch files write only into the git-ignored `.dev\` folder, never into your own `%APPDATA%` or TEMP. `dev.bat clean` deletes it.
 
