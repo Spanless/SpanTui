@@ -2,6 +2,8 @@
 # worktree has its own branch, .dev\ and build tree (<SPANTUI_BUILD_ROOT>\wt-<id>,
 # or its own target\build) and reads machine settings from the main
 # checkout's .env, so a second task never needs a stash or a branch switch.
+# add, remove and prune also tell the shared sccache server the new set of
+# checkouts (Use-SpanTuiCompilerCache in toolchain.ps1).
 #
 #   add <branch> [<base>]   check out <branch> in a new worktree; a branch that
 #                           does not exist yet is created from <base> (default dev)
@@ -22,7 +24,6 @@ Set-StrictMode -Version Latest
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $main = (Get-SpanTuiCheckout -Root $root).MainRoot
-$adminRoot = Join-Path $main '.git\worktrees'
 
 function Invoke-Git([string[]]$GitArgs) {
     $output = & git -C $main @GitArgs
@@ -44,21 +45,10 @@ function Get-LinkedWorktrees {
             $current = $null
         }
     }
-    $worktrees = @()
-    if (-not (Test-Path -LiteralPath $adminRoot -PathType Container)) { return $worktrees }
-    foreach ($admin in Get-ChildItem -LiteralPath $adminRoot -Directory) {
-        $gitdirFile = Join-Path $admin.FullName 'gitdir'
-        if (-not (Test-Path -LiteralPath $gitdirFile -PathType Leaf)) { continue }
-        $dotGit = Resolve-SpanTuiRepoPath $admin.FullName ([System.IO.File]::ReadAllText($gitdirFile).Trim())
-        $path = Split-Path -Parent $dotGit
-        $known = $byPath[$path.ToLowerInvariant()]
-        $worktrees += [pscustomobject]@{
-            Id = $admin.Name
-            Name = "wt-$($admin.Name)"
-            Path = $path
-            Branch = if ($known) { $known.Branch } else { '(unknown)' }
-            Exists = Test-Path -LiteralPath $path -PathType Container
-        }
+    $worktrees = @(Get-SpanTuiLinkedCheckouts -MainRoot $main)
+    foreach ($worktree in $worktrees) {
+        $known = $byPath[$worktree.Path.ToLowerInvariant()]
+        $worktree | Add-Member -NotePropertyName Branch -NotePropertyValue $(if ($known) { $known.Branch } else { '(unknown)' })
     }
     return $worktrees
 }
@@ -120,11 +110,13 @@ switch ($Action) {
             [void](Invoke-Git @('worktree', 'add', '-b', $branch, $path, $base))
         }
         $checkout = Get-SpanTuiCheckout -Root $path
+        # Now, while the other checkouts are most likely idle.
+        Use-SpanTuiCompilerCache
         Write-Host "Worktree $($checkout.Name) on $branch" -ForegroundColor Green
         Write-Host "  checkout: $path"
         Write-Host "  build:    $(Resolve-SpanTuiBuildDirectory -Root $path)"
         Write-Host "  data:     $(Join-Path $path '.dev\data')"
-        Write-Host '  Run dev.bat there; its first build compiles everything.'
+        Write-Host '  Run dev.bat there; its first build configures a new tree (with sccache, it reuses what the other checkouts compiled).'
     }
     'list' {
         $buildRoot = Get-BuildRoot
@@ -173,10 +165,12 @@ switch ($Action) {
         }
         $buildRoot = Get-BuildRoot
         if ($buildRoot) { Remove-BuildTree (Join-Path $buildRoot $worktree.Name) }
+        Use-SpanTuiCompilerCache
         Write-Host "Removed worktree $($worktree.Name). Branch $($worktree.Branch) is kept; delete it with git branch -d $($worktree.Branch) once merged." -ForegroundColor Green
     }
     'prune' {
         [void](Invoke-Git @('worktree', 'prune'))
+        Use-SpanTuiCompilerCache
         $buildRoot = Get-BuildRoot
         if (-not $buildRoot -or -not (Test-Path -LiteralPath $buildRoot -PathType Container)) {
             Write-Host 'Worktree records pruned; no SPANTUI_BUILD_ROOT build trees to check.'

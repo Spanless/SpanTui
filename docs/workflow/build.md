@@ -15,10 +15,10 @@
 `tools/toolchain.ps1` 解析工具链，优先级：
 
 1. `SPANTUI_QT_ROOT`、`SPANTUI_CMAKE`、`SPANTUI_MINGW_BIN`、`SPANTUI_NINJA_DIR` 逐项覆盖；
-2. 在 `SPANTUI_QT_SDK_ROOT`（默认 `C:\Qt`）下发现最新 `mingw_64` 套件与 `Tools\` 中的工具；
+2. 在 Qt 安装根下发现最新 `mingw_64` 套件与 `Tools\` 中的工具。安装根取 `SPANTUI_QT_SDK_ROOT`（设了但不存在即报错）；未设时依次试各固定盘的 `<盘符>:\Qt`（安装器默认 `C:\Qt`），以及 `PATH` 上 `qmake.exe`、`qtpaths.exe`（`<根>\<版本>\mingw_64\bin`）与 `cmake.exe`（`<根>\Tools\CMake_64\bin`）所在的安装根，取第一个含 `mingw_64` 套件的；
 3. `PATH`。
 
-缺项时报错并列出变量，不回退到本机路径。变量可写在仓库根 `.env`（`KEY=VALUE`，`#` 注释），进程环境优先；应用本身不读 `.env`。
+Qt 用安装器装在默认位置、或其工具在 `PATH` 上时零配置即可构建。缺项时报错并列出变量，不回退到本机路径；`dev.bat doctor` 列出找到的工具链与可选工具。变量可写在仓库根 `.env`（`KEY=VALUE`，`#` 注释，模板 `.env.example`），进程环境优先；应用本身不读 `.env`。
 
 其他变量：
 
@@ -28,8 +28,10 @@
 | `SPANTUI_MSIX_CERT_THUMBPRINT` | 证书库有多张 `CN=Span` 证书时选定一张 |
 | `SPANTUI_LINKER` | 如 `lld`：以 `-fuse-ld=<值>` 换链接器；依次在 `SPANTUI_LINKER_DIR`、`PATH`、`%ProgramFiles%\LLVM\bin` 查找，所在目录置于构建 `PATH` 最前，找不到报错 |
 | `SPANTUI_DEBUG_INFO` | `OFF` 时所有构建类型 `-g0`；默认 `ON` |
+| `SPANTUI_SCCACHE` | `external`：不管理 sccache，沿用环境里的 sccache 设置（CI）；默认未设，见 [编译缓存](#编译缓存) |
+| `SPANTUI_SCCACHE_DIR` | 编译缓存目录；默认 `<SPANTUI_BUILD_ROOT>\sccache`，未设构建根时 `<主检出>\target\sccache` |
 
-后两项作为同名 CMake 选项传给每棵构建树，变化后自动重新配置。CI 设 `SPANTUI_LINKER=lld`、`SPANTUI_DEBUG_INFO=OFF`。
+`SPANTUI_LINKER`、`SPANTUI_DEBUG_INFO` 作为同名 CMake 选项传给每棵构建树，变化后自动重新配置。CI 设 `SPANTUI_LINKER=lld`、`SPANTUI_DEBUG_INFO=OFF`、`SPANTUI_SCCACHE=external`。
 
 CI 与发版的 Qt、MinGW、clang-format 版本（以及 CI 的 sccache 版本）固定在 `tools/toolchain-versions.json`；`dev.bat release` 核对本机版本，不一致即拒绝发版。
 
@@ -40,6 +42,7 @@ CI 与发版的 Qt、MinGW、clang-format 版本（以及 CI 的 sccache 版本�
 `dev.bat` 只启动 `tools/devtool/dev.ps1`，后者在当前控制台调用对应 worker。同一检出的命令按检出路径的互斥量串行；不同工作树可并行（见 [并行开发](overview.md#3-并行开发多工作树)）。
 
 ```cmd
+dev.bat doctor                        :: 列出找到的工具链与可选工具，不构建；DOCTOR_OK|DOCTOR_FAIL
 dev.bat build                         :: 增量构建主程序
 dev.bat test -R a -R b                :: 构建并运行选中测试（-R 取并集，省略为全量）
 dev.bat test -R x_test --function f --repeat 10   :: 只跑一个测试函数，首次失败即停
@@ -71,7 +74,16 @@ dev.bat worktree add|list|remove|prune
 
 ### 构建树配置
 
-开发树、打包树与压测 TUI 都经 `Initialize-SpanTuiBuildTree` 配置：完整 CMake 参数记在 `.spantui-configure`，参数相同且是 Ninja 树时复用，否则重新配置。生成器不是 Ninja，或缓存的 `Qt6Core_DIR` 不在当前 Qt 套件下时，删除 `CMakeCache.txt` 与 `CMakeFiles/` 后重配——只改 `Qt6_DIR` 会保留旧套件的各模块路径。不让 IDE 复用此构建树。
+开发树、打包树与压测 TUI 都经 `Initialize-SpanTuiBuildTree` 配置：完整 CMake 参数记在 `.spantui-configure`，参数相同且是 Ninja 树时复用，否则重新配置。生成器不是 Ninja、缓存的 `Qt6Core_DIR` 不在当前 Qt 套件下，或缓存的源码目录（`CMAKE_HOME_DIRECTORY`）不是当前检出（检出被移动过，CMake 会拒绝旧缓存）时，删除 `CMakeCache.txt` 与 `CMakeFiles/` 后重配——只改 `Qt6_DIR` 会保留旧套件的各模块路径。不让 IDE 复用此构建树。
+
+### 编译缓存
+
+`CMakeLists.txt` 在 `PATH` 上找到 sccache 时以它为编译器启动器；找不到就不用缓存，构建照常。
+
+- **一个仓库一个服务**：工具链 `PATH` 就绪后（`Use-SpanTuiToolchainPath`）把本进程及其编译指向本仓库专用的 sccache 服务：端口由主检出路径算出（42300–42799，不与其他项目占用的默认端口相遇），缓存目录见 `SPANTUI_SCCACHE_DIR`，基准目录（`SCCACHE_BASEDIRS`）为主检出与各工作树的根，以及不在根下的各构建树。sccache 先从预处理输出与 `-I` 等路径参数中去掉基准目录再算哈希，所以一个检出编过的对象另一个检出直接命中；它不认的参数里的检出路径不去掉，所以不加 `-ffile-prefix-map=<检出>/=` 之类按检出变化的编译选项——加了各检出互不命中。
+- **基准目录随检出变化**：服务只在启动时读基准目录。`dev worktree add|remove|prune` 与每次构建前比对服务的基准目录与缓存目录，不一致时重启服务；其他检出有 dev 命令在运行（持有其互斥量）时不重启——重启会打断它的编译——本次构建只是少命中，下次再同步。只认基准目录的 sccache 版本才共享；更早的版本照常缓存但各检出互不命中。
+- **命中的对象带着编译它的检出路径**：`__FILE__`（日志上下文）与调试信息里的源码路径是首次编译它的那个检出的；gdb 停在别的检出的文件上时用 `set substitute-path <那个检出> <本检出>`。行为不能依赖这些路径：编译定义不得带源码目录、构建树或目标文件路径（`check-layout` 的 `define` 规则），否则命中的对象会读写别的检出。测试要的字体以资源嵌入（`spantui_add_font_resources`），构建产物按测试程序所在目录查找。
+- **CI**：`SPANTUI_SCCACHE=external`，沿用 CI 自己启动的服务与经 actions/cache 恢复的目录（见 [验证门禁](verification.md)）。
 
 ### 静态库分层
 

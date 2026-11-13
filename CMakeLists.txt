@@ -316,14 +316,18 @@ add_custom_command(TARGET SpanTui POST_BUILD
 
 # Bundled Span Mono (terminal/editor), Span Sans (UI) and Span Symbols (Nerd
 # icon fallback) faces, registered by main.cpp. Rebuilt by
-# tools/fonts/build-fonts.ps1.
+# tools/fonts/build-fonts.ps1. Tests that need the faces embed the same
+# resource rather than reading the checkout by an absolute path.
 file(GLOB SPAN_FONT_FILES CONFIGURE_DEPENDS
     assets/fonts/Span*.ttf assets/fonts/SpanFonts-LICENSE-*.txt)
-qt_add_resources(SpanTui "spantui_fonts"
-    PREFIX "/fonts"
-    BASE assets/fonts
-    FILES ${SPAN_FONT_FILES}
-)
+function(spantui_add_font_resources target)
+    qt_add_resources(${target} "spantui_fonts"
+        PREFIX "/fonts"
+        BASE "${CMAKE_SOURCE_DIR}/assets/fonts"
+        FILES ${SPAN_FONT_FILES}
+    )
+endfunction()
+spantui_add_font_resources(SpanTui)
 
 qt_add_resources(SpanTui "spantui_brand"
     PREFIX "/"
@@ -459,7 +463,6 @@ spantui_add_library_test(shell_extension_contract_test
     SOURCES src/platform/windows/shell_extension_contract.h)
 target_include_directories(shell_extension_contract_test PRIVATE src)
 target_compile_definitions(shell_extension_contract_test PRIVATE
-    SPANTUI_SHELL_EXTENSION_PATH="$<TARGET_FILE:SpanTui-shell-extension>"
     UNICODE
     _UNICODE
     WIN32_LEAN_AND_MEAN
@@ -493,8 +496,7 @@ endif()
 
 spantui_add_library_test(settings_test
     tests/application/settings_test.cpp LIBS SpanApplication)
-target_compile_definitions(settings_test PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+spantui_add_font_resources(settings_test)
 spantui_add_library_test(shortcut_registry_test
     tests/application/shortcut_registry_test.cpp LIBS SpanApplication)
 spantui_add_library_test(project_workspace_registry_test
@@ -609,9 +611,7 @@ endfunction()
 spantui_add_terminal_test(ghostty_engine_test tests/terminal/ghostty_engine_test.cpp)
 target_link_libraries(ghostty_engine_test PRIVATE SpanGhosttyVt)
 spantui_add_terminal_test(terminal_font_set_test tests/terminal/terminal_font_set_test.cpp)
-target_compile_definitions(terminal_font_set_test PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
+spantui_add_font_resources(terminal_font_set_test)
 spantui_add_terminal_test(terminal_session_test tests/terminal/terminal_session_test.cpp)
 # Builds engines of its own for the session's engine factory.
 target_link_libraries(terminal_session_test PRIVATE SpanGhosttyVt)
@@ -627,9 +627,7 @@ target_link_libraries(terminal_core_worker_benchmark PRIVATE SpanTerminal Qt6::G
 qt_add_executable(terminal_render_benchmark tests/terminal/terminal_render_benchmark.cpp)
 target_link_libraries(terminal_render_benchmark PRIVATE
     SpanTerminal Qt6::Gui Qt6::GuiPrivate Qt6::Quick Qt6::QuickPrivate)
-target_compile_definitions(terminal_render_benchmark PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
+spantui_add_font_resources(terminal_render_benchmark)
 spantui_skip_qml_import_scan(terminal_render_benchmark)
 spantui_add_terminal_test(terminal_manager_test tests/terminal/terminal_manager_test.cpp)
 spantui_add_terminal_test(win_conpty_process_test tests/terminal/win_conpty_process_test.cpp)

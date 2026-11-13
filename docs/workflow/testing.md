@@ -51,4 +51,5 @@
 | SSH | 不连真实服务器：askpass 管道进程内往返；远程脚本在 Git for Windows 的 `sh.exe` + GNU `find` 上只操作 `mktemp -d` 目录，缺失时 `QSKIP`；凭据只用临时数据库。 |
 | 终端与 ConPTY | 用专用夹具（如 `pty_echo_child.exe`）。夹具回显走 UTF-16 控制台 API（CP 437 下窄字符读写会把中文变 `?`）；标准输出全缓冲，每条回复一次 flush（逐次写入在 CPU 争用下每次往返上百毫秒，多行回复会超时）。输入前同时等 `running()` 与就绪标记（`waitForChildOutput`）：首批输出可能早于运行态通知到达，未运行时 `sendText`/`sendKeyStroke` 丢弃输入。分片场景显式逐块 `WriteFile`。 |
 | 进程 | 断言父子 PID 与 Job 归属。 |
+| 仓库文件与构建产物 | 不以编译定义传入源码或构建树路径（sccache 在检出间共享对象，见 [编译缓存](build.md#编译缓存)）：要用的仓库文件以资源嵌入（字体用 `spantui_add_font_resources`，取 `:/fonts/...`），构建产物按 `QCoreApplication::applicationDirPath()` 查找。 |
 | 窗口与焦点 | 创建窗口的测试以 `OFFSCREEN` 注册（`spantui_add_terminal_test` 默认带上），`QT_QPA_PLATFORM=offscreen`，`QT_QPA_FONTDIR` 指向系统字体目录（offscreen 默认只扫 `<Qt>/lib/fonts`）。依赖原生窗口的断言改测 Qt 公开查询（如焦点对象的 `Qt::ImEnabled`）。 |

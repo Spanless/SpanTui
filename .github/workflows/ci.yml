@@ -129,6 +129,9 @@ jobs:
       # owns SCCACHE_DIR, serves the whole build.
       SCCACHE_CACHE_SIZE: 2G
       SCCACHE_IDLE_TIMEOUT: '0'
+      # The build scripts would otherwise move compiles to a server of the
+      # repository's own (port, cache folder) and miss the restored cache.
+      SPANTUI_SCCACHE: external
       # CI never needs debug info; without it objects, the cache archive and
       # links are much smaller (docs/workflow/build.md).
       SPANTUI_DEBUG_INFO: 'OFF'

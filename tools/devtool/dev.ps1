@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $usage = @'
-Usage:
+Usage (first time: dev doctor, then dev build):
+  dev doctor  (what the tooling finds: toolchain, compiler cache, linker, hooks; builds nothing)
   dev build   [--config Debug|Release] [--all] [--jobs N] [--clean|--reconfigure]
   dev run     [--headless|--show-window] [--smoke] [-- app-args...]
   dev test    [-R regex]... [--label L] [--function name]... [--repeat N] [--build-only] [--list] [--coverage] [--jobs N] [--config C] [--reconfigure]
@@ -41,6 +42,7 @@ $flags = @{
     release = @{ '--dry-run' = 'DryRun' }
     clean   = @{}
     check   = @{}
+    doctor  = @{}
     ci      = @{ '--core' = 'Core' }
 }
 $valued = @{
@@ -51,6 +53,7 @@ $valued = @{
     release = @{ '--jobs' = 'Jobs' }
     clean   = @{}
     check   = @{}
+    doctor  = @{}
     ci      = @{ '--jobs' = 'Jobs'; '--base' = 'Base' }
 }
 $workers = @{
@@ -61,6 +64,7 @@ $workers = @{
     release = 'release-worker.ps1'
     diag    = 'diag-worker.ps1'
     clean   = 'clean-worker.ps1'
+    doctor  = 'doctor-worker.ps1'
     check   = 'ci-worker.ps1'
     ci      = 'ci-worker.ps1'
     worktree = 'worktree-worker.ps1'

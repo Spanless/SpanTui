@@ -8,6 +8,9 @@
 #               directories are checked themselves but not descended into);
 #   * machine - no file git does not ignore contains this checkout's absolute
 #               path or the current user's profile directory;
+#   * define  - no compile definition in a CMake file is built from the
+#               source or build directory or a target's file path: sccache
+#               shares objects between checkouts (docs/workflow/build.md);
 #   * bom     - every .ps1 with non-ASCII text starts with a UTF-8 BOM:
 #               Windows PowerShell 5.1 reads a BOM-less script in the system
 #               code page, which breaks it on machines with another locale.
@@ -103,6 +106,22 @@ foreach ($hit in $hits) {
 foreach ($file in $byFile.Keys) {
     $first = $byFile[$file]
     Add-Violation 'machine' ("{0}:{1}" -f $file, $first.Line) ("absolute path of this checkout or user profile ({0} line(s)): use a repository-relative path, .env or an environment placeholder" -f $first.Count)
+}
+
+# Compile definitions are hashed by sccache with the checkout and build tree
+# stripped, so a path compiled into the code would reach another checkout.
+$cmakeFiles = @(Invoke-Git @('ls-files', '--cached', '--others', '--exclude-standard', '--', 'CMakeLists.txt', '*/CMakeLists.txt', '*.cmake')) | Sort-Object -Unique
+$pathExpression = '\$\{(CMAKE|PROJECT)_(CURRENT_)?(SOURCE|BINARY)_DIR\}|\$<TARGET_[A-Z_]*FILE[A-Z_]*:'
+foreach ($file in $cmakeFiles) {
+    $path = Join-Path $repoRoot $file
+    if (-not (Test-Path -LiteralPath $path)) { continue }
+    $text = [System.IO.File]::ReadAllText($path)
+    foreach ($call in [regex]::Matches($text, '(?is)\b(?:target_|add_)compile_definitions\s*\(([^)]*)\)')) {
+        if ($call.Groups[1].Value -match $pathExpression) {
+            $line = $text.Substring(0, $call.Index).Split("`n").Count
+            Add-Violation 'define' ("{0}:{1}" -f $file, $line) 'compile definition carries a checkout or build-tree path: objects are shared between checkouts (build.md); embed the file as a resource or find it beside the executable at run time'
+        }
+    }
 }
 
 $scripts = @(Invoke-Git @('ls-files', '--cached', '--others', '--exclude-standard', '--', '*.ps1')) | Sort-Object -Unique
