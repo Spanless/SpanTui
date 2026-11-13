@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(SpanTui VERSION 0.2.4 LANGUAGES C CXX)
+project(SpanTui VERSION 0.1.0 LANGUAGES C CXX)
 
 find_program(SPANTUI_SCCACHE_EXECUTABLE NAMES sccache)
 if(SPANTUI_SCCACHE_EXECUTABLE)

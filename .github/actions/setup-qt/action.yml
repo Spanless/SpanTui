@@ -1,0 +1,80 @@
+name: Set up Qt and MinGW
+description: >-
+  Restores (or installs and caches) the pinned Qt and MinGW from
+  tools/toolchain-versions.json and points the build scripts at them through
+  SPANTUI_QT_SDK_ROOT. Shared by the CI test job and the release job.
+
+# Qt and MinGW travel as one actions/cache archive (about 420 MB) keyed on the
+# pinned versions and modules; on a hit nothing else runs. The install
+# action's own cache still cost a minute per run: it set up a fresh Python and
+# built aqtinstall's dependencies from source before looking at its cache. The
+# action sets no environment or PATH either way — the build scripts find the
+# kit through SPANTUI_QT_SDK_ROOT — so a hit builds exactly like the miss that
+# filled the cache.
+inputs:
+  modules:
+    description: >-
+      Qt modules to install; part of the cache key, since a different module
+      set is a different kit. qttasktree is optional for the build, but
+      without it Qt's own QML asset downloader package fails to load and CMake
+      warns on every configure.
+    default: qtshadertools qtimageformats qttasktree
+
+runs:
+  using: composite
+  steps:
+    - name: Read the pinned Qt and MinGW versions
+      id: versions
+      shell: pwsh
+      env:
+        QT_MODULES: ${{ inputs.modules }}
+      run: |
+        $v = Get-Content tools/toolchain-versions.json -Raw | ConvertFrom-Json
+        "qt=$($v.qt)" >> $env:GITHUB_OUTPUT
+        "mingw=$($v.mingwTool)" >> $env:GITHUB_OUTPUT
+        "dir=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_OUTPUT
+        "key=qt-windows-$($v.qt)-$($v.mingwTool)-$($env:QT_MODULES -replace ' ', '+')" >> $env:GITHUB_OUTPUT
+
+    - name: Restore Qt and MinGW
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.versions.outputs.dir }}
+        key: ${{ steps.versions.outputs.key }}
+
+    # aqtinstall 3.3.0 (the newest on PyPI) cannot read the per-arch
+    # repository layout Qt 6.11+ is published in, so it comes from a pinned
+    # upstream commit until a release supports it.
+    - name: Install Qt and MinGW
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
+      with:
+        aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
+        version: ${{ steps.versions.outputs.qt }}
+        host: windows
+        target: desktop
+        arch: win64_mingw
+        modules: ${{ inputs.modules }}
+        tools: ${{ steps.versions.outputs.mingw }}
+        cache: false
+        set-env: false
+        add-tools-to-path: false
+
+    - name: Save Qt and MinGW
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.versions.outputs.dir }}
+        key: ${{ steps.versions.outputs.key }}
+
+    # tools/toolchain.ps1 discovers <root>\<qt>\mingw_64 and
+    # <root>\Tools\mingw*_64; CMake and Ninja come from the runner PATH.
+    # The Qt install leaves aqtinstall.log in the checkout, which the layout
+    # check would report.
+    - name: Point the build scripts at Qt
+      shell: pwsh
+      env:
+        QT_DIR: ${{ steps.versions.outputs.dir }}
+      run: |
+        "SPANTUI_QT_SDK_ROOT=$env:QT_DIR" >> $env:GITHUB_ENV
+        Remove-Item -LiteralPath aqtinstall.log -ErrorAction SilentlyContinue

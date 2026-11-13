@@ -9,8 +9,9 @@ name: CI
 #   one merge, and keeps dev's compiler cache warm for the pull requests that
 #   branch from it; dev -> master normally reuses that result.
 # A tree that already passed is not tested again (see the `reuse` job).
-# Releases are packaged and published from the maintainer's machine
-# (dev release). Policy: docs/workflow/release.md.
+# A push to master (the merge of the dev -> master pull request) is a
+# release: once it is tested, the `release` job packages, signs and publishes
+# it (dev release). Policy: docs/workflow/release.md.
 # Actions are pinned to commit SHAs (the tag in the trailing comment);
 # Dependabot proposes updates (.github/dependabot.yml). Tool versions come
 # from tools/toolchain-versions.json.
@@ -25,9 +26,11 @@ on:
 permissions:
   contents: read
 
+# A newer run replaces an older one of the same pull request or branch,
+# except on master: cancelling a release half-way would leave a draft behind.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   # Decides on a cheap Linux runner how much of the Windows job has to run.
@@ -140,13 +143,11 @@ jobs:
       # of the run. The build scripts find ld.lld in the LLVM the runner image
       # preinstalls (configure prints "Linker: lld").
       SPANTUI_LINKER: lld
-      # Part of the Qt cache key: a different module set is a different kit.
-      QT_MODULES: qtshadertools qtimageformats qttasktree
       # rcc writes each file's modification time into the generated qrc
       # sources, and a fresh checkout has new times every run, so those
       # objects (the font resource alone compiles 10-16 s) never hit the
       # compiler cache. A constant time (2000-01-01) makes them reproducible.
-      # CI only: release builds come from the maintainer's machine.
+      # Test runs only: the release job builds without it.
       QT_RCC_SOURCE_DATE_OVERRIDE: '946684800'
     steps:
       # Two commits deep: a core run diffs the tested merge against its first
@@ -155,19 +156,15 @@ jobs:
         with:
           fetch-depth: 2
 
-      # The one place the Qt, MinGW and clang-format versions are written;
-      # dev release refuses to package with a different Qt or MinGW.
+      # The one place the Qt, MinGW, clang-format and sccache versions are
+      # written; dev release refuses to package with a different Qt or MinGW.
       - name: Read the pinned tool versions
         id: versions
         shell: pwsh
         run: |
           $v = Get-Content tools/toolchain-versions.json -Raw | ConvertFrom-Json
-          "qt=$($v.qt)" >> $env:GITHUB_OUTPUT
-          "mingw=$($v.mingwTool)" >> $env:GITHUB_OUTPUT
           "clang_format=$($v.clangFormat)" >> $env:GITHUB_OUTPUT
           "sccache=$($v.sccache)" >> $env:GITHUB_OUTPUT
-          "qt_dir=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_OUTPUT
-          "qt_key=qt-windows-$($v.qt)-$($v.mingwTool)-$($env:QT_MODULES -replace ' ', '+')" >> $env:GITHUB_OUTPUT
 
       # Pull requests into dev: the lines they add or change must match
       # .clang-format (tools/check-format.ps1). The runner's own LLVM has
@@ -187,47 +184,11 @@ jobs:
           ./tools/check-format.ps1 -Base $base -Require
           exit $LASTEXITCODE
 
-      # Qt and MinGW travel as one actions/cache archive (about 420 MB) keyed
-      # on the pinned versions and modules; on a hit nothing else runs. The
-      # install action's own cache still cost a minute per run: it set up a
-      # fresh Python and built aqtinstall's dependencies from source before
-      # looking at its cache. The action sets no environment or PATH either
-      # way — the build scripts find the kit through SPANTUI_QT_SDK_ROOT — so
-      # a hit builds exactly like the miss that filled the cache.
-      - name: Restore Qt and MinGW
-        id: qt-cache
+      # Pinned Qt and MinGW from one actions/cache archive; sets
+      # SPANTUI_QT_SDK_ROOT (.github/actions/setup-qt).
+      - name: Set up Qt and MinGW
         if: env.BUILD == 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.versions.outputs.qt_dir }}
-          key: ${{ steps.versions.outputs.qt_key }}
-
-      # aqtinstall 3.3.0 (the newest on PyPI) cannot read the per-arch
-      # repository layout Qt 6.11+ is published in, so it comes from a pinned
-      # upstream commit until a release supports it. qttasktree is optional for
-      # the build, but without it Qt's own QML asset downloader package fails
-      # to load and CMake warns on every configure.
-      - name: Install Qt and MinGW
-        if: env.BUILD == 'true' && steps.qt-cache.outputs.cache-hit != 'true'
-        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
-        with:
-          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
-          version: ${{ steps.versions.outputs.qt }}
-          host: windows
-          target: desktop
-          arch: win64_mingw
-          modules: ${{ env.QT_MODULES }}
-          tools: ${{ steps.versions.outputs.mingw }}
-          cache: false
-          set-env: false
-          add-tools-to-path: false
-
-      - name: Save Qt and MinGW
-        if: env.BUILD == 'true' && steps.qt-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.versions.outputs.qt_dir }}
-          key: ${{ steps.versions.outputs.qt_key }}
+        uses: ./.github/actions/setup-qt
 
       # One archive instead of one cache request per object: with sccache's
       # GitHub Actions backend a fully cached build still spent minutes
@@ -265,17 +226,6 @@ jobs:
           Split-Path -Parent $env:SCCACHE_PATH >> $env:GITHUB_PATH
           & $env:SCCACHE_PATH --start-server
           & $env:SCCACHE_PATH --show-stats
-
-      # tools/toolchain.ps1 discovers <root>\<qt>\mingw_64 and
-      # <root>\Tools\mingw*_64; CMake and Ninja come from the runner PATH.
-      # The Qt install leaves aqtinstall.log in the checkout, which the layout
-      # check would report.
-      - name: Point the build scripts at Qt
-        if: env.BUILD == 'true'
-        shell: pwsh
-        run: |
-          "SPANTUI_QT_SDK_ROOT=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_ENV
-          Remove-Item -LiteralPath aqtinstall.log -ErrorAction SilentlyContinue
 
       # A core run measures the changes from the base the pull request merges
       # into: the first parent of the tested merge. The base goes in as a hash:
@@ -356,3 +306,73 @@ jobs:
         with:
           path: ${{ runner.temp }}\sccache
           key: sccache-windows-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # A push to master is the merge of a dev -> master pull request, whose
+  # version already passed the `version` job: once the commit is tested here
+  # (or `reuse` found its tree passed on dev), dev release packages it, signs
+  # the shell identity package and publishes the GitHub release vX.Y.Z.
+  # The signing key lives only in the secrets of the `release` environment,
+  # which admits master alone (deployment branch policy), so no pull request
+  # run can read it, whatever its workflow file says.
+  # tools/create-shell-signing-certificate.ps1 creates the certificate and
+  # the environment.
+  release:
+    needs: [reuse, windows]
+    if: >-
+      ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+      (needs.windows.result == 'success' ||
+       (needs.windows.result == 'skipped' && needs.reuse.outputs.skip == 'true')) }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      # The release gate compares HEAD with origin/master and reads origin's
+      # tags; the checkout keeps the token for both.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Qt and MinGW
+        uses: ./.github/actions/setup-qt
+
+      # package-worker signs with the certificate SPANTUI_MSIX_CERT_THUMBPRINT
+      # names in Cert:\CurrentUser\My. The runner is discarded after the job;
+      # the last step removes the certificate anyway.
+      - name: Import the signing certificate
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.SHELL_SIGNING_PFX }}
+          PFX_PASSWORD: ${{ secrets.SHELL_SIGNING_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64 -or -not $env:PFX_PASSWORD) {
+            Write-Host '::error::The release environment lacks SHELL_SIGNING_PFX or SHELL_SIGNING_PFX_PASSWORD; run tools/create-shell-signing-certificate.ps1 -BackupDir <folder> -Publish.'
+            exit 1
+          }
+          $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]'UserKeySet, PersistKeySet'
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            [Convert]::FromBase64String($env:PFX_BASE64), $env:PFX_PASSWORD.Trim(), $flags)
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $store.Open('ReadWrite')
+          $store.Add($certificate)
+          $store.Close()
+          "SPANTUI_MSIX_CERT_THUMBPRINT=$($certificate.Thumbprint)" >> $env:GITHUB_ENV
+          Write-Host "Signing certificate $($certificate.Subject) $($certificate.Thumbprint), valid until $($certificate.NotAfter.ToString('u'))"
+
+      - name: Package and publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & .\dev.bat release
+          exit $LASTEXITCODE
+
+      - name: Remove the signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not $env:SPANTUI_MSIX_CERT_THUMBPRINT) { exit 0 }
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $store.Open('ReadWrite')
+          $store.Certificates.Find('FindByThumbprint', $env:SPANTUI_MSIX_CERT_THUMBPRINT, $false) |
+            ForEach-Object { $store.Remove($_) }
+          $store.Close()

@@ -1,9 +1,9 @@
 # `dev release`: packages the master commit CI tested in full and publishes it
 # as the GitHub release vX.Y.Z of the version in CMakeLists.txt, once
-# tools/check-version.ps1 passes. It runs on the maintainer's machine because
-# the shell identity package is signed with the CN=Span certificate in the
-# local certificate store, whose private key never leaves it
-# (docs/workflow/release.md).
+# tools/check-version.ps1 passes. CI's `release` job runs it after every push
+# to master, with the CN=Span signing certificate imported from the `release`
+# environment; the maintainer can run it by hand with the same certificate in
+# the local store, e.g. to retry a failed release (docs/workflow/release.md).
 #
 # -DryRun rehearses the whole flow on any commit: each gate that would stop a
 # release is reported and the run goes on, the package is built and checked,
@@ -74,8 +74,12 @@ if ($gccVersion -ne $pinned.mingwGcc) {
 Write-Host "Toolchain matches CI: Qt $qtVersion, MinGW gcc $gccVersion"
 
 # The push run on master ran the full suite, or skipped it because dev's push
-# run passed it on the same tree (.github/workflows/ci.yml).
-if ($hasGh) {
+# run passed it on the same tree (.github/workflows/ci.yml). Inside that run
+# (CI's `release` job) the run is still in progress and the job's needs on the
+# test job are the gate.
+if ($env:GITHUB_ACTIONS -eq 'true' -and $env:GITHUB_WORKFLOW_REF -like "*/.github/workflows/ci.yml@refs/heads/master") {
+    Write-Host "CI release job: tested by run $env:GITHUB_RUN_ID of this commit."
+} elseif ($hasGh) {
     $json = & gh run list --repo $repo --workflow ci.yml --commit $head --event push --json status,conclusion,url
     if ($LASTEXITCODE -ne 0) {
         Stop-Release 'Could not list the CI runs of this commit (gh auth status?).'
