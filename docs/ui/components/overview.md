@@ -23,8 +23,8 @@
 | 文本 | `UiText`（界面）/ `MonoText`（等宽）/ `TerminalText`（终端字体）/ `SectionLabel`（分节标题）/ `FadeText`（只读限长，尾部淡出） |
 | 输入 | `UiField`；列表过滤 `FilterBar`；查找 `FindBar`；数字 `Stepper` |
 | 选择 | `AppComboBox`（`FontPicker`、`FontWeightPicker` 基于它）、`SegmentedControl`、`AppSwitch` |
-| 按钮 | `ChromeButton`（`kind`：`secondary`/`primary`/`danger`/`ghost`/`selected`/`close`）；开关语义用 `AppSwitch` |
-| 弹层 | 模态 `AppDialog` / `ConfirmDialog` / `NameDialog`；锚定列表 `AnchorPopup`；裸锚定面板 `AnchorPanel`；菜单 `AppContextMenu`（行项 `ActionList`）；提示 `Tip` / `HelpTooltip` |
+| 按钮 | `ChromeButton`（`kind`：`secondary`/`primary`/`danger`/`ghost`/`selected`/`close`）；限宽用 `maxWidth`（标签末尾省略，余量不足 `minLabelWidth` 时带图标的按钮只留图标），按自然宽度做预算读 `naturalWidth`；开关语义用 `AppSwitch` |
+| 弹层 | 模态 `AppDialog` / `ConfirmDialog` / `NameDialog`；锚定列表 `AnchorPopup`；裸锚定面板 `AnchorPanel`；菜单 `AppContextMenu`（行项 `ActionList`；带 `submenu` 的行悬停展开二级菜单，同时带 `action` 的为拆分行：点击执行默认项，悬停展开其余选项）；提示 `Tip` / `HelpTooltip` |
 | 表面 | `CrispSurface`（圆角、描边、投影）；浮层 `PopupSurface`；分隔线 `PixelLine`；状态条 `InlineBanner` |
 | 行与树 | `ListItem`（行原子）/ `NavRow`（图标+标签）/ `TreeListView` / `TreeGroupHeader` / `TreeChevron` / `TreeExpandHost`；行间滑动悬停 `GlideHighlight` |
 | 滚动 | `DesktopScrollView` / `DesktopListView` / `DesktopFlickable`，都内建 `SlimScrollBar` 与 `DesktopWheelHandler` |
@@ -37,10 +37,15 @@
 ## 3. 约束
 
 **弹层**
-- 打开与关闭的业务逻辑用 `opening(source)`/`popupClosed()`。子类另写的 `onAboutToHide`/`onClosed` 与基类处理器叠加执行，不覆盖。
+- 打开与关闭的业务逻辑用 `opening(source)`/`popupClosed()`。`opening` 在定尺寸与定位之前发出：处理器里重置的内容（清筛选、复位只增宽度）决定弹层按什么尺寸放置。子类另写的 `onAboutToHide`/`onClosed` 与基类处理器叠加执行，不覆盖。
+- 跟随锚点（`reposition()` 与逐帧跟随）以 `visible` 门控，不用 `opened`：`opened` 要等进场过渡结束才为真，而内容的隐式尺寸在第一帧 polish 时才定，按 `opened` 门控会在过渡结束后才校正位置，表现为弹层先偏一段再跳回。
 - 外点关闭只由 `PopupLayerStack` 栈顶携带，一次外点只关最上层。
+- 叠放顺序取决于弹层首次挂到 overlay 的先后与 `z`，不是打开先后；需要常驻在下层的弹层（固定的资源详情）设 `z: Theme.zBelow`。
 - `PopupToggleGuard` 的解除用 `Timer`，不改回递归 `Qt.callLater`：守卫随弹层销毁后闭包会在失效上下文求值。
 - `Overlay.modal/modeless` 遮罩收不到指针事件，不在遮罩里放 handler。
+
+**按钮**
+- 自定义内容（如 `ResourceStrip` 的读数）：不设 `text`/`iconName`，内容作为子项居中、颜色取 `fg`，`implicitWidth` 覆写为内容宽 + `labelPad * 2`；悬停、按下、缩放与提示仍归按钮。
 
 **下拉框**
 - 自定义行项写成 `ComboOptionRow { combo: root; ... }`；宽度取 `combo.listWidth`（不用 `ListView.view`），点击调 `pickIndex(index)`，不直接 emit `activated`（过滤后下标会错），声明 `glideRow: true`。
@@ -79,4 +84,4 @@
 - [ ] 新增/删除组件：同步 `CMakeLists.txt` 登记与本文 §2；删除时全库清除引用及 [术语表](../../reference/glossary.md) 条目。
 - [ ] 修改组件 API 或行为：全库搜索调用方；改动生命周期或关闭策略时确认 `AppPopup`/`PopupLayerStack` 协议不受影响。
 - [ ] common/base 未引入领域字段或 `TerminalSettings`/`WorkspaceSettings`；business 未直接实例化 base。
-- [ ] `qml_style_check` 通过。
+- [ ] `tools/check-style.ps1` 通过。

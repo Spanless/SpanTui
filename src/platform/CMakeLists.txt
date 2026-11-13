@@ -12,6 +12,8 @@ add_library(SpanPlatform STATIC
     windows/directory_change_watcher.h
     windows/native_dialog.cpp
     windows/native_dialog.h
+    windows/open_with_handlers.cpp
+    windows/open_with_handlers.h
     windows/process_containment.cpp
     windows/process_containment.h
     windows/program_icon_provider.cpp
@@ -23,7 +25,7 @@ add_library(SpanPlatform STATIC
 )
 target_link_libraries(SpanPlatform
     PUBLIC SpanCore Qt6::Gui Qt6::Quick
-    PRIVATE dwmapi user32 shell32 dbghelp crypt32
+    PRIVATE dwmapi user32 shell32 ole32 dbghelp crypt32
 )
 # QML-facing types (src/application/runtime/qml_types.h).
 qt_extract_metatypes(SpanPlatform)

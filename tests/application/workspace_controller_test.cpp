@@ -33,6 +33,8 @@ private slots:
     void removeSessionClosesTileAndCatalog();
     void removeProjectRefusedWhileSessionExists();
     void removeProjectRefusedWhileTileExists();
+    void removeMissingProjectDiscardsItsWork();
+    void worktreePathRules();
     void showProjectManagerReusesSingleton();
     void toggleProjectSidebarCollapsesLeft();
     void boundTerminalProjectFollowsFocusedTerminal();
@@ -41,6 +43,7 @@ private slots:
     void openFileUrlOpensLinkedFileInEditor();
     void remoteSessionBindsHostScope();
     void onlyShownProjectsAreForeground();
+    void openProjectFolderAddsThenShowsProject();
 };
 
 namespace {
@@ -243,6 +246,83 @@ void WorkspaceControllerTest::removeProjectRefusedWhileTileExists()
     QVERIFY(projects.contains(project));
     QVERIFY(controller.requestCloseTile(editor));
     QVERIFY(controller.removeProject(project));
+}
+
+void WorkspaceControllerTest::removeMissingProjectDiscardsItsWork()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("state.db"));
+    const QString project = makeProject(dir, QStringLiteral("alpha"));
+    prepareSchema(databasePath);
+
+    ProjectWorkspaceRegistry projects(databasePath);
+    WorkspaceLayout layout;
+    SessionModel sessions;
+    TerminalManager terminals;
+    WorkspaceController controller(&projects, &layout, &sessions, &terminals);
+    QVERIFY(projects.addProject(project));
+    // A catalog entry only: no shell holds the folder open.
+    QVERIFY(!sessions.addSession(QStringLiteral("shell"), project, project).isEmpty());
+    const QString editor = controller.createProjectTile(QStringLiteral("editor"), project);
+    QVERIFY(!editor.isEmpty());
+    QVERIFY(!controller.removeProject(project));
+
+    QVERIFY(QDir(project).removeRecursively());
+    QSignalSpy errors(&controller, &WorkspaceController::errorOccurred);
+    QVERIFY(controller.createSession(project).isEmpty());
+    QCOMPARE(errors.size(), 1);
+    QVERIFY(errors.first().first().toString().contains(project));
+
+    // The entry goes, and its session and tile with it.
+    QVERIFY(controller.removeProject(project));
+    QVERIFY(!projects.contains(project));
+    QCOMPARE(sessions.countForProject(project), 0);
+    QVERIFY(layout.tileById(editor).isEmpty());
+}
+
+void WorkspaceControllerTest::worktreePathRules()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("state.db"));
+    const QString project = makeProject(dir, QStringLiteral("app"));
+    const QString occupied = makeProject(dir, QStringLiteral("occupied"));
+    writeBytes(QDir(occupied).filePath(QStringLiteral("file.txt")), "x");
+    prepareSchema(databasePath);
+
+    ProjectWorkspaceRegistry projects(databasePath);
+    WorkspaceLayout layout;
+    SessionModel sessions;
+    TerminalManager terminals;
+    WorkspaceController controller(&projects, &layout, &sessions, &terminals);
+    QVERIFY(projects.addProject(project));
+
+    const QString parent = QDir::toNativeSeparators(QFileInfo(project).path());
+    QCOMPARE(controller.suggestedWorktreeRoot(project), parent + QStringLiteral("\\worktrees"));
+    QCOMPARE(controller.worktreeFolderName(QStringLiteral(" feature/login page ")),
+             QStringLiteral("feature-login-page"));
+    QCOMPARE(controller.worktreeLocation(parent + QStringLiteral("\\wt"), project, QStringLiteral("feature/login")),
+             parent + QStringLiteral("\\wt\\app\\feature-login"));
+    QCOMPARE(controller.worktreeLocation(QString(), project, QStringLiteral("x")), QString());
+
+    QVERIFY(controller.worktreeNameProblem(QString()).isEmpty());
+    QVERIFY(controller.worktreeNameProblem(QStringLiteral("feature/login")).isEmpty());
+    QVERIFY(!controller.worktreeNameProblem(QStringLiteral("a b")).isEmpty());
+
+    QVERIFY(!controller.worktreeLocationProblem(QString()).isEmpty());
+    QVERIFY(!controller.worktreeLocationProblem(QStringLiteral("relative\\path")).isEmpty());
+    QVERIFY(!controller.worktreeLocationProblem(occupied).isEmpty());
+    QVERIFY(controller.worktreeLocationProblem(parent + QStringLiteral("\\fresh")).isEmpty());
+
+    QVERIFY(!controller.worktreeRootProblem(QString()).isEmpty());
+    QVERIFY(!controller.worktreeRootProblem(QStringLiteral("relative")).isEmpty());
+    QVERIFY(!controller.worktreeRootProblem(QDir(occupied).filePath(QStringLiteral("file.txt"))).isEmpty());
+    // An existing, non-empty folder is a fine root.
+    QVERIFY(controller.worktreeRootProblem(occupied).isEmpty());
+
+    QCOMPARE(controller.folderPathFromUrl(QUrl::fromLocalFile(project)), QDir::toNativeSeparators(project));
+    QCOMPARE(controller.folderPathFromUrl(QUrl(QStringLiteral("https://example.com/x"))), QString());
 }
 
 void WorkspaceControllerTest::showProjectManagerReusesSingleton()
@@ -485,6 +565,50 @@ void WorkspaceControllerTest::onlyShownProjectsAreForeground()
     QCOMPARE(controller.boundTerminalProjectPath(), alpha);
     QVERIFY(git(alpha)->foreground());
     QVERIFY(git(beta)->foreground());
+}
+
+void WorkspaceControllerTest::openProjectFolderAddsThenShowsProject()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("state.db"));
+    const QString project = makeProject(dir, QStringLiteral("linked"));
+    prepareSchema(databasePath);
+
+    ProjectWorkspaceRegistry projects(databasePath);
+    projects.setGitEnabled(false);
+    WorkspaceLayout layout;
+    SessionModel sessions;
+    TerminalManager terminals;
+    WorkspaceController controller(&projects, &layout, &sessions, &terminals);
+
+    // An unknown folder becomes a project with a terminal of its own.
+    const QString tileId = controller.openProjectFolder(project);
+    QVERIFY(!tileId.isEmpty());
+    QVERIFY(projects.contains(project));
+    QCOMPARE(sessions.countForProject(project), 1);
+    QCOMPARE(tileKind(layout, tileId), QStringLiteral("terminal"));
+    const QString sessionId = sessions.activeSessionId();
+
+    // Opening it again shows that session instead of starting another.
+    QVERIFY(controller.closeTerminalTile(tileId, false));
+    const QString reopened = controller.openProjectFolder(project);
+    QVERIFY(!reopened.isEmpty());
+    QCOMPARE(sessions.countForProject(project), 1);
+    QCOMPARE(layout.tileIdForSession(sessionId), reopened);
+
+    // Asked for a new terminal, it starts another session there.
+    const QString fresh = controller.openProjectFolder(project, true);
+    QVERIFY(!fresh.isEmpty());
+    QVERIFY(fresh != reopened);
+    QCOMPARE(sessions.countForProject(project), 2);
+    QCOMPARE(tileKind(layout, fresh), QStringLiteral("terminal"));
+
+    // A folder that does not exist is refused.
+    const QString missing = dir.filePath(QStringLiteral("missing"));
+    QVERIFY(controller.openProjectFolder(missing).isEmpty());
+    QVERIFY(controller.openProjectFolder(missing, true).isEmpty());
+    QVERIFY(!projects.contains(missing));
 }
 
 QTEST_MAIN(WorkspaceControllerTest)

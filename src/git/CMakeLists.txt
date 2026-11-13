@@ -9,6 +9,10 @@ add_library(SpanGit STATIC
     git_repository_refresh.cpp
     git_repository_service.cpp
     git_repository_service.h
+    git_worktree_commands.cpp
+    git_worktree_commands.h
+    git_worktree_layout.cpp
+    git_worktree_layout.h
 )
 target_link_libraries(SpanGit PUBLIC SpanCore SpanPlatform Qt6::Concurrent)
 # QML-facing types (src/application/runtime/qml_types.h).

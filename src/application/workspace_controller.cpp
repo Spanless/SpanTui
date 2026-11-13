@@ -3,12 +3,15 @@
 #include "application/project_context.h"
 #include "application/project_workspace_registry.h"
 #include "documents/document_manager.h"
+#include "git/git_worktree_commands.h"
+#include "git/git_worktree_layout.h"
 #include "remote/remote_host_registry.h"
 #include "terminal/api/terminal_manager.h"
 #include "workspace/session_model.h"
 
 #include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 namespace span::application {
 
@@ -43,6 +46,23 @@ QString WorkspaceController::boundTerminalProjectPath() const
 QString WorkspaceController::boundRemoteHostId() const
 {
     return m_boundScope.hostId();
+}
+
+bool WorkspaceController::worktreeBusy() const
+{
+    return m_worktreeCommands && m_worktreeCommands->busy();
+}
+
+void WorkspaceController::setWorktreeCommands(GitWorktreeCommands *commands)
+{
+    if (m_worktreeCommands) {
+        disconnect(m_worktreeCommands, nullptr, this, nullptr);
+    }
+    m_worktreeCommands = commands;
+    if (commands) {
+        connect(commands, &GitWorktreeCommands::busyChanged, this, &WorkspaceController::worktreeBusyChanged);
+    }
+    emit worktreeBusyChanged();
 }
 
 QStringList WorkspaceController::foregroundProjectPaths() const
@@ -83,7 +103,9 @@ QString WorkspaceController::createSession(const QString &projectPath,
 {
     const QString canonical = m_projects->canonicalProjectPath(projectPath);
     if (canonical.isEmpty() || !m_projects->contains(canonical)) {
-        emit errorOccurred(tr("Project is not registered: %1").arg(projectPath));
+        emit errorOccurred(m_projects->registeredPath(projectPath).isEmpty()
+                               ? tr("Project is not registered: %1").arg(projectPath)
+                               : tr("The project folder no longer exists: %1").arg(projectPath));
         return {};
     }
     const QString sessionId = m_sessions->addSession(
@@ -190,22 +212,253 @@ bool WorkspaceController::removeSession(const QString &sessionId)
 
 bool WorkspaceController::removeProject(const QString &projectPath)
 {
-    const QString canonical = m_projects->canonicalProjectPath(projectPath);
-    if (canonical.isEmpty() || !m_projects->contains(canonical)) {
+    // Reached for a folder that is gone too, which canonicalProjectPath()
+    // cannot resolve: the registry answers with the stored path.
+    const QString project = m_projects->registeredPath(projectPath);
+    if (project.isEmpty()) {
         return false;
     }
-    if (m_layout->tileCountForProject(canonical) > 0
-        || m_sessions->countForProject(canonical) > 0) {
-        emit errorOccurred(tr("Close all project tiles and delete all sessions before removing this project."));
+    m_projects->refreshFolders();
+    const QStringList affected = QStringList{project} + m_projects->worktreePaths(project);
+    for (const QString &path : affected) {
+        if (m_projects->isAvailable(path) && hasProjectWork(path)) {
+            emit errorOccurred(tr("Close all project tiles and delete all sessions before removing this project."));
+            return false;
+        }
+    }
+    // Nothing can run in a folder that is gone: its tiles and sessions go
+    // with the entry instead of blocking it.
+    for (const QString &path : affected) {
+        if (!m_projects->isAvailable(path)) {
+            discardProjectWork(path);
+        }
+    }
+    if (!m_projects->removeProject(project)) {
         return false;
     }
-    if (!m_projects->removeProject(canonical)) {
-        return false;
-    }
-    if (m_boundScope == Scope::project(canonical)) {
-        setBoundScope({});
+    for (const QString &path : affected) {
+        if (m_boundScope == Scope::project(path)) {
+            setBoundScope({});
+        }
     }
     return true;
+}
+
+bool WorkspaceController::hasProjectWork(const QString &projectPath) const
+{
+    return m_layout->tileCountForProject(projectPath) > 0 || m_sessions->countForProject(projectPath) > 0;
+}
+
+void WorkspaceController::discardProjectWork(const QString &projectPath)
+{
+    for (const SessionRecord &session : m_sessions->records()) {
+        if (session.projectPath == projectPath) {
+            removeSession(session.id);
+        }
+    }
+    QStringList tiles;
+    for (const auto &tile : m_layout->tiles()) {
+        if (tile.projectPath == projectPath) {
+            tiles.append(tile.id);
+        }
+    }
+    for (const QString &tileId : tiles) {
+        m_layout->closeTile(tileId);
+    }
+}
+
+QString WorkspaceController::worktreeNameProblem(const QString &name) const
+{
+    if (name.isEmpty() || span::git::isValidBranchName(name)) {
+        return {};
+    }
+    return tr("Not a valid Git branch name. Spaces, \"..\" and the characters ~ ^ : ? * [ are not allowed.");
+}
+
+QString WorkspaceController::worktreeLocationProblem(const QString &path) const
+{
+    const QString trimmed = path.trimmed();
+    if (trimmed.isEmpty()) {
+        return tr("Choose where to create the worktree.");
+    }
+    if (!QDir::isAbsolutePath(trimmed)) {
+        return tr("Use a full path that starts with a drive letter.");
+    }
+    const QFileInfo info(trimmed);
+    if (info.exists()
+        && (!info.isDir()
+            || !QDir(trimmed).isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System))) {
+        return tr("This folder already exists and is not empty.");
+    }
+    return {};
+}
+
+QString WorkspaceController::worktreeRootProblem(const QString &path) const
+{
+    const QString trimmed = path.trimmed();
+    if (trimmed.isEmpty()) {
+        return tr("Choose a folder for new worktrees.");
+    }
+    if (!QDir::isAbsolutePath(trimmed)) {
+        return tr("Use a full path that starts with a drive letter.");
+    }
+    if (QFileInfo(trimmed).isFile()) {
+        return tr("This path is a file, not a folder.");
+    }
+    return {};
+}
+
+QString WorkspaceController::suggestedWorktreeRoot(const QString &projectPath) const
+{
+    const QString project = m_projects->registeredPath(projectPath);
+    const QString parent = m_projects->parentProject(project);
+    const QFileInfo main(parent.isEmpty() ? project : parent);
+    if (main.filePath().isEmpty()) {
+        return {};
+    }
+    return QDir::toNativeSeparators(QDir(main.path()).filePath(QStringLiteral("worktrees")));
+}
+
+QString WorkspaceController::worktreeLocation(const QString &root, const QString &projectPath,
+                                              const QString &name) const
+{
+    const QString project = m_projects->registeredPath(projectPath);
+    const QString parent = m_projects->parentProject(project);
+    const QString mainName = QFileInfo(parent.isEmpty() ? project : parent).fileName();
+    if (root.trimmed().isEmpty() || mainName.isEmpty()) {
+        return {};
+    }
+    const QString folder = worktreeFolderName(name);
+    QString location = QDir(QDir::fromNativeSeparators(root.trimmed())).filePath(mainName);
+    if (!folder.isEmpty()) {
+        location = QDir(location).filePath(folder);
+    }
+    return QDir::toNativeSeparators(QDir::cleanPath(location));
+}
+
+QString WorkspaceController::worktreeFolderName(const QString &name) const
+{
+    // A branch like `feature/login` becomes one folder, `feature-login`.
+    static const QRegularExpression pathCharacters(QStringLiteral("[\\\\/:*?\"<>|\\s]+"));
+    QString folder = name.trimmed();
+    folder.replace(pathCharacters, QStringLiteral("-"));
+    return folder;
+}
+
+QString WorkspaceController::folderPathFromUrl(const QUrl &url) const
+{
+    if (!url.isLocalFile()) {
+        return {};
+    }
+    return QDir::toNativeSeparators(QDir::cleanPath(url.toLocalFile()));
+}
+
+void WorkspaceController::requestWorktreeBases(const QString &projectPath)
+{
+    const QString project = m_projects->registeredPath(projectPath);
+    if (!m_worktreeCommands || project.isEmpty()) {
+        emit worktreeBasesReady(projectPath, {}, {});
+        return;
+    }
+    QPointer<WorkspaceController> self(this);
+    m_worktreeCommands->listBranches(project, [self, projectPath](const QStringList &branches, const QString &current) {
+        if (self) {
+            emit self->worktreeBasesReady(projectPath, branches, current);
+        }
+    });
+}
+
+bool WorkspaceController::createWorktree(const QString &projectPath, const QString &name, const QString &base,
+                                         const QString &location)
+{
+    const QString project = m_projects->registeredPath(projectPath);
+    if (!m_worktreeCommands || project.isEmpty() || !m_projects->isAvailable(project)) {
+        emit errorOccurred(tr("The project folder no longer exists: %1").arg(projectPath));
+        return false;
+    }
+    if (name.isEmpty() || !worktreeNameProblem(name).isEmpty() || !worktreeLocationProblem(location).isEmpty()
+        || base.trimmed().isEmpty()) {
+        return false;
+    }
+    if (m_worktreeCommands->busy()) {
+        emit errorOccurred(tr("Another worktree operation is still running."));
+        return false;
+    }
+    const QString target = QDir::cleanPath(QDir::fromNativeSeparators(location.trimmed()));
+    QPointer<WorkspaceController> self(this);
+    const bool started = m_worktreeCommands->add(
+        project, name, base.trimmed(), target, [self, name, target](bool ok, const QString &error) {
+            if (!self) {
+                return;
+            }
+            if (!ok) {
+                emit self->errorOccurred(tr("Could not create worktree “%1”: %2").arg(name, error));
+                return;
+            }
+            // Listed under its main project (the registry reads the link)
+            // and opened in a new terminal.
+            self->openProjectFolder(target, true);
+        });
+    if (!started) {
+        emit errorOccurred(tr("Could not start Git to create worktree “%1”.").arg(name));
+    }
+    return started;
+}
+
+bool WorkspaceController::deleteWorktree(const QString &projectPath, bool force)
+{
+    const QString project = m_projects->registeredPath(projectPath);
+    const QString main = m_projects->parentProject(project);
+    if (project.isEmpty() || main.isEmpty() || !m_worktreeCommands) {
+        return false;
+    }
+    if (hasProjectWork(project)) {
+        emit errorOccurred(tr("Close all tiles and delete all sessions of this worktree before deleting it."));
+        return false;
+    }
+    m_projects->refreshFolders();
+    if (!m_projects->isAvailable(project)) {
+        // Already gone from disk: only the entry is left.
+        return removeProject(project);
+    }
+    if (m_worktreeCommands->busy()) {
+        emit errorOccurred(tr("Another worktree operation is still running."));
+        return false;
+    }
+    QPointer<WorkspaceController> self(this);
+    const bool started =
+        m_worktreeCommands->remove(main, project, force, [self, project](bool ok, const QString &error) {
+            if (!self) {
+                return;
+            }
+            if (!ok) {
+                emit self->worktreeDeleteFailed(project, error);
+                return;
+            }
+            self->m_projects->refreshFolders();
+            self->removeProject(project);
+        });
+    if (!started) {
+        emit errorOccurred(tr("Could not start Git to delete the worktree."));
+    }
+    return started;
+}
+
+QString WorkspaceController::openProjectFolder(const QString &path, bool newTerminal)
+{
+    // The registry reports a folder that cannot be a project.
+    if (!m_projects->addProject(path)) {
+        return {};
+    }
+    const QString canonical = m_projects->canonicalProjectPath(path);
+    const int row = newTerminal ? -1 : m_sessions->activeIndexForProject(canonical);
+    if (row >= 0) {
+        const QString tileId = showSession(m_sessions->sessionIdAt(row));
+        if (!tileId.isEmpty()) {
+            return tileId;
+        }
+    }
+    return createSession(canonical);
 }
 
 QString WorkspaceController::createRemoteSession(const QString &hostId)

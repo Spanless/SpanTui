@@ -498,8 +498,9 @@ void RemoteShellChannelTest::fileModelExplainsMissingPromptBridge()
         // No program: the channel fails at once with its own message.
         model.channel()->setLaunch(QString(), {}, environment);
         model.activate();
-        QTest::qWaitFor([&model]() { return !model.errorMessage().isEmpty(); }, 5000);
-        return model.errorMessage();
+        // Empty when no error arrives in time.
+        return QTest::qWaitFor([&model]() { return !model.errorMessage().isEmpty(); }, 5000) ? model.errorMessage()
+                                                                                             : QString();
     };
 
     const QString bridged = connectionError(

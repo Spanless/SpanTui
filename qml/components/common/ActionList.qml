@@ -89,7 +89,9 @@ Item {
                 readonly property bool separator: modelData.separator === true
                 readonly property bool itemEnabled: modelData.enabled === undefined || modelData.enabled
                 readonly property bool danger: modelData.danger === true
-                readonly property bool hasSubmenu: Array.isArray(modelData.submenu)
+                // Not Array.isArray: a nested array read through a model
+                // element arrives as a sequence wrapper, which is not an Array.
+                readonly property bool hasSubmenu: !!modelData.submenu
                                                    && modelData.submenu.length > 0
                 // GlideHighlight row contract: enabled action rows are
                 // targets; separators and disabled rows are skipped.

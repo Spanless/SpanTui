@@ -1,10 +1,11 @@
-# Update proposals for the SHA-pinned GitHub Actions in .github/workflows/.
-# Qt, MinGW and clang-format are pinned in tools/toolchain-versions.json and
-# updated by hand.
+# Update proposals for the SHA-pinned GitHub Actions in .github/workflows/
+# and the local composite actions in .github/actions/.
+# Qt, MinGW, clang-format and sccache are pinned in
+# tools/toolchain-versions.json and updated by hand.
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    directories: ['/', '/.github/actions/*']
     target-branch: dev
     schedule:
       interval: monthly

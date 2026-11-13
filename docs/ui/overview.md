@@ -21,7 +21,7 @@ qml/
 ## 2. 通用约束
 
 - 文案用 `qsTr()`（见 [国际化](../workflow/localization.md)）。
-- 视觉值取 `Theme` token，`qml_style_check` 拦截裸数值，特例写 `// style-ok: 原因`（见 [设计系统](design-system.md)）。
+- 视觉值取 `Theme` token，`tools/check-style.ps1` 拦截裸数值，特例写 `// style-ok: 原因`（见 [设计系统](design-system.md)）。
 - 先查 [组件库](components/overview.md)，能复用就不重写；浮层一律走 `AppPopup` 体系。
 - common/base 只经 `Appearance` 单例读偏好；business 还可绑定 `TerminalSettings`、`WorkspaceSettings` 单例。
 - 滚动视口归父容器；标签与控件对齐用 `GridRow`/`GridCol`。
@@ -43,8 +43,8 @@ qml/
 
 ## 4. 本域改动完成标准
 
-- [ ] 新文案已 `qsTr()` 并补齐 `.ts` 译文，`translation_catalog_test` 通过。
-- [ ] `qml_style_check` 通过。
+- [ ] 新文案已 `qsTr()` 并补齐 `.ts` 译文，`tools/check-translations.ps1` 通过。
+- [ ] `tools/check-style.ps1`、`tools/check-icons.ps1` 通过。
 - [ ] 未重写已有组件能力；第二个相似用法已抽到 common。
 - [ ] QML 未缓存领域数据，跨域交互未越层。
 - [ ] smoke 输出 `SMOKE_OK`，启动日志无新 QML 警告。

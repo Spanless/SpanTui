@@ -36,6 +36,8 @@ inline constexpr QLatin1StringView kSettingWindowWidth{"window.width"};
 inline constexpr QLatin1StringView kSettingWindowHeight{"window.height"};
 inline constexpr QLatin1StringView kSettingWindowMaximized{"window.maximized"};
 inline constexpr QLatin1StringView kSettingActiveSessionByProject{"sessions.activeByProject"};
+// Folder new worktrees go under by default ("" until the first one).
+inline constexpr QLatin1StringView kSettingGitWorktreeRoot{"git.worktreeRoot"};
 
 // Setting values.
 inline constexpr QLatin1StringView kLanguageChinese{"zh_CN"};
@@ -51,6 +53,17 @@ inline constexpr QLatin1StringView kScriptRunIndependentWindow{"independentWindo
 inline constexpr int kMonitorIntervalDefaultSeconds = 2;
 inline constexpr int kMonitorIntervalMinSeconds = 1;
 inline constexpr int kMonitorIntervalMaxSeconds = 60;
+
+// File types whose recommended "Open with" programs make up the "Open in"
+// menu (OpenTargetRegistry): source and text formats an editor registers for
+// and other kinds of program rarely do. Not `.ts` (also MPEG video) nor
+// `.txt`/`.html`/`.xml` (claimed by viewers and browsers).
+inline constexpr QLatin1StringView kOpenWithProbeExtensions[]{
+    QLatin1StringView{".md"},   QLatin1StringView{".json"}, QLatin1StringView{".py"}, QLatin1StringView{".js"},
+    QLatin1StringView{".rs"},   QLatin1StringView{".go"},   QLatin1StringView{".c"},  QLatin1StringView{".cpp"},
+    QLatin1StringView{".h"},    QLatin1StringView{".java"}, QLatin1StringView{".cs"}, QLatin1StringView{".toml"},
+    QLatin1StringView{".yaml"},
+};
 
 // Time for an icon motion to return to rest once its trigger ends.
 inline constexpr double kIconMotionSettleMs = 280;

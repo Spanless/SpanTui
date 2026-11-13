@@ -47,6 +47,7 @@ Item {
     property bool _armed: false
     property bool _danger: false
     property Item _row: null
+    property real _glideX: 0
     property real _glideY: 0
     property real _glideH: 0
     property point _lastPos: Qt.point(0, 0)
@@ -106,7 +107,9 @@ Item {
         _lastPos = pos
         if (row === null)
             return
-        _glideY = row.mapToItem(root, 0, 0).y
+        const origin = row.mapToItem(root, 0, 0)
+        _glideX = origin.x
+        _glideY = origin.y
         _glideH = row.height
         _danger = row.glideDanger === true
         _row = row
@@ -119,10 +122,12 @@ Item {
 
     CrispSurface {
         id: pill
-        x: (root.target ? root.target.mapToItem(root, 0, 0).x : 0)
+        // The row's own rect: delegates may be indented or narrower than the
+        // container (worktree sessions in the sidebar).
+        x: (root._row ? root._glideX
+                      : (root.target ? root.target.mapToItem(root, 0, 0).x : 0))
            + root.insetX
         y: root._glideY + root.insetY
-        // The row's width: delegates may be narrower than the container.
         width: (root._row ? root._row.width
                           : (root.target ? root.target.width : 0)) - root.insetX * 2
         height: Math.max(0, root._glideH - root.insetY * 2)

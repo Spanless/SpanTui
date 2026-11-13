@@ -15,6 +15,7 @@ private slots:
     void dropsRetiredColumnsFromVersionSix();
     void versionSevenGainsRemoteHosts();
     void versionNineRenamesSettingKeys();
+    void versionTenProjectsStayTopLevel();
     void refusesClosedDatabase();
     void failedUpgradeLeavesDatabaseUntouched();
 };
@@ -31,6 +32,17 @@ QStringList tableColumns(QSqlDatabase &database, const QString &table)
         }
     }
     return columns;
+}
+
+// Every settings row as "key=value", ordered by key.
+QStringList settingRows(QSqlDatabase &database)
+{
+    QStringList rows;
+    QSqlQuery query(database);
+    if (query.exec(QStringLiteral("select key, value from settings order by key"))) {
+        while (query.next()) rows << query.value(0).toString() + QLatin1Char('=') + query.value(1).toString();
+    }
+    return rows;
 }
 
 int userVersion(QSqlDatabase &database)
@@ -58,9 +70,10 @@ void WorkspaceDatabaseMigrationTest::createsBaselineSchemaIdempotently()
 
         QCOMPARE(tableColumns(database, QStringLiteral("settings")),
                  QStringList({QStringLiteral("key"), QStringLiteral("value")}));
-        QCOMPARE(tableColumns(database, QStringLiteral("projects")),
-                 QStringList({QStringLiteral("id"), QStringLiteral("path"), QStringLiteral("name"),
-                              QStringLiteral("last_opened"), QStringLiteral("expanded")}));
+        QCOMPARE(
+            tableColumns(database, QStringLiteral("projects")),
+            QStringList({QStringLiteral("id"), QStringLiteral("path"), QStringLiteral("name"),
+                         QStringLiteral("last_opened"), QStringLiteral("expanded"), QStringLiteral("parent_path")}));
         QCOMPARE(tableColumns(database, QStringLiteral("sessions")),
                  QStringList({QStringLiteral("id"), QStringLiteral("project_path"), QStringLiteral("name"),
                               QStringLiteral("cwd"), QStringLiteral("active"), QStringLiteral("sort_order"),
@@ -153,9 +166,10 @@ void WorkspaceDatabaseMigrationTest::dropsRetiredColumnsFromVersionSix()
         QString error;
         QVERIFY2(span::core::migrateWorkspaceDatabase(database, &error), qPrintable(error));
         QCOMPARE(userVersion(database), span::core::kWorkspaceDatabaseVersion);
-        QCOMPARE(tableColumns(database, QStringLiteral("projects")),
-                 QStringList({QStringLiteral("id"), QStringLiteral("path"), QStringLiteral("name"),
-                              QStringLiteral("last_opened"), QStringLiteral("expanded")}));
+        QCOMPARE(
+            tableColumns(database, QStringLiteral("projects")),
+            QStringList({QStringLiteral("id"), QStringLiteral("path"), QStringLiteral("name"),
+                         QStringLiteral("last_opened"), QStringLiteral("expanded"), QStringLiteral("parent_path")}));
         QVERIFY(tableColumns(database, QStringLiteral("file_operations")).isEmpty());
         QVERIFY(query.exec(QStringLiteral("select key from settings")));
         QVERIFY(query.next());
@@ -223,15 +237,40 @@ void WorkspaceDatabaseMigrationTest::versionNineRenamesSettingKeys()
         QString error;
         QVERIFY2(span::core::migrateWorkspaceDatabase(database, &error), qPrintable(error));
         QCOMPARE(userVersion(database), span::core::kWorkspaceDatabaseVersion);
-        QVERIFY(query.exec(QStringLiteral("select key, value from settings order by key")));
-        QStringList rows;
-        while (query.next()) {
-            rows << query.value(0).toString() + QLatin1Char('=') + query.value(1).toString();
-        }
         QCOMPARE(
-            rows,
+            settingRows(database),
             (QStringList{QStringLiteral("terminal.cursorStyle=bar"), QStringLiteral("themeMode=dark"),
                          QStringLiteral("window.x=20"), QStringLiteral("workspace.scriptRunMode=independentWindow")}));
+        database.close();
+    }
+    QSqlDatabase::removeDatabase(connection);
+}
+
+void WorkspaceDatabaseMigrationTest::versionTenProjectsStayTopLevel()
+{
+    QTemporaryDir temporary;
+    QVERIFY(temporary.isValid());
+    const QString connection = QStringLiteral("workspace_migration_v10");
+    {
+        QSqlDatabase database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connection);
+        database.setDatabaseName(temporary.filePath(QStringLiteral("v10.db")));
+        QVERIFY(database.open());
+        QSqlQuery query(database);
+        QVERIFY(query.exec(QStringLiteral("create table projects (id integer primary key autoincrement, "
+                                          "path text unique not null, name text not null, "
+                                          "last_opened integer default 0, expanded integer default 1)")));
+        QVERIFY(query.exec(QStringLiteral("insert into projects(path,name,expanded) values('C:/work','work',0)")));
+        QVERIFY(query.exec(QStringLiteral("pragma user_version = 10")));
+
+        QString error;
+        QVERIFY2(span::core::migrateWorkspaceDatabase(database, &error), qPrintable(error));
+        QCOMPARE(userVersion(database), span::core::kWorkspaceDatabaseVersion);
+        QVERIFY(query.exec(QStringLiteral("select path, expanded, parent_path from projects")));
+        QVERIFY(query.next());
+        QCOMPARE(query.value(0).toString(), QStringLiteral("C:/work"));
+        QCOMPARE(query.value(1).toInt(), 0);
+        QCOMPARE(query.value(2).toString(), QString());
+        QVERIFY(!query.next());
         database.close();
     }
     QSqlDatabase::removeDatabase(connection);

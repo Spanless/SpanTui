@@ -58,8 +58,9 @@ QByteArray exchange(const QString &endpoint, const QByteArray &request)
     client.connectToServer(endpoint);
     if (!client.waitForConnected(2000) || client.write(request) != request.size()) return {};
     QByteArray response;
-    QTest::qWaitFor([&]() { return (response += client.readAll()).contains('\n'); }, 3000);
-    return response;
+    // A partial line that never completes counts as no response.
+    return QTest::qWaitFor([&]() { return (response += client.readAll()).contains('\n'); }, 3000) ? response
+                                                                                                  : QByteArray();
 }
 
 QString helperExecutable()

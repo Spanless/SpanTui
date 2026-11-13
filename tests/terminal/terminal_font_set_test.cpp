@@ -34,9 +34,7 @@ private:
 };
 
 void TerminalFontSetTest::initTestCase() {
-    const QString regularPath =
-        QStringLiteral(SPANTUI_SOURCE_DIR
-                       "/assets/fonts/SpanMono-Regular.ttf");
+    const QString regularPath = QStringLiteral(":/fonts/SpanMono-Regular.ttf");
     QVERIFY(QFileInfo::exists(regularPath));
     m_regularFontId = QFontDatabase::addApplicationFont(regularPath);
     QVERIFY(m_regularFontId >= 0);
@@ -45,8 +43,7 @@ void TerminalFontSetTest::initTestCase() {
     m_bundledFamily = families.constFirst();
     QVERIFY(QFontDatabase::isFixedPitch(m_bundledFamily));
 
-    const int symbolsId = QFontDatabase::addApplicationFont(
-        QStringLiteral(SPANTUI_SOURCE_DIR "/assets/fonts/SpanSymbols-Regular.ttf"));
+    const int symbolsId = QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/SpanSymbols-Regular.ttf"));
     QVERIFY(symbolsId >= 0);
     m_symbolsFamily = QFontDatabase::applicationFontFamilies(symbolsId).value(0);
     QCOMPARE(m_symbolsFamily, QStringLiteral("Span Symbols"));

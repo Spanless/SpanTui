@@ -2,6 +2,7 @@
 
 #include "application/settings_store.h"
 
+#include <QDir>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -39,6 +40,12 @@ QVariantMap storedStringMap(const QString &json, bool keepEmpty)
     return map;
 }
 
+QString normalizedFolder(const QString &value)
+{
+    const QString trimmed = value.trimmed();
+    return QDir::isAbsolutePath(trimmed) ? QDir::toNativeSeparators(QDir::cleanPath(trimmed)) : QString();
+}
+
 QString compactJson(const QVariantMap &map)
 {
     return QString::fromUtf8(QJsonDocument(QJsonObject::fromVariantMap(map)).toJson(QJsonDocument::Compact));
@@ -63,11 +70,13 @@ void WorkspaceSettings::load()
     // what it cannot use.
     m_shortcutOverrides = storedStringMap(m_store->value(kSettingShortcutBindings, QStringLiteral("{}")), true);
     m_toolPathOverrides = storedStringMap(m_store->value(kSettingToolPaths, QStringLiteral("{}")), false);
+    m_worktreeRoot = normalizedFolder(m_store->value(kSettingGitWorktreeRoot));
     emit scriptRunModeChanged();
     emit renderModeChanged();
     emit performanceMonitorIntervalChanged();
     emit shortcutOverridesChanged();
     emit toolPathOverridesChanged();
+    emit worktreeRootChanged();
 }
 
 void WorkspaceSettings::store(const QString &key, const QString &value)
@@ -133,6 +142,17 @@ void WorkspaceSettings::setToolPathOverrides(const QVariantMap &value)
     m_toolPathOverrides = value;
     store(kSettingToolPaths, compactJson(m_toolPathOverrides));
     emit toolPathOverridesChanged();
+}
+
+void WorkspaceSettings::setWorktreeRoot(const QString &value)
+{
+    const QString normalized = normalizedFolder(value);
+    if (m_worktreeRoot == normalized) {
+        return;
+    }
+    m_worktreeRoot = normalized;
+    store(kSettingGitWorktreeRoot, m_worktreeRoot);
+    emit worktreeRootChanged();
 }
 
 } // namespace span::application

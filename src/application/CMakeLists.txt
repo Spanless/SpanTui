@@ -22,6 +22,8 @@ add_library(SpanApplication STATIC
     launch_options.h
     message_center.cpp
     message_center.h
+    open_target_registry.cpp
+    open_target_registry.h
     project_context.cpp
     project_context.h
     pixel_snap.cpp

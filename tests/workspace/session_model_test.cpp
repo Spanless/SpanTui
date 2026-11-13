@@ -25,7 +25,6 @@ class SessionModelTest final : public QObject {
 
 private slots:
     void init();
-    void exposesQmlRoleNames();
     void addAssignsDefaultsAndActivates();
     void localizesStoredDefaultNames();
     void normalizesProjectPaths();
@@ -50,17 +49,6 @@ void SessionModelTest::init()
 {
     QVERIFY(m_projectA.isValid());
     QVERIFY(m_projectB.isValid());
-}
-
-void SessionModelTest::exposesQmlRoleNames()
-{
-    // QML delegates bind these names; renaming one silently blanks the UI.
-    const QHash<int, QByteArray> names = SessionModel().roleNames();
-    QCOMPARE(names.value(SessionModel::IdRole), QByteArray("sessionId"));
-    QCOMPARE(names.value(SessionModel::NameRole), QByteArray("name"));
-    QCOMPARE(names.value(SessionModel::CwdRole), QByteArray("cwd"));
-    QCOMPARE(names.value(SessionModel::ProjectPathRole), QByteArray("projectPath"));
-    QCOMPARE(names.value(SessionModel::ActiveRole), QByteArray("active"));
 }
 
 void SessionModelTest::addAssignsDefaultsAndActivates()

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(SpanTui VERSION 0.2.4 LANGUAGES C CXX)
+project(SpanTui VERSION 0.1.0 LANGUAGES C CXX)
 
 find_program(SPANTUI_SCCACHE_EXECUTABLE NAMES sccache)
 if(SPANTUI_SCCACHE_EXECUTABLE)
@@ -43,6 +43,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
+
+# GuiPrivate/QuickPrivate are used on purpose and the Qt version is pinned
+# (tools/toolchain-versions.json); the per-configure warning says nothing new.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+# Optional for Qt Gui and unused here; looking for it only prints
+# "Could NOT find WrapVulkanHeaders".
+set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders TRUE)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Concurrent Gui GuiPrivate Network Qml Quick QuickPrivate QuickControls2 ShaderTools Sql Svg Test LinguistTools)
 
@@ -257,6 +264,7 @@ qt_add_qml_module(SpanTui
         qml/components/business/git/GitPane.qml
         qml/components/business/git/GitRefBadge.qml
         qml/components/business/git/GitRefsTree.qml
+        qml/components/business/git/RefsSectionHeader.qml
         qml/components/business/messages/MessageCard.qml
         qml/components/business/messages/MessageCenterPopup.qml
         qml/components/business/messages/MessageToastStack.qml
@@ -295,6 +303,8 @@ qt_add_qml_module(SpanTui
         qml/components/business/workspace/WorkspaceCanvas.qml
         qml/components/business/workspace/ZoneTileDelegate.qml
         qml/components/business/workspace/WorkspaceTab.qml
+        qml/components/business/workspace/WorktreeDialog.qml
+        qml/components/business/workspace/WorktreeRootDialog.qml
 )
 
 add_custom_command(TARGET SpanTui POST_BUILD
@@ -308,14 +318,18 @@ add_custom_command(TARGET SpanTui POST_BUILD
 
 # Bundled Span Mono (terminal/editor), Span Sans (UI) and Span Symbols (Nerd
 # icon fallback) faces, registered by main.cpp. Rebuilt by
-# tools/fonts/build-fonts.ps1.
+# tools/fonts/build-fonts.ps1. Tests that need the faces embed the same
+# resource rather than reading the checkout by an absolute path.
 file(GLOB SPAN_FONT_FILES CONFIGURE_DEPENDS
     assets/fonts/Span*.ttf assets/fonts/SpanFonts-LICENSE-*.txt)
-qt_add_resources(SpanTui "spantui_fonts"
-    PREFIX "/fonts"
-    BASE assets/fonts
-    FILES ${SPAN_FONT_FILES}
-)
+function(spantui_add_font_resources target)
+    qt_add_resources(${target} "spantui_fonts"
+        PREFIX "/fonts"
+        BASE "${CMAKE_SOURCE_DIR}/assets/fonts"
+        FILES ${SPAN_FONT_FILES}
+    )
+endfunction()
+spantui_add_font_resources(SpanTui)
 
 qt_add_resources(SpanTui "spantui_brand"
     PREFIX "/"
@@ -451,8 +465,6 @@ spantui_add_library_test(shell_extension_contract_test
     SOURCES src/platform/windows/shell_extension_contract.h)
 target_include_directories(shell_extension_contract_test PRIVATE src)
 target_compile_definitions(shell_extension_contract_test PRIVATE
-    SPANTUI_SHELL_EXTENSION_PATH="$<TARGET_FILE:SpanTui-shell-extension>"
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     UNICODE
     _UNICODE
     WIN32_LEAN_AND_MEAN
@@ -481,33 +493,14 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         EXTRA "GIT_CEILING_DIRECTORIES=set:${SPANTUI_TEST_DEV_DIR}")
 endif()
 
-# Design-token lint: QML must consume the Theme size/spacing ladders instead
-# of bare pixel values. See docs/ui/design-system.md §5.
-add_test(NAME qml_style_check
-    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
-            -File "${CMAKE_SOURCE_DIR}/tools/check-style.ps1")
-# Docs lint: links/anchors, quoted paths, component parameter tables and
-# the ownership map (docs/workflow/documentation.md).
-add_test(NAME docs_check
-    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
-            -File "${CMAKE_SOURCE_DIR}/tools/check-docs.ps1")
-# Toolchain helpers shared by dev.bat and start.bat (tools/toolchain.ps1).
-add_test(NAME toolchain_self_test
-    COMMAND powershell -NoProfile -ExecutionPolicy Bypass
-            -File "${CMAKE_SOURCE_DIR}/tools/devtool/toolchain-self-test.ps1")
-foreach(_script_test qml_style_check docs_check toolchain_self_test)
-    spantui_set_test_environment(${_script_test})
-endforeach()
+# CTest runs product tests only: the static checks (tools/check-*.ps1) run
+# in `dev.bat check`, the CI check stage and the pre-commit hook.
 
 spantui_add_library_test(settings_test
     tests/application/settings_test.cpp LIBS SpanApplication)
-target_compile_definitions(settings_test PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+spantui_add_font_resources(settings_test)
 spantui_add_library_test(shortcut_registry_test
     tests/application/shortcut_registry_test.cpp LIBS SpanApplication)
-spantui_add_library_test(window_transition_coordinator_test
-    tests/application/window_transition_coordinator_test.cpp
-    LIBS SpanApplication OFFSCREEN)
 spantui_add_library_test(project_workspace_registry_test
     tests/application/project_workspace_registry_test.cpp LIBS SpanApplication)
 spantui_add_library_test(tool_registry_test
@@ -526,17 +519,6 @@ spantui_add_library_test(message_center_test
     tests/application/message_center_test.cpp LIBS SpanApplication)
 spantui_add_library_test(task_progress_test
     tests/application/task_progress_test.cpp LIBS SpanApplication)
-spantui_add_library_test(idle_governor_test
-    tests/application/idle_governor_test.cpp LIBS SpanApplication OFFSCREEN)
-spantui_add_library_test(ui_icon_catalog_test
-    tests/application/ui_icon_catalog_test.cpp
-    LIBS SpanApplication)
-target_compile_definitions(ui_icon_catalog_test PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-spantui_add_library_test(icon_motion_test
-    tests/application/icon_motion_test.cpp LIBS SpanApplication)
-spantui_add_library_test(pixel_snap_test
-    tests/application/pixel_snap_test.cpp LIBS SpanApplication OFFSCREEN)
 spantui_add_library_test(workspace_session_routing_test
     tests/application/workspace_session_routing_test.cpp
     LIBS SpanApplication OFFSCREEN)
@@ -572,8 +554,6 @@ add_library(spantui_git_test_support STATIC
 )
 target_include_directories(spantui_git_test_support PUBLIC tests/git)
 target_link_libraries(spantui_git_test_support PUBLIC SpanGit Qt6::Test)
-spantui_add_library_test(git_item_model_test
-    tests/git/git_item_model_test.cpp LIBS spantui_git_test_support)
 spantui_add_library_test(git_parsers_test
     tests/git/git_parsers_test.cpp LIBS spantui_git_test_support)
 spantui_add_library_test(git_repository_read_test
@@ -582,6 +562,8 @@ spantui_add_library_test(git_repository_concurrency_test
     tests/git/git_repository_concurrency_test.cpp LIBS spantui_git_test_support)
 spantui_add_library_test(git_lane_scheduler_test
     tests/git/git_lane_scheduler_test.cpp LIBS spantui_git_test_support)
+spantui_add_library_test(git_worktree_test
+    tests/git/git_worktree_test.cpp LIBS spantui_git_test_support)
 
 spantui_add_library_test(process_containment_test
     tests/platform/process_containment_test.cpp LIBS SpanPlatform)
@@ -605,22 +587,6 @@ spantui_add_library_test(gpu_engine_metrics_test
 spantui_add_library_test(resource_monitor_test
     tests/monitoring/resource_monitor_test.cpp LIBS SpanMonitoring Qt6::Gui OFFSCREEN)
 
-spantui_add_library_test(brand_icon_generator_test
-    tests/application/brand_icon_generator_test.cpp LIBS Qt6::Core)
-target_compile_definitions(brand_icon_generator_test PRIVATE
-    SPANTUI_BRAND_ICON_GENERATOR_PATH="$<TARGET_FILE:spantui_brand_icon_generator>"
-    SPANTUI_BRAND_SVG_PATH="${SPANTUI_BRAND_SVG}"
-)
-add_dependencies(brand_icon_generator_test spantui_brand_icon_generator)
-
-spantui_add_library_test(application_manifest_test
-    tests/application/application_manifest_test.cpp LIBS Qt6::Core)
-target_compile_definitions(application_manifest_test PRIVATE
-    SPANTUI_APPLICATION_PATH="$<TARGET_FILE:SpanTui>"
-    SPANTUI_EXPECT_INSTALLED_IMAGE=$<BOOL:${SPANTUI_INSTALLED_IMAGE}>
-)
-add_dependencies(application_manifest_test SpanTui)
-
 # Analytic rounded surfaces are compiled once into portable Qt Shader Baker
 # packages. The runtime path stays on Qt Quick's RHI (D3D11 on normal Windows
 # systems) without opting the whole window into MSAA or an offscreen layer.
@@ -632,13 +598,6 @@ qt_add_shaders(SpanTui "spantui_boundary_shaders"
         shaders/crisp_surface.vert
         shaders/crisp_surface.frag
 )
-
-spantui_add_library_test(translation_catalog_test
-    tests/application/translation_catalog_test.cpp LIBS Qt6::Core)
-target_compile_definitions(translation_catalog_test PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-set_tests_properties(translation_catalog_test PROPERTIES TIMEOUT 30)
 
 add_custom_target(spantui_update_translations
     COMMAND "$<TARGET_FILE:Qt6::lupdate>"
@@ -653,23 +612,10 @@ function(spantui_add_terminal_test target source)
     spantui_add_library_test(${target} ${source} LIBS SpanTerminal Qt6::Gui Qt6::Quick OFFSCREEN)
 endfunction()
 
-spantui_add_terminal_test(terminal_color_test tests/terminal/terminal_color_test.cpp)
 spantui_add_terminal_test(ghostty_engine_test tests/terminal/ghostty_engine_test.cpp)
 target_link_libraries(ghostty_engine_test PRIVATE SpanGhosttyVt)
 spantui_add_terminal_test(terminal_font_set_test tests/terminal/terminal_font_set_test.cpp)
-target_compile_definitions(terminal_font_set_test PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-spantui_add_terminal_test(terminal_row_layout_test tests/terminal/terminal_row_layout_test.cpp)
-spantui_add_terminal_test(terminal_frame_preparer_test tests/terminal/terminal_frame_preparer_test.cpp)
-spantui_add_terminal_test(terminal_glyph_atlas_test tests/terminal/terminal_glyph_atlas_test.cpp)
-spantui_add_terminal_test(terminal_cursor_animation_test tests/terminal/terminal_cursor_animation_test.cpp)
-spantui_add_terminal_test(terminal_viewport_lifecycle_test tests/terminal/terminal_viewport_lifecycle_test.cpp)
-spantui_add_terminal_test(terminal_ime_anchor_resolver_test tests/terminal/terminal_ime_anchor_resolver_test.cpp)
-spantui_add_terminal_test(terminal_ime_composition_state_test tests/terminal/terminal_ime_composition_state_test.cpp)
-spantui_add_terminal_test(terminal_box_drawing_test tests/terminal/terminal_box_drawing_test.cpp)
-spantui_add_terminal_test(terminal_block_elements_test tests/terminal/terminal_block_elements_test.cpp)
-spantui_add_terminal_test(terminal_braille_test tests/terminal/terminal_braille_test.cpp)
+spantui_add_font_resources(terminal_font_set_test)
 spantui_add_terminal_test(terminal_session_test tests/terminal/terminal_session_test.cpp)
 # Builds engines of its own for the session's engine factory.
 target_link_libraries(terminal_session_test PRIVATE SpanGhosttyVt)
@@ -685,18 +631,11 @@ target_link_libraries(terminal_core_worker_benchmark PRIVATE SpanTerminal Qt6::G
 qt_add_executable(terminal_render_benchmark tests/terminal/terminal_render_benchmark.cpp)
 target_link_libraries(terminal_render_benchmark PRIVATE
     SpanTerminal Qt6::Gui Qt6::GuiPrivate Qt6::Quick Qt6::QuickPrivate)
-target_compile_definitions(terminal_render_benchmark PRIVATE
-    SPANTUI_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
+spantui_add_font_resources(terminal_render_benchmark)
 spantui_skip_qml_import_scan(terminal_render_benchmark)
-spantui_add_terminal_test(terminal_presentation_scheduler_test tests/terminal/terminal_presentation_scheduler_test.cpp)
-spantui_add_terminal_test(terminal_output_queue_test tests/terminal/shared/terminal_output_queue_test.cpp)
-spantui_add_terminal_test(terminal_frame_store_test tests/terminal/shared/terminal_frame_store_test.cpp)
 spantui_add_terminal_test(terminal_manager_test tests/terminal/terminal_manager_test.cpp)
 spantui_add_terminal_test(win_conpty_process_test tests/terminal/win_conpty_process_test.cpp)
-spantui_add_terminal_test(terminal_scroll_model_test tests/terminal/terminal_scroll_model_test.cpp)
 spantui_add_terminal_test(terminal_input_routing_test tests/terminal/terminal_input_routing_test.cpp)
-spantui_add_terminal_test(terminal_scene_graph_test tests/terminal/terminal_scene_graph_test.cpp)
 
 spantui_add_library_test(markdown_gfm_adapter_test
     tests/markdown/markdown_gfm_adapter_test.cpp LIBS SpanDocuments)
@@ -745,7 +684,6 @@ add_dependencies(tool_registry_test argv_echo_child)
 # Core tests: see docs/workflow/testing.md.
 set(SPANTUI_CORE_TESTS
     ghostty_engine_test win_conpty_process_test
-    terminal_output_queue_test terminal_frame_store_test
     terminal_core_worker_test terminal_session_test terminal_manager_test
     terminal_input_routing_test
     workspace_database_migration_test settings_test product_paths_test

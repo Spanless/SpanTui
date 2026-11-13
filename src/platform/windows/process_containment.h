@@ -25,8 +25,9 @@ quint32 startOwnedProcess(const QString &executable,
                           QString *errorMessage = nullptr);
 
 // CreateProcess with CREATE_BREAKAWAY_FROM_JOB so the child survives this
-// process exiting and closing the application job. Use only for the update
-// installer; in-app terminals and tools must stay on startOwnedProcess.
+// process exiting and closing the application job. Use only for programs the
+// user keeps after SpanTui exits: the update installer and external editors
+// opened on a project. In-app terminals and tools stay on startOwnedProcess.
 quint32 startUnaffiliatedProcess(const QString &executable,
                                  const QStringList &arguments,
                                  const QString &workingDirectory,

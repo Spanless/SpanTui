@@ -17,8 +17,10 @@ namespace {
 constexpr qsizetype kDefaultOutputLimit = qsizetype(16) * 1024 * 1024;
 constexpr qsizetype kHistoryOutputLimit = qsizetype(128) * 1024 * 1024;
 constexpr int kOutputFileWatchdogMs = 500;
+} // namespace
 
-const QProcessEnvironment &baseGitEnvironment() {
+const QProcessEnvironment &GitLaneScheduler::environment()
+{
     static const QProcessEnvironment env = []() {
         QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
         environment.insert(QStringLiteral("GIT_TERMINAL_PROMPT"), QStringLiteral("0"));
@@ -30,7 +32,6 @@ const QProcessEnvironment &baseGitEnvironment() {
     }();
     return env;
 }
-} // namespace
 
 GitLaneScheduler::GitLaneScheduler(FailureDetail failureDetail)
     : m_failureDetail(std::move(failureDetail))
@@ -70,6 +71,7 @@ GitLaneScheduler::OperationTraits GitLaneScheduler::operationTraits(const QStrin
         {kGitOperationHistory, {Lane::History, nullptr, true}},
         {kGitOperationHistoryParse, {Lane::History, nullptr, false}},
         {kGitOperationBranches, {Lane::History, nullptr, false}},
+        {kGitOperationWorktrees, {Lane::History, nullptr, false}},
         // Discovery and refresh both read the worktree state.
         {kGitOperationDiscover, {Lane::Status, kGitOperationRefresh.data(), false}},
         // One commit view loads in steps; a newer selection supersedes
@@ -80,6 +82,8 @@ GitLaneScheduler::OperationTraits GitLaneScheduler::operationTraits(const QStrin
         {QLatin1StringView("diff-stats"), {Lane::Diff, nullptr, false}},
         {QLatin1StringView("commit-preview"), {Lane::Peek, nullptr, false}},
         {QLatin1StringView("diff-body"), {Lane::DiffBody, nullptr, false}},
+        // One worktree at a time; a new round supersedes the running probe.
+        {kGitOperationWorktreeStatus, {Lane::Probe, nullptr, false}},
     };
     for (const Row &row : rows) {
         if (operation == row.name) return row.traits;
@@ -412,7 +416,7 @@ bool GitLaneScheduler::startProcess(Lane lane, const QString &directory,
                       QStringLiteral("-c"), QStringLiteral("core.editor=true"),
                       QStringLiteral("-C"), directory};
     args.append(arguments);
-    state.process.setProcessEnvironment(baseGitEnvironment());
+    state.process.setProcessEnvironment(environment());
     state.process.setProcessChannelMode(QProcess::SeparateChannels);
     if (history) {
         state.stdoutFile = QDir::temp().filePath(

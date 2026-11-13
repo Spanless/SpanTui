@@ -314,6 +314,22 @@
         <translation>Git</translation>
     </message>
     <message>
+        <source>Worktree folder</source>
+        <translation>工作树文件夹</translation>
+    </message>
+    <message>
+        <source>New worktrees are created here, one subfolder per project. Each worktree can still pick another place when it is created.</source>
+        <translation>新工作树创建在这里，每个项目一个子文件夹。创建单个工作树时仍可另选位置。</translation>
+    </message>
+    <message>
+        <source>Asked at the first worktree</source>
+        <translation>首次创建工作树时询问</translation>
+    </message>
+    <message>
+        <source>Choose the worktree folder</source>
+        <translation>选择工作树文件夹</translation>
+    </message>
+    <message>
         <source>OpenSSH client</source>
         <translation>OpenSSH 客户端</translation>
     </message>
@@ -949,8 +965,52 @@
         <translation>选择其他引用或清除筛选</translation>
     </message>
     <message>
-        <source>Filter branches or tags</source>
-        <translation>筛选分支或标签</translation>
+        <source>Filter</source>
+        <translation>筛选</translation>
+    </message>
+    <message>
+        <source>Other worktrees</source>
+        <translation>其他工作树</translation>
+    </message>
+    <message>
+        <source>Refresh branches, tags and worktrees</source>
+        <translation>刷新分支、标签和工作树</translation>
+    </message>
+    <message>
+        <source>No matches</source>
+        <translation>没有匹配项</translation>
+    </message>
+    <message>
+        <source>No branches yet</source>
+        <translation>还没有分支</translation>
+    </message>
+    <message>
+        <source>Try another name, or clear the filter.</source>
+        <translation>换个名称，或清除筛选。</translation>
+    </message>
+    <message>
+        <source>They appear after the first commit.</source>
+        <translation>完成首次提交后会出现。</translation>
+    </message>
+    <message>
+        <source>Main worktree</source>
+        <translation>主工作树</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>已锁定</translation>
+    </message>
+    <message>
+        <source>bare</source>
+        <translation>裸仓库</translation>
+    </message>
+    <message>
+        <source>detached %1</source>
+        <translation>分离于 %1</translation>
+    </message>
+    <message>
+        <source>detached</source>
+        <translation>分离 HEAD</translation>
     </message>
     <message>
         <source>Initialize Git outside SpanTui, then refresh</source>
@@ -997,12 +1057,64 @@
         <translation>显示提交详情</translation>
     </message>
     <message>
-        <source>Current branch</source>
-        <translation>当前分支</translation>
-    </message>
-    <message>
         <source>Filter commits</source>
         <translation>筛选提交</translation>
+    </message>
+    <message>
+        <source>No upstream branch: never pushed, or not set to track one.</source>
+        <translation>没有上游分支：从未推送，或未设置跟踪。</translation>
+    </message>
+    <message>
+        <source>Upstream %1 is gone: deleted on the remote and pruned here.</source>
+        <translation>上游 %1 已不存在：远程已删除，本地也已清理。</translation>
+    </message>
+    <message>
+        <source>Tracks %1: ↑%2 not pushed, ↓%3 not pulled.</source>
+        <translation>跟踪 %1：↑%2 个未推送，↓%3 个未拉取。</translation>
+    </message>
+    <message>
+        <source>Up to date with %1.</source>
+        <translation>与 %1 同步。</translation>
+    </message>
+    <message>
+        <source>As of the last fetch; this popup never fetches.</source>
+        <translation>以上次抓取为准；此浮窗不会抓取。</translation>
+    </message>
+    <message>
+        <source>Locked: %1</source>
+        <translation>已锁定：%1</translation>
+    </message>
+    <message>
+        <source>Its folder is missing.</source>
+        <translation>目录已不存在。</translation>
+    </message>
+    <message>
+        <source>Uncommitted changes to tracked files.</source>
+        <translation>已跟踪文件有未提交的改动。</translation>
+    </message>
+    <message>
+        <source>Copy branch name</source>
+        <translation>复制分支名</translation>
+    </message>
+    <message>
+        <source>Open in new terminal</source>
+        <translation>在新终端中打开</translation>
+    </message>
+    <message>
+        <source>Open as project</source>
+        <translation>作为项目打开</translation>
+    </message>
+    <message>
+        <source>Open in File Explorer</source>
+        <translation>在文件资源管理器中打开</translation>
+    </message>
+    <message>
+        <source>Copy path</source>
+        <translation>复制路径</translation>
+    </message>
+    <message>
+        <source>Copy tag name</source>
+        <translation>复制标签名</translation>
     </message>
 </context>
 <context>
@@ -1296,6 +1408,26 @@
 </context>
 <context>
     <name>Main</name>
+    <message>
+        <source>Force delete worktree?</source>
+        <translation>强制删除工作树？</translation>
+    </message>
+    <message>
+        <source>Git did not delete the worktree:
+
+%1
+
+Delete it anyway? Its uncommitted changes and untracked files are lost.</source>
+        <translation>Git 未能删除该工作树：
+
+%1
+
+仍要删除吗？其中未提交的更改和未跟踪的文件将丢失。</translation>
+    </message>
+    <message>
+        <source>Force delete</source>
+        <translation>强制删除</translation>
+    </message>
     <message>
         <source>SpanTui</source>
         <translation>SpanTui</translation>
@@ -1759,12 +1891,12 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>%1%</translation>
     </message>
     <message>
-        <source>CPU %1</source>
-        <translation>CPU %1</translation>
+        <source>CPU</source>
+        <translation>CPU</translation>
     </message>
     <message>
-        <source>Mem %1</source>
-        <translation>内存 %1</translation>
+        <source>Mem</source>
+        <translation>内存</translation>
     </message>
     <message>
         <source>Server resources</source>
@@ -1783,8 +1915,12 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>固定资源面板</translation>
     </message>
     <message>
-        <source>CPU</source>
-        <translation>CPU</translation>
+        <source>Pin</source>
+        <translation>固定</translation>
+    </message>
+    <message>
+        <source>Pinned</source>
+        <translation>已固定</translation>
     </message>
     <message>
         <source>Load %1</source>
@@ -2254,16 +2390,56 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>新建终端</translation>
     </message>
     <message>
-        <source>Editor</source>
-        <translation>编辑器</translation>
+        <source>Open in</source>
+        <translation>打开方式</translation>
     </message>
     <message>
-        <source>Open in File Explorer</source>
-        <translation>在文件资源管理器中打开</translation>
+        <source>File Explorer</source>
+        <translation>文件资源管理器</translation>
     </message>
     <message>
-        <source>Remove “%1”? All project tiles and sessions must be closed first.</source>
-        <translation>移除“%1”？必须先关闭该项目的全部 Tile 和会话。</translation>
+        <source>Remove “%1” and the worktrees listed under it from the list? No files are deleted. All their tiles and sessions must be closed first.</source>
+        <translation>从列表中移除“%1”及其下列出的工作树？不会删除任何文件。必须先关闭它们的全部 Tile 和会话。</translation>
+    </message>
+    <message>
+        <source>The folder of “%1” no longer exists. Remove it from the list and discard its sessions?</source>
+        <translation>“%1”的文件夹已不存在。从列表中移除并丢弃其会话？</translation>
+    </message>
+    <message>
+        <source>Remove from list</source>
+        <translation>从列表移除</translation>
+    </message>
+    <message>
+        <source>Worktrees</source>
+        <translation>工作树</translation>
+    </message>
+    <message>
+        <source>New worktree...</source>
+        <translation>新建工作树...</translation>
+    </message>
+    <message>
+        <source>Show %1 (%2)</source>
+        <translation>显示 %1（%2）</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>显示 %1</translation>
+    </message>
+    <message>
+        <source>Delete worktree...</source>
+        <translation>删除工作树...</translation>
+    </message>
+    <message>
+        <source>Delete worktree</source>
+        <translation>删除工作树</translation>
+    </message>
+    <message>
+        <source>Delete the worktree “%1”? Its folder is removed with git worktree remove; the branch is kept. All its tiles and sessions must be closed first.</source>
+        <translation>删除工作树“%1”？将用 git worktree remove 删除其文件夹，分支保留。必须先关闭它的全部 Tile 和会话。</translation>
+    </message>
+    <message>
+        <source>Folder not found: %1 — right-click to remove it from the list</source>
+        <translation>文件夹不存在：%1 — 右键可从列表移除</translation>
     </message>
     <message>
         <source>Delete session</source>
@@ -2332,10 +2508,6 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>Add a project folder from the Local header</source>
         <translation>从“本地”标题栏添加项目文件夹</translation>
-    </message>
-    <message>
-        <source>More terminals</source>
-        <translation>更多终端</translation>
     </message>
 </context>
 <context>
@@ -3088,6 +3260,142 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>The remote host is no longer saved.</source>
         <translation>该远程主机已不存在。</translation>
+    </message>
+    <message>
+        <source>The project folder no longer exists: %1</source>
+        <translation>项目文件夹已不存在：%1</translation>
+    </message>
+    <message>
+        <source>Not a valid Git branch name. Spaces, &quot;..&quot; and the characters ~ ^ : ? * [ are not allowed.</source>
+        <translation>不是有效的 Git 分支名。不能包含空格、&quot;..&quot; 及字符 ~ ^ : ? * [。</translation>
+    </message>
+    <message>
+        <source>Choose where to create the worktree.</source>
+        <translation>请选择工作树的创建位置。</translation>
+    </message>
+    <message>
+        <source>Use a full path that starts with a drive letter.</source>
+        <translation>请使用以盘符开头的完整路径。</translation>
+    </message>
+    <message>
+        <source>This folder already exists and is not empty.</source>
+        <translation>该文件夹已存在且不为空。</translation>
+    </message>
+    <message>
+        <source>Choose a folder for new worktrees.</source>
+        <translation>请选择新工作树的存放文件夹。</translation>
+    </message>
+    <message>
+        <source>This path is a file, not a folder.</source>
+        <translation>该路径是文件，不是文件夹。</translation>
+    </message>
+    <message>
+        <source>Another worktree operation is still running.</source>
+        <translation>另一个工作树操作仍在进行。</translation>
+    </message>
+    <message>
+        <source>Could not create worktree “%1”: %2</source>
+        <translation>无法创建工作树“%1”：%2</translation>
+    </message>
+    <message>
+        <source>Could not start Git to create worktree “%1”.</source>
+        <translation>无法启动 Git 创建工作树“%1”。</translation>
+    </message>
+    <message>
+        <source>Close all tiles and delete all sessions of this worktree before deleting it.</source>
+        <translation>删除工作树前请先关闭它的所有 Tile 并删除所有会话。</translation>
+    </message>
+    <message>
+        <source>Could not start Git to delete the worktree.</source>
+        <translation>无法启动 Git 删除工作树。</translation>
+    </message>
+</context>
+<context>
+    <name>span::application::OpenTargetRegistry</name>
+    <message>
+        <source>Could not open %1: %2</source>
+        <translation>无法打开 %1：%2</translation>
+    </message>
+</context>
+<context>
+    <name>GitWorktreeCommands</name>
+    <message>
+        <source>Creating worktree</source>
+        <translation>正在创建工作树</translation>
+    </message>
+    <message>
+        <source>Deleting worktree</source>
+        <translation>正在删除工作树</translation>
+    </message>
+</context>
+<context>
+    <name>WorktreeDialog</name>
+    <message>
+        <source>A branch named “%1” already exists.</source>
+        <translation>名为“%1”的分支已存在。</translation>
+    </message>
+    <message>
+        <source>New worktree</source>
+        <translation>新建工作树</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>创建</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>名称</translation>
+    </message>
+    <message>
+        <source>Also the new branch, e.g. feature/login</source>
+        <translation>同时作为新分支名，如 feature/login</translation>
+    </message>
+    <message>
+        <source>From branch</source>
+        <translation>基于分支</translation>
+    </message>
+    <message>
+        <source>Loading branches...</source>
+        <translation>正在读取分支...</translation>
+    </message>
+    <message>
+        <source>No branches found</source>
+        <translation>未找到分支</translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>Choose the parent folder</source>
+        <translation>选择所在文件夹</translation>
+    </message>
+    <message>
+        <source>The default folder for new worktrees is set in Settings &gt; Environment.</source>
+        <translation>新工作树的默认文件夹可在“设置 &gt; 环境”中修改。</translation>
+    </message>
+    <message>
+        <source>Choose where to create the worktree</source>
+        <translation>选择工作树的创建位置</translation>
+    </message>
+</context>
+<context>
+    <name>WorktreeRootDialog</name>
+    <message>
+        <source>Folder for worktrees</source>
+        <translation>工作树文件夹</translation>
+    </message>
+    <message>
+        <source>New worktrees are created in this folder, one subfolder per project. You can change it later in Settings &gt; Environment, or pick another place for a single worktree.</source>
+        <translation>新工作树会创建在此文件夹中，每个项目一个子文件夹。之后可在“设置 &gt; 环境”中修改，也可为单个工作树另选位置。</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>继续</translation>
+    </message>
+    <message>
+        <source>Choose the worktree folder</source>
+        <translation>选择工作树文件夹</translation>
     </message>
 </context>
 <context>

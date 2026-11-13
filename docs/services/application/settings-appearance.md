@@ -6,7 +6,7 @@
 |---|---|---|
 | `AppearanceSettings` | `Appearance` | 语言、主题、系统显示事实（深色、减弱动效、滚轮行数）、五条字体通道、查看器行距 |
 | `TerminalSettings` | `TerminalSettings` | 终端配色方案与明暗槽位、光标、帧率、关闭瓦片默认、Shell 配置 |
-| `WorkspaceSettings` | `WorkspaceSettings` | 脚本运行模式、渲染方式、资源采样间隔、快捷键覆盖、外部工具路径 |
+| `WorkspaceSettings` | `WorkspaceSettings` | 脚本运行模式、渲染方式、资源采样间隔、快捷键覆盖、外部工具路径、工作树文件夹 |
 
 另有无状态单例 `Clipboard`（`copyText`）。三者只经 `SettingsStore`（`src/application/settings_store.*`）读写：setter 先改内存值并暂存，250ms 防抖后在一个事务内写入全部暂存键；读取时暂存值优先；写入失败的键保持暂存并经 `errorOccurred` 报告。只读模式（独立终端）从不写库，库不存在时全部取默认值。未 `open()` 的存储（组件画廊）同样只提供默认值。`WorkspaceSettings::setRenderMode` 立即 `flush()`——图形启动中崩溃的进程也要留下选择。
 
@@ -26,6 +26,7 @@
 | `WorkspaceSettings` | `scriptRunModeChanged`、`renderModeChanged`、`performanceMonitorIntervalChanged` | 各自一项 |
 | | `shortcutOverridesChanged` | 快捷键（`ShortcutRegistry` 转发为 `bindingsChanged` 并递增 `revision`） |
 | | `toolPathOverridesChanged` | 外部工具路径 |
+| | `worktreeRootChanged` | 工作树文件夹 |
 
 新设置优先挂到所属对象的已有信号；只有会让无关绑定误触发时才新建。
 
@@ -47,6 +48,7 @@
 | `monitor.intervalSeconds` | 1–60 | 资源采样间隔 |
 | `shortcuts.bindings` | JSON：动作 id → 按键序列 | 只存对默认值的覆盖 |
 | `tools.paths` | JSON：`git`/`ssh`/`sftp`/`tailscale` → 绝对路径 | 空值与非字符串丢弃 |
+| `git.worktreeRoot` | 绝对文件夹路径；空 = 未设置 | 新工作树的默认存放处（`<它>\<主项目名>\<名称>`）。空时首次新建工作树先询问；非绝对路径按空处理。设置页“环境 > Git”可改（见 [项目与会话](projects-sessions.md#新建工作树)） |
 
 同表另有窗口几何（`window.x`/`y`/`width`/`height`/`maximized`）、`workspace.layoutJson`（见 [布局模型](../workspace/layout-tiles.md)）、`sessions.activeByProject`。
 

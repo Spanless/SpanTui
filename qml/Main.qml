@@ -45,6 +45,13 @@ ApplicationWindow {
     // so both popups flip open above their anchor row.
     function openInbox(item) { messagePopup.openBelow(item) }
     function openTaskPopup(item) { taskPopup.openBelow(item) }
+    // The first worktree asks for the default worktree folder first.
+    function openNewWorktree(projectPath) {
+        if (WorkspaceSettings.worktreeRoot.length === 0)
+            worktreeRootDialog.openFor(projectPath)
+        else
+            worktreeDialog.openFor(projectPath)
+    }
 
     function syncAppearanceTheme() {
         Theme.dark = Appearance.effectiveDark
@@ -249,6 +256,21 @@ ApplicationWindow {
         id: updateProgressDialog
         z: Theme.zModal
     }
+    // Worktree dialogs live here, not in a sidebar tile: a sidebar may be
+    // closed (or shown twice) while a Git command answers.
+    WorktreeRootDialog {
+        id: worktreeRootDialog
+        z: Theme.zModal
+        onChosen: projectPath => worktreeDialog.openFor(projectPath)
+    }
+    WorktreeDialog {
+        id: worktreeDialog
+        z: Theme.zModal
+    }
+    ConfirmDialog {
+        id: worktreeForceDialog
+        z: Theme.zModal
+    }
     // ssh/sftp password, passphrase and host-key questions for remote hosts.
     SshPromptDialog {
         z: Theme.zModal
@@ -271,6 +293,18 @@ ApplicationWindow {
                 MessageCenter.post("info", message)
         }
         function onApplyStarted() { updateProgressDialog.open() }
+    }
+
+    // Git refused to delete a worktree (changes, untracked files): offer
+    // the forced removal with the reason it gave.
+    Connections {
+        target: WorkspaceController
+        function onWorktreeDeleteFailed(projectPath, error) {
+            worktreeForceDialog.openFor(qsTr("Force delete worktree?"),
+                qsTr("Git did not delete the worktree:\n\n%1\n\nDelete it anyway? Its uncommitted changes and untracked files are lost.").arg(error),
+                qsTr("Force delete"),
+                function() { WorkspaceController.deleteWorktree(projectPath, true) })
+        }
     }
 
     Connections {

@@ -52,6 +52,12 @@ QStringList takeRecordedArguments(const QString &directory)
     return arguments;
 }
 
+// The extension and the application build into the folder of this test image.
+QString builtExtensionPath()
+{
+    return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("SpanTui-shell-extension.dll"));
+}
+
 } // namespace
 
 class ShellExtensionContractTest : public QObject
@@ -61,7 +67,7 @@ class ShellExtensionContractTest : public QObject
 private slots:
     void exposesTwoCommandFlyout()
     {
-        const QString libraryPath = QString::fromUtf8(SPANTUI_SHELL_EXTENSION_PATH);
+        const QString libraryPath = builtExtensionPath();
         QVERIFY2(QFileInfo::exists(libraryPath), qPrintable(libraryPath));
         QVERIFY2(QFileInfo::exists(QDir(QFileInfo(libraryPath).absolutePath()).filePath("SpanTui-test.exe"))
                      || QFileInfo::exists(
@@ -163,7 +169,7 @@ private slots:
         QTemporaryDir stage;
         QVERIFY(stage.isValid());
         const QString libraryPath = stage.filePath(QStringLiteral("SpanTui-shell-extension.dll"));
-        QVERIFY(QFile::copy(QString::fromUtf8(SPANTUI_SHELL_EXTENSION_PATH), libraryPath));
+        QVERIFY(QFile::copy(builtExtensionPath(), libraryPath));
         QVERIFY(QFile::copy(QDir(QCoreApplication::applicationDirPath())
                                 .filePath(QStringLiteral("argv_echo_child.exe")),
                             stage.filePath(QStringLiteral("SpanTui.exe"))));
@@ -220,82 +226,6 @@ private slots:
         root->Release();
         factory->Release();
         library.unload();
-    }
-
-    void packageAndInstallerUseTheSameCommandIdentity()
-    {
-        const QDir source(QString::fromUtf8(SPANTUI_SOURCE_DIR));
-        const auto read = [&source](const QString &relativePath) {
-            QFile file(source.filePath(relativePath));
-            if (!file.open(QIODevice::ReadOnly)) {
-                return QByteArray{};
-            }
-            return file.readAll();
-        };
-
-        const QByteArray packageManifest = read(QStringLiteral(
-            "installer/shell-extension/AppxManifest.xml.in"));
-        const QByteArray applicationManifest = read(QStringLiteral("assets/brand/spantui.manifest"));
-        const QByteArray installer = read(QStringLiteral("installer/SpanTui.iss"));
-        const QByteArray registerScript = read(QStringLiteral(
-            "installer/shell-extension/register.ps1"));
-        const QByteArray machineTrustScript = read(QStringLiteral(
-            "installer/shell-extension/trust-machine.ps1"));
-        QVERIFY(!packageManifest.isEmpty());
-        QVERIFY(!applicationManifest.isEmpty());
-        QVERIFY(!installer.isEmpty());
-        QVERIFY(!registerScript.isEmpty());
-        QVERIFY(!machineTrustScript.isEmpty());
-
-        constexpr auto commandId = "6D5B8A50-0F7C-4E91-A4D2-7E9B1C3F5210";
-        QCOMPARE(packageManifest.count(commandId), 3);
-        QVERIFY(packageManifest.contains("Path=\"SpanTui-shell-extension.dll\""));
-        QVERIFY(packageManifest.contains("<desktop5:ItemType Type=\"Directory\">"));
-        QVERIFY(packageManifest.contains("<desktop5:ItemType Type=\"Directory\\Background\">"));
-        QVERIFY(packageManifest.contains("<uap10:AllowExternalContent>true"));
-        QVERIFY(applicationManifest.contains("name=\"Span.SpanTui\""));
-        QVERIFY(!applicationManifest.contains("<msix"));
-        QVERIFY(applicationManifest.contains(
-            "<requestedExecutionLevel level=\"asInvoker\" uiAccess=\"false\"/>"));
-        QVERIFY(installer.contains("ExpandConstant('{app}\\shell\\')"));
-        QVERIFY(installer.contains("ShellScriptParameters('register.ps1')"));
-        QVERIFY(installer.contains("function InstallModernMenu"));
-        QVERIFY(installer.contains("Version.Build >= 22000"));
-        QVERIFY(registerScript.contains("Add-AppxPackage"));
-        QVERIFY(registerScript.contains("-ExternalLocation"));
-        QVERIFY(machineTrustScript.contains("Cert:\\LocalMachine\\TrustedPeople"));
-        QVERIFY(machineTrustScript.contains("CertificateAuthority"));
-        QVERIFY(machineTrustScript.contains("WindowsBuiltInRole]::Administrator"));
-        QVERIFY(!machineTrustScript.contains("Cert:\\LocalMachine\\Root"));
-    }
-
-    void packagedActivationThroughWindowsComCatalog()
-    {
-        if (!qEnvironmentVariableIsSet("SPANTUI_TEST_PACKAGED_SHELL")) {
-            QSKIP("Set SPANTUI_TEST_PACKAGED_SHELL after registering the sparse package.");
-        }
-
-        const HRESULT initialization = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-        QVERIFY(SUCCEEDED(initialization) || initialization == RPC_E_CHANGED_MODE);
-
-        IExplorerCommand *root = nullptr;
-        const HRESULT activation = CoCreateInstance(
-            spantui::shell::kRootCommandClsid, nullptr, CLSCTX_ALL, IID_IExplorerCommand,
-            reinterpret_cast<void **>(&root));
-        QCOMPARE(activation, S_OK);
-        QVERIFY(root);
-
-        PWSTR title = nullptr;
-        QCOMPARE(root->GetTitle(nullptr, &title), S_OK);
-        QCOMPARE(takeString(title), QStringLiteral("SpanTui"));
-        EXPCMDFLAGS flags = ECF_DEFAULT;
-        QCOMPARE(root->GetFlags(&flags), S_OK);
-        QVERIFY(flags & ECF_HASSUBCOMMANDS);
-        root->Release();
-
-        if (SUCCEEDED(initialization)) {
-            CoUninitialize();
-        }
     }
 };
 

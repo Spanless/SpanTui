@@ -51,7 +51,7 @@ function Get-AffectedTestRegex([string[]]$Files) {
     return ($patterns -join '|')
 }
 
-foreach ($check in @('check-docs.ps1', 'check-layout.ps1', 'check-style.ps1')) {
+foreach ($check in @('check-docs.ps1', 'check-layout.ps1', 'check-style.ps1', 'check-translations.ps1', 'check-icons.ps1')) {
     Write-Host ">> $check"
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $tools $check)
     if ($LASTEXITCODE -ne 0) {

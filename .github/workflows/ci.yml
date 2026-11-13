@@ -9,8 +9,9 @@ name: CI
 #   one merge, and keeps dev's compiler cache warm for the pull requests that
 #   branch from it; dev -> master normally reuses that result.
 # A tree that already passed is not tested again (see the `reuse` job).
-# Releases are packaged and published from the maintainer's machine
-# (dev release). Policy: docs/workflow/release.md.
+# A push to master (the merge of the dev -> master pull request) is a
+# release: once it is tested, the `release` job packages, signs and publishes
+# it (dev release). Policy: docs/workflow/release.md.
 # Actions are pinned to commit SHAs (the tag in the trailing comment);
 # Dependabot proposes updates (.github/dependabot.yml). Tool versions come
 # from tools/toolchain-versions.json.
@@ -25,9 +26,11 @@ on:
 permissions:
   contents: read
 
+# A newer run replaces an older one of the same pull request or branch,
+# except on master: cancelling a release half-way would leave a draft behind.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   # Decides on a cheap Linux runner how much of the Windows job has to run.
@@ -41,8 +44,10 @@ jobs:
   # gets the static checks without a build. Push runs always build, so the run
   # after the merge stays a full safety net.
   # A failure here never skips anything.
+  # Linux jobs name the image version: the moving ubuntu-latest label changes
+  # image under the jobs and annotates every run while a migration is pending.
   reuse:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -101,7 +106,7 @@ jobs:
   # can list origin's tags.
   version:
     if: github.event_name == 'pull_request' && github.base_ref == 'master'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -127,6 +132,9 @@ jobs:
       # owns SCCACHE_DIR, serves the whole build.
       SCCACHE_CACHE_SIZE: 2G
       SCCACHE_IDLE_TIMEOUT: '0'
+      # The build scripts would otherwise move compiles to a server of the
+      # repository's own (port, cache folder) and miss the restored cache.
+      SPANTUI_SCCACHE: external
       # CI never needs debug info; without it objects, the cache archive and
       # links are much smaller (docs/workflow/build.md).
       SPANTUI_DEBUG_INFO: 'OFF'
@@ -135,6 +143,12 @@ jobs:
       # of the run. The build scripts find ld.lld in the LLVM the runner image
       # preinstalls (configure prints "Linker: lld").
       SPANTUI_LINKER: lld
+      # rcc writes each file's modification time into the generated qrc
+      # sources, and a fresh checkout has new times every run, so those
+      # objects (the font resource alone compiles 10-16 s) never hit the
+      # compiler cache. A constant time (2000-01-01) makes them reproducible.
+      # Test runs only: the release job builds without it.
+      QT_RCC_SOURCE_DATE_OVERRIDE: '946684800'
     steps:
       # Two commits deep: a core run diffs the tested merge against its first
       # parent.
@@ -142,16 +156,15 @@ jobs:
         with:
           fetch-depth: 2
 
-      # The one place the Qt, MinGW and clang-format versions are written;
-      # dev release refuses to package with a different Qt or MinGW.
+      # The one place the Qt, MinGW, clang-format and sccache versions are
+      # written; dev release refuses to package with a different Qt or MinGW.
       - name: Read the pinned tool versions
         id: versions
         shell: pwsh
         run: |
           $v = Get-Content tools/toolchain-versions.json -Raw | ConvertFrom-Json
-          "qt=$($v.qt)" >> $env:GITHUB_OUTPUT
-          "mingw=$($v.mingwTool)" >> $env:GITHUB_OUTPUT
           "clang_format=$($v.clangFormat)" >> $env:GITHUB_OUTPUT
+          "sccache=$($v.sccache)" >> $env:GITHUB_OUTPUT
 
       # Pull requests into dev: the lines they add or change must match
       # .clang-format (tools/check-format.ps1). The runner's own LLVM has
@@ -171,29 +184,17 @@ jobs:
           ./tools/check-format.ps1 -Base $base -Require
           exit $LASTEXITCODE
 
-      # aqtinstall 3.3.0 (the newest on PyPI) cannot read the per-arch
-      # repository layout Qt 6.11+ is published in, so it comes from a pinned
-      # upstream commit until a release supports it. qttasktree is optional for
-      # the build, but without it Qt's own QML asset downloader package fails
-      # to load and CMake warns on every configure.
-      - name: Install Qt and MinGW
+      # Pinned Qt and MinGW from one actions/cache archive; sets
+      # SPANTUI_QT_SDK_ROOT (.github/actions/setup-qt).
+      - name: Set up Qt and MinGW
         if: env.BUILD == 'true'
-        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
-        with:
-          aqtsource: 'git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7'
-          version: ${{ steps.versions.outputs.qt }}
-          host: windows
-          target: desktop
-          arch: win64_mingw
-          modules: 'qtshadertools qtimageformats qttasktree'
-          tools: ${{ steps.versions.outputs.mingw }}
-          cache: true
+        uses: ./.github/actions/setup-qt
 
       # One archive instead of one cache request per object: with sccache's
       # GitHub Actions backend a fully cached build still spent minutes
-      # fetching ~450 objects one by one. Only dev's push runs save an archive
-      # (see the save step); every run restores the newest one it can see,
-      # which for a pull request is its base branch's.
+      # fetching ~450 objects one by one. Every run restores the newest
+      # archive it can see: a pull request its own from an earlier push, else
+      # its base branch's.
       - name: Restore the compiler cache
         if: env.BUILD == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -205,10 +206,16 @@ jobs:
       # CMakeLists.txt picks sccache up from PATH as the compiler launcher
       # (configure prints "Compiler cache: ..."). The server is started here
       # so a cache failure shows in this step instead of silently falling back
-      # to uncached compiles.
+      # to uncached compiles. The version is pinned: by default the action
+      # takes the newest sccache release. Its post step would annotate the run
+      # with the statistics of a fresh, empty server (ours has been stopped by
+      # then: "0% - 0 hits"); the statistics step below prints the real ones.
       - name: Set up sccache
         if: env.BUILD == 'true'
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v${{ steps.versions.outputs.sccache }}
+          disable_annotations: true
 
       - name: Start sccache
         if: env.BUILD == 'true'
@@ -219,17 +226,6 @@ jobs:
           Split-Path -Parent $env:SCCACHE_PATH >> $env:GITHUB_PATH
           & $env:SCCACHE_PATH --start-server
           & $env:SCCACHE_PATH --show-stats
-
-      # tools/toolchain.ps1 discovers <root>\<qt>\mingw_64 and
-      # <root>\Tools\mingw*_64; CMake and Ninja come from the runner PATH.
-      # The Qt install leaves aqtinstall.log in the checkout, which the layout
-      # check would report.
-      - name: Point the build scripts at Qt
-        if: env.BUILD == 'true'
-        shell: pwsh
-        run: |
-          "SPANTUI_QT_SDK_ROOT=$env:RUNNER_WORKSPACE\Qt" >> $env:GITHUB_ENV
-          Remove-Item -LiteralPath aqtinstall.log -ErrorAction SilentlyContinue
 
       # A core run measures the changes from the base the pull request merges
       # into: the first parent of the tested merge. The base goes in as a hash:
@@ -247,6 +243,43 @@ jobs:
           & .\dev.bat @ciArgs
           exit $LASTEXITCODE
 
+      # Where the build time went, read from Ninja's log: busy time per kind
+      # of step (summed over parallel jobs) and the slowest steps. Tuning
+      # reads this from runs that happen anyway instead of extra runs.
+      - name: Build profile
+        if: ${{ always() && env.BUILD == 'true' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $log = 'target\build\.ninja_log'
+          if (-not (Test-Path -LiteralPath $log)) { Write-Host 'No Ninja log.'; exit 0 }
+          $seen = @{}
+          $steps = Get-Content -LiteralPath $log | Where-Object { $_ -notmatch '^#' } | ForEach-Object {
+            $f = $_ -split "`t"
+            # A step with several outputs (moc, qmlcachegen) logs one line per
+            # output with the same times and command hash; count it once.
+            $id = "$($f[0])/$($f[1])/$($f[4])"
+            if ($seen.ContainsKey($id)) { return }
+            $seen[$id] = $true
+            $out = $f[3]
+            $kind = switch -Regex ($out) {
+              'qmlcache/.*\.obj$' { 'compile (QML)'; break }
+              '\.obj$' { 'compile (C++)'; break }
+              'qmlcache/.*\.cpp$' { 'qmlcachegen'; break }
+              '_autogen/|mocs_compilation|moc_' { 'moc'; break }
+              'qrc_|\.rcc/' { 'rcc'; break }
+              '\.(exe|dll)$' { 'link'; break }
+              '\.a$' { 'archive'; break }
+              default { 'other' }
+            }
+            [pscustomobject]@{ Seconds = ([int64]$f[1] - [int64]$f[0]) / 1000; Kind = $kind; Output = $out }
+          }
+          $steps | Group-Object Kind | ForEach-Object {
+            [pscustomobject]@{ Kind = $_.Name; Steps = $_.Count; Seconds = [math]::Round(($_.Group | Measure-Object Seconds -Sum).Sum) }
+          } | Sort-Object Seconds -Descending | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+          $steps | Sort-Object Seconds -Descending | Select-Object -First 20 |
+            Format-Table @{ n = 'Seconds'; e = { '{0:N1}' -f $_.Seconds } }, Kind, Output -AutoSize | Out-String -Width 250 | Write-Host
+
       - name: Checks only (documentation change)
         if: env.BUILD != 'true'
         shell: cmd
@@ -259,13 +292,87 @@ jobs:
         shell: pwsh
         run: sccache --stop-server
 
-      # Only dev's push runs save: each archive is about 2 GB, and pull
-      # request archives (usable only by that pull request) would push dev's
-      # out of the repository's cache quota. A failed build or test run
-      # still saves what it compiled.
+      # dev's push runs save for the pull requests that branch from it; a
+      # pull request saves for its own next push, so a fix-up rebuilds only
+      # what it changed. Pull requests cannot see each other's archives: one
+      # opened before dev's push run has saved compiles everything once. An
+      # archive is about 40 MB without debug info, far inside the
+      # repository's 10 GB quota; GitHub evicts the least recently used
+      # first, and dev's newest is restored by every new pull request.
+      # A failed build or test run still saves what it compiled.
       - name: Save the compiler cache
-        if: ${{ !cancelled() && env.BUILD == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        if: ${{ !cancelled() && env.BUILD == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}\sccache
           key: sccache-windows-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # A push to master is the merge of a dev -> master pull request, whose
+  # version already passed the `version` job: once the commit is tested here
+  # (or `reuse` found its tree passed on dev), dev release packages it, signs
+  # the shell identity package and publishes the GitHub release vX.Y.Z.
+  # The signing key lives only in the secrets of the `release` environment,
+  # which admits master alone (deployment branch policy), so no pull request
+  # run can read it, whatever its workflow file says.
+  # tools/create-shell-signing-certificate.ps1 creates the certificate and
+  # the environment.
+  release:
+    needs: [reuse, windows]
+    if: >-
+      ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+      (needs.windows.result == 'success' ||
+       (needs.windows.result == 'skipped' && needs.reuse.outputs.skip == 'true')) }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      # The release gate compares HEAD with origin/master and reads origin's
+      # tags; the checkout keeps the token for both.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Qt and MinGW
+        uses: ./.github/actions/setup-qt
+
+      # package-worker signs with the certificate SPANTUI_MSIX_CERT_THUMBPRINT
+      # names in Cert:\CurrentUser\My. The runner is discarded after the job;
+      # the last step removes the certificate anyway.
+      - name: Import the signing certificate
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.SHELL_SIGNING_PFX }}
+          PFX_PASSWORD: ${{ secrets.SHELL_SIGNING_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64 -or -not $env:PFX_PASSWORD) {
+            Write-Host '::error::The release environment lacks SHELL_SIGNING_PFX or SHELL_SIGNING_PFX_PASSWORD; run tools/create-shell-signing-certificate.ps1 -BackupDir <folder> -Publish.'
+            exit 1
+          }
+          $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]'UserKeySet, PersistKeySet'
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            [Convert]::FromBase64String($env:PFX_BASE64), $env:PFX_PASSWORD.Trim(), $flags)
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $store.Open('ReadWrite')
+          $store.Add($certificate)
+          $store.Close()
+          "SPANTUI_MSIX_CERT_THUMBPRINT=$($certificate.Thumbprint)" >> $env:GITHUB_ENV
+          Write-Host "Signing certificate $($certificate.Subject) $($certificate.Thumbprint), valid until $($certificate.NotAfter.ToString('u'))"
+
+      - name: Package and publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          & .\dev.bat release
+          exit $LASTEXITCODE
+
+      - name: Remove the signing certificate
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not $env:SPANTUI_MSIX_CERT_THUMBPRINT) { exit 0 }
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $store.Open('ReadWrite')
+          $store.Certificates.Find('FindByThumbprint', $env:SPANTUI_MSIX_CERT_THUMBPRINT, $false) |
+            ForEach-Object { $store.Remove($_) }
+          $store.Close()

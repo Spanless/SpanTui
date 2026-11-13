@@ -967,11 +967,10 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    // The product registers its bundled faces from resources; the benchmark
-    // takes the same files from the source tree.
+    // The bundled faces, embedded under the same resource prefix as in the product.
     for (const char *face : {"SpanMono-Regular.ttf", "SpanMono-Bold.ttf", "SpanMono-Italic.ttf",
                              "SpanMono-BoldItalic.ttf", "SpanSymbols-Regular.ttf"}) {
-        const QString path = QStringLiteral(SPANTUI_SOURCE_DIR "/assets/fonts/") + QLatin1String(face);
+        const QString path = QStringLiteral(":/fonts/") + QLatin1String(face);
         if (QFontDatabase::addApplicationFont(path) < 0) {
             qCritical().noquote() << "cannot register" << path;
             return 1;

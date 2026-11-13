@@ -9,7 +9,7 @@
 | `SettingsStore` | `src/application/settings_store.*` | `settings` 表的读写与暂存队列、窗口几何、`workspace.layoutJson`、会话目录的载入与保存；不解释偏好含义 |
 | `AppearanceSettings`（QML `Appearance`） | `src/application/appearance_settings.*` | 语言、主题、系统深色/减弱动效/滚轮行数、字体通道、查看器行距、`fontRevision` |
 | `TerminalSettings` | `src/application/terminal_settings.*` | 终端配色方案与明暗槽位、光标、帧率、关闭瓦片默认、`shellProfiles` |
-| `WorkspaceSettings` | `src/application/workspace_settings.*` | 脚本运行模式、`renderMode`、资源采样间隔、快捷键覆盖、`toolPathOverrides` |
+| `WorkspaceSettings` | `src/application/workspace_settings.*` | 脚本运行模式、`renderMode`、资源采样间隔、快捷键覆盖、`toolPathOverrides`、`worktreeRoot` |
 | `ProjectWorkspaceRegistry` | `src/application/project_workspace_registry.*` | 项目列表（路径、别名、最后打开时间，持久化）；按需创建的 `ProjectContext`；向各上下文应用空闲、Git 可用与前台集合 |
 | `ProjectContext` | `src/application/project_context.*` | 单项目的 `FileTreeModel`、`GitRepositoryService`、按瓦片隔离的 `DocumentManager` |
 | `SessionModel` | `src/workspace/session_model.*` | 持久化的终端会话目录、各作用域当前会话、会话所选 Shell id；作用域为项目路径或 `remote:<hostId>`，统一由 `Scope`（`src/workspace/scope.h`）解析 |
@@ -21,6 +21,8 @@
 | `Translator` | `src/application/translator.*` | 语言加载与切换 |
 | `GraphicsModeService` | `src/application/graphics_mode_service.*` | 本次进程的渲染方式、原因与实际渲染器；启动标记由 `GraphicsStartupWatch` 读写 |
 | `ShellProfileRegistry` | `src/application/shell_profile_registry.*` | Shell 配置列表与默认项，按 id 给出启动命令行 |
+| `OpenTargetRegistry` | `src/application/open_target_registry.*` | 项目“打开方式”的外部程序列表（Windows 推荐的源码文件打开程序），只在内存中，按需重扫 |
+| `GitWorktreeCommands` | `src/git/git_worktree_commands.*` | 进行中的工作树写命令（一次一个）与其进度 |
 | `ToolRegistry` | `src/application/tool_registry.*` | Git、ssh/sftp、Tailscale CLI 的路径、版本、状态；可用路径发布到 `core::setToolExecutable`（`src/core/external_tools.*`） |
 | `ShortcutRegistry` | `src/application/shortcut_registry.*` | 动作目录（id、分组、作用域、默认键）与绑定规则；不持用户数据 |
 | `UiIconCatalog` / `FileIconTheme` | `src/application/ui_icon_catalog.*` / `src/workspace/file_icon_theme.*` | 图标目录、文件名到图标的解析 |
@@ -31,7 +33,7 @@
 |---|---|---|
 | `DocumentManager` | `src/documents/document_manager.*` | 打开的文件、外部变更检测、缺失状态；只读 |
 | `EditorController` | `src/documents/editor_controller.*` | 查找、跳转行、行 Git 状态、行模型 `CodePreviewLineModel` |
-| `GitRepositoryService` | `src/git/git_repository_service.*` | History/Status/Diff 三通道调度、取消代次、缓存、历史分页、前台标志、未跟踪文件缓存 |
+| `GitRepositoryService` | `src/git/git_repository_service.*` | 各车道调度、取消代次、缓存、历史分页、前台标志、未跟踪文件缓存、工作树改动探测结果 `worktreeChanges` 与探测代次 |
 
 ## 3. 终端
 

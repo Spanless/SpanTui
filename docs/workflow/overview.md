@@ -44,8 +44,8 @@
 
 ## 2. 环境准备
 
-1. 按 [构建规范](build.md#0-环境要求) 安装 Qt 6.12 MinGW、CMake、Ninja；Qt 不在 `C:\Qt` 时在 `.env` 设 `SPANTUI_QT_SDK_ROOT`。
-2. `dev.bat build`，再 `dev.bat run --smoke`。
+1. 按 [构建规范](build.md#0-环境要求) 安装 Qt 6.12 MinGW、CMake、Ninja；Qt 既不在某盘的 `\Qt` 下、其工具也不在 `PATH` 上时，在 `.env` 设 `SPANTUI_QT_SDK_ROOT`。
+2. `dev.bat doctor` 确认工具链（`DOCTOR_OK`，可选项按提示取舍），再 `dev.bat build`、`dev.bat run --smoke`。
 3. `git config core.hooksPath .githooks`；从 `dev` 切功能分支（见 [分支模型](release.md#1-分支模型)）。
 
 ## 3. 并行开发（多工作树）
@@ -59,15 +59,15 @@ dev.bat worktree remove feat/xxx
 ```
 
 - 各工作树独立：分支、构建树（`SPANTUI_BUILD_ROOT` 下 `wt-<id>`，未设时为自身 `target/build`）、`.dev/`、`dev` 命令互斥量；单实例按数据根区分。
-- 共用：主检出的 `.env`（工作树自有 `.env` 时逐项优先）、制品目录、sccache 缓存。
-- 首次构建接近全量编译。
+- 共用：主检出的 `.env`（工作树自有 `.env` 时逐项优先）、制品目录、sccache 服务与缓存。
+- 首次构建要重新配置与链接，编译对象经 sccache 取用其他检出编过的（见 [编译缓存](build.md#编译缓存)）；未装 sccache 时接近全量编译。
 - `remove` 只删干净的工作树；外部建的或已手工删除的用 `dev worktree prune` 收回；`dev worktree list` 列出全部。
 
 ## 4. 本域改动完成标准
 
 ### 构建脚本（`CMakeLists.txt`、`dev.bat`、`tools/devtool/`、`tools/toolchain.ps1`）
 - [ ] 新测试目标出现在 `dev.bat test --list -R <名称>`。
-- [ ] `dev.bat test -R toolchain_self_test` 通过。
+- [ ] `dev.bat check` 输出 `CHECK_OK`；改到的 `dev.bat` 子命令实际跑通一次。
 - [ ] [构建规范](build.md)、[验证门禁](verification.md) 的命令与输出标记与实现一致。
 
 ### 顶层目录或产出位置

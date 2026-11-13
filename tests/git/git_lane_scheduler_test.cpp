@@ -185,6 +185,7 @@ void GitLaneSchedulerTest::routesOperationsToLanes_data()
     row("history", Lane::History);
     row("history-parse", Lane::History);
     row("branches", Lane::History);
+    row("worktrees", Lane::History);
     row("discover", Lane::Status);
     row("refresh", Lane::Status);
     row("base-content", Lane::Status);
@@ -195,6 +196,7 @@ void GitLaneSchedulerTest::routesOperationsToLanes_data()
     row("diff-stats", Lane::Diff);
     row("commit-preview", Lane::Peek);
     row("diff-body", Lane::DiffBody);
+    row("worktree-status", Lane::Probe);
     row("not-an-operation", Lane::Status);
 }
 

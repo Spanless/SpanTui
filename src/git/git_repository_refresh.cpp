@@ -51,9 +51,9 @@ bool GitRepositoryService::runGitAt(const QString &directory, const QStringList 
     if (directory.isEmpty())
         return false;
     const GitLane lane = GitLaneScheduler::laneForOperation(operation);
-    // Per-file body fetches follow scrolling; they must not hold off refreshes.
-    if (lane != GitLane::Status && lane != GitLane::DiffBody)
-        m_refreshCoalesce.stop();
+    // Per-file body fetches follow scrolling and worktree probes read other
+    // worktrees; neither may hold off refreshes.
+    if (lane != GitLane::Status && lane != GitLane::DiffBody && lane != GitLane::Probe) m_refreshCoalesce.stop();
     return m_git.run(directory, arguments, operation, std::move(completion), reportBusy);
 }
 
@@ -138,16 +138,149 @@ void GitRepositoryService::refreshDiffStats() {
     }
 }
 
+void GitRepositoryService::refreshRefs()
+{
+    if (!m_available) return;
+    m_refsBranchesPending = true;
+    m_refsWorktreesPending = true;
+    // The list read below is probed again once it lands.
+    m_worktreeProbePending = true;
+    if (!m_refsRefreshing) {
+        m_refsRefreshing = true;
+        emit refsRefreshingChanged();
+    }
+    refreshBranches(false);
+}
+
+void GitRepositoryService::settleRefsRead(RefsRead read)
+{
+    (read == RefsRead::Branches ? m_refsBranchesPending : m_refsWorktreesPending) = false;
+    const bool refreshing = m_refsBranchesPending || m_refsWorktreesPending;
+    if (refreshing == m_refsRefreshing) return;
+    m_refsRefreshing = refreshing;
+    emit refsRefreshingChanged();
+}
+
+void GitRepositoryService::readWorktrees()
+{
+    const quint64 epoch = m_refsEpoch;
+    const bool started = runGit(
+        {QStringLiteral("worktree"), QStringLiteral("list"), QStringLiteral("--porcelain")}, kGitOperationWorktrees,
+        [this, epoch](bool ok, const QByteArray &out, const QByteArray &err) {
+            // The repository changed since this read began: the list is the
+            // old one's, and the switch already ended the refresh.
+            if (epoch != m_refsEpoch) return;
+            if (!ok) {
+                if (m_refsRefreshing) setError(cleanError(err));
+                settleRefsRead(RefsRead::Worktrees);
+                return;
+            }
+            QVariantList items = parseWorktrees(out);
+            const QString root = QDir::cleanPath(m_repositoryRoot);
+            for (QVariant &value : items) {
+                QVariantMap item = value.toMap();
+                item.insert(QStringLiteral("current"),
+                            QString::compare(item.value(QStringLiteral("path")).toString(), root, Qt::CaseInsensitive)
+                                == 0);
+                value = item;
+            }
+            m_worktrees.replace(std::move(items));
+            settleRefsRead(RefsRead::Worktrees);
+            if (m_worktreeProbePending) startWorktreeProbe();
+        },
+        false);
+    if (!started) settleRefsRead(RefsRead::Worktrees);
+}
+
+void GitRepositoryService::probeWorktreeChanges()
+{
+    if (!m_available) return;
+    // The list has not landed yet: its read starts the round.
+    if (m_worktrees.rowCount() == 0) {
+        m_worktreeProbePending = true;
+        return;
+    }
+    startWorktreeProbe();
+}
+
+void GitRepositoryService::startWorktreeProbe()
+{
+    m_worktreeProbePending = false;
+    ++m_worktreeProbeGeneration;
+    m_worktreeProbeQueue.clear();
+    // Results of the worktrees this round checks again stay until their new
+    // check lands; the rest (no longer listed, or now past the cap) go. A
+    // lone main worktree is the repository itself: its changes already show
+    // in the Git pane, so there is nothing to check.
+    QVariantMap kept;
+    const QVariantList listed = m_worktrees.rowCount() > 1 ? m_worktrees.items() : QVariantList();
+    for (const QVariant &value : listed) {
+        if (m_worktreeProbeQueue.size() >= kGitWorktreeProbeLimit) break;
+        const QVariantMap item = value.toMap();
+        const QString path = item.value(QStringLiteral("path")).toString();
+        // A bare repository has no worktree to check; a prunable one is gone.
+        if (path.isEmpty() || item.value(QStringLiteral("bare")).toBool()
+            || item.value(QStringLiteral("prunable")).toBool())
+            continue;
+        m_worktreeProbeQueue.append(path);
+        if (m_worktreeChanges.contains(path)) kept.insert(path, m_worktreeChanges.value(path));
+    }
+    if (kept != m_worktreeChanges) {
+        m_worktreeChanges = kept;
+        emit worktreeChangesChanged();
+    }
+    probeNextWorktree();
+}
+
+void GitRepositoryService::probeNextWorktree()
+{
+    while (!m_worktreeProbeQueue.isEmpty()) {
+        const QString path = m_worktreeProbeQueue.takeFirst();
+        const quint64 generation = m_worktreeProbeGeneration;
+        // Tracked files only: listing untracked ones walks the whole tree.
+        // GIT_OPTIONAL_LOCKS=0 (the scheduler's environment) keeps the check
+        // from rewriting that worktree's index.
+        const bool started = runGitAt(
+            path,
+            {QStringLiteral("status"), QStringLiteral("--porcelain"), QStringLiteral("-z"),
+             QStringLiteral("--untracked-files=no"), QStringLiteral("--ignore-submodules=all")},
+            kGitOperationWorktreeStatus,
+            [this, path, generation](bool ok, const QByteArray &out, const QByteArray &) {
+                // A newer round or a repository switch owns the results now.
+                if (generation != m_worktreeProbeGeneration) return;
+                const bool known = m_worktreeChanges.contains(path);
+                if (ok) {
+                    const bool changed = !out.isEmpty();
+                    if (!known || m_worktreeChanges.value(path).toBool() != changed) {
+                        m_worktreeChanges.insert(path, changed);
+                        emit worktreeChangesChanged();
+                    }
+                } else if (known) {
+                    m_worktreeChanges.remove(path);
+                    emit worktreeChangesChanged();
+                }
+                probeNextWorktree();
+            },
+            false);
+        if (started) return;
+    }
+}
+
 void GitRepositoryService::refreshBranches(bool reportBusy) {
-    runGit(
+    const quint64 epoch = m_refsEpoch;
+    const bool started = runGit(
         {QStringLiteral("for-each-ref"), QStringLiteral("--sort=-committerdate"),
          QStringLiteral("--format=%(refname)%00%(refname:short)%00%(HEAD)%00%(upstream:short)%00%(upstream:track)%00%("
                         "committerdate:iso-strict)%00%(objectname)%00%(*objectname)"),
          QStringLiteral("refs/heads"), QStringLiteral("refs/remotes"), QStringLiteral("refs/tags")},
         kGitOperationBranches,
-        [this, reportBusy](bool ok, const QByteArray &out, const QByteArray &err) {
+        [this, reportBusy, epoch](bool ok, const QByteArray &out, const QByteArray &err) {
+            // The repository changed since this read began: the refs are the
+            // old one's, and the switch already ended the refresh.
+            if (epoch != m_refsEpoch) return;
             if (!ok) {
-                if (reportBusy) setError(cleanError(err));
+                if (reportBusy || m_refsRefreshing) setError(cleanError(err));
+                settleRefsRead(RefsRead::Branches);
                 return;
             }
             QVariantList branches = parseBranches(out);
@@ -175,6 +308,7 @@ void GitRepositoryService::refreshBranches(bool reportBusy) {
             }
             m_historyRefTargets.remove(QString());
             if (m_branches.replace(std::move(branches))) m_historyStale = true;
+            settleRefsRead(RefsRead::Branches);
             // Stale until a first page lands: a load deferred behind a queued
             // refresh still runs after that refresh's unchanged branch read.
             if (m_historyStale || m_history.rowCount() == 0) {
@@ -182,6 +316,9 @@ void GitRepositoryService::refreshBranches(bool reportBusy) {
             }
         },
         reportBusy);
+    if (!started) settleRefsRead(RefsRead::Branches);
+    // After the refs, so a branch list never waits for the worktrees.
+    readWorktrees();
 }
 
 void GitRepositoryService::loadHistory(bool reportBusy) {
@@ -417,6 +554,22 @@ void GitRepositoryService::clearRepository() {
     m_commitPreviews.clear();
     m_untrackedFiles.reset();
     m_pendingIncludeBranches = false;
+    // Reads still running belong to the old repository.
+    ++m_refsEpoch;
+    m_refsBranchesPending = false;
+    m_refsWorktreesPending = false;
+    if (m_refsRefreshing) {
+        m_refsRefreshing = false;
+        emit refsRefreshingChanged();
+    }
+    // Probe checks still running belong to the old repository's worktrees.
+    ++m_worktreeProbeGeneration;
+    m_worktreeProbeQueue.clear();
+    m_worktreeProbePending = false;
+    if (!m_worktreeChanges.isEmpty()) {
+        m_worktreeChanges.clear();
+        emit worktreeChangesChanged();
+    }
     m_git.reset();
     m_lastHeadIdentity.clear();
     if (!m_watcher.files().isEmpty()) m_watcher.removePaths(m_watcher.files());
@@ -435,7 +588,9 @@ void GitRepositoryService::clearRepository() {
     resetDiffBodies(DiffScope::Changes);
     resetDiffBodies(DiffScope::Commit);
     m_available = false; m_statuses.clear(); m_headUnborn = false;
-    m_branches.clear(); m_history.clear();
+    m_branches.clear();
+    m_worktrees.clear();
+    m_history.clear();
     m_commitChanges.clear();
     m_commitDiffFiles.clear();
     setDiffStats(0, 0);

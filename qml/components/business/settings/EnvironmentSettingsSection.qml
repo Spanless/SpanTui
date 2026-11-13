@@ -172,6 +172,53 @@ SettingsSection {
     }
 
     SectionLabel {
+        text: qsTr("Git")
+    }
+
+    // Empty until the first worktree asks for it; cleared, the next new
+    // worktree asks again.
+    SettingRow {
+        id: worktreeRootRow
+        readonly property string problem: worktreeRootField.text.trim().length > 0
+            ? WorkspaceController.worktreeRootProblem(worktreeRootField.text) : ""
+        title: qsTr("Worktree folder")
+        description: qsTr("New worktrees are created here, one subfolder per project. Each worktree can still pick another place when it is created.")
+        hint: problem
+        hintTone: "warning"
+
+        UiField {
+            id: worktreeRootField
+            Layout.preferredWidth: Theme.fieldMd
+            Layout.alignment: Qt.AlignVCenter
+            role: "mono"
+            fadeOverflow: true
+            text: WorkspaceSettings.worktreeRoot
+            placeholderText: qsTr("Asked at the first worktree")
+            // Typing breaks the binding; a picked or first-run folder
+            // still shows.
+            Connections {
+                target: WorkspaceSettings
+                function onWorktreeRootChanged() {
+                    worktreeRootField.text = WorkspaceSettings.worktreeRoot
+                }
+            }
+            onEditingFinished: {
+                const value = text.trim()
+                if (value !== WorkspaceSettings.worktreeRoot
+                        && (value.length === 0 || worktreeRootRow.problem.length === 0))
+                    WorkspaceSettings.worktreeRoot = value
+            }
+            trailing: ChromeButton {
+                kind: "ghost"
+                size: "sm"
+                iconName: "folder"
+                tip: qsTr("Choose the worktree folder")
+                onClicked: worktreeRootDialog.open()
+            }
+        }
+    }
+
+    SectionLabel {
         text: qsTr("Rendering")
     }
 
@@ -219,5 +266,15 @@ SettingsSection {
         fileMode: FileDialog.OpenFile
         nameFilters: [qsTr("Programs (*.exe)")]
         onAccepted: Tools.setOverrideUrl(toolId, selectedFile)
+    }
+
+    FolderDialog {
+        id: worktreeRootDialog
+        title: qsTr("Choose the worktree folder")
+        onAccepted: {
+            const folder = WorkspaceController.folderPathFromUrl(selectedFolder)
+            if (folder.length > 0)
+                WorkspaceSettings.worktreeRoot = folder
+        }
     }
 }
