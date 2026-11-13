@@ -10,8 +10,10 @@ import SpanTui
 //
 // An action with a `submenu` array opens it as a second panel beside its row
 // (one level deep): on hover after a short intent delay, or at once on click.
-// Crossing other rows on the way into the panel does not close it unless the
-// pointer rests on one. An outside press closes the whole menu.
+// A row that also has its own `action` (a split row: the default choice plus
+// its alternatives) runs that action on click and opens the panel only on
+// hover. Crossing other rows on the way into the panel does not close it
+// unless the pointer rests on one. An outside press closes the whole menu.
 AppPopup {
     id: root
 
@@ -33,7 +35,9 @@ AppPopup {
     }
 
     function _hasSubmenu(action) {
-        return action && Array.isArray(action.submenu) && action.submenu.length > 0
+        // Not Array.isArray: a nested array read through a model element
+        // arrives as a sequence wrapper, which is not an Array.
+        return !!action && !!action.submenu && action.submenu.length > 0
     }
 
     function _openSubmenu(action, row) {
@@ -43,7 +47,7 @@ AppPopup {
         // Switching rows moves the open panel instead of closing it.
         _dismissingSubmenu = false
         _submenuRow = row
-        submenu.actions = action.submenu
+        submenu.actions = Array.from(action.submenu)
         // Beside the panel edge, or mirrored to the left when it would not
         // fit; the first submenu row lines up with the hovered row.
         const overlay = Overlay.overlay
@@ -98,7 +102,7 @@ AppPopup {
         actions: root.actions
         revealed: root.visible
         onTriggered: (action, row) => {
-            if (root._hasSubmenu(action)) {
+            if (root._hasSubmenu(action) && !action.action) {
                 root._openSubmenu(action, row)
                 return
             }

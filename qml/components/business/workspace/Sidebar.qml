@@ -8,44 +8,105 @@ Item {
     readonly property Window hostWindow: Window.window
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
 
+    // Project and worktree rows share this menu. A project whose folder is
+    // gone offers only its removal; a worktree row adds its own deletion.
     function openProjectMenu(source, x, y, projectPath, projectName) {
-        // "New terminal" starts the default shell; every other startable
-        // shell sits in the "More terminals" submenu, remembered by the
-        // session it creates.
-        const shellItems = Shells.launchProfiles
-            .filter(profile => profile.profileId !== Shells.defaultProfileId)
-            .map(profile => ({
-                text: profile.name, programIcon: profile.icon,
-                action: function() {
-                    WorkspaceController.createSession(projectPath, "", "", profile.profileId)
-                } }))
-        const defaultShell = Shells.launchProfiles
-            .find(profile => profile.profileId === Shells.defaultProfileId)
-        const terminalItems = [
+        // Folders deleted while the app was in the background show up now.
+        ProjectRegistry.refreshFolders()
+        OpenTargets.refresh()
+        const mainProject = ProjectRegistry.parentProject(projectPath)
+        const isWorktree = mainProject.length > 0
+        if (!ProjectRegistry.isAvailable(projectPath)) {
+            contextMenu.openAt(source, x, y, [
+                { text: isWorktree ? qsTr("Remove from list") : qsTr("Remove project"),
+                  icon: "trash", danger: true,
+                  action: function() {
+                      confirmDialog.openFor(qsTr("Remove project"),
+                          qsTr("The folder of “%1” no longer exists. Remove it from the list and discard its sessions?").arg(projectName),
+                          qsTr("Remove"),
+                          function() { WorkspaceController.removeProject(projectPath) })
+                  } }
+            ])
+            return
+        }
+
+        // "New terminal" starts the default shell on click; hovering opens
+        // every startable shell, remembered by the session it creates.
+        const profiles = Shells.launchProfiles
+        const defaultShell = profiles.find(profile => profile.profileId === Shells.defaultProfileId)
+        const items = [
             { text: qsTr("New terminal"), icon: "terminal",
               programIcon: defaultShell ? defaultShell.icon : "",
-              action: function() { WorkspaceController.createSession(projectPath) } }
+              action: function() { WorkspaceController.createSession(projectPath) },
+              submenu: profiles.length > 1 ? profiles.map(profile => ({
+                  text: profile.name, programIcon: profile.icon,
+                  action: function() {
+                      WorkspaceController.createSession(projectPath, "", "", profile.profileId)
+                  } })) : [] }
         ]
-        if (shellItems.length > 0)
-            terminalItems.push({ text: qsTr("More terminals"), icon: "terminal", submenu: shellItems })
-        contextMenu.openAt(source, x, y, terminalItems.concat([
-            { text: qsTr("Editor"), icon: "code",
-              action: function() { WorkspaceController.createProjectTile("editor", projectPath) } },
-            { separator: true },
-            { text: qsTr("Open in File Explorer"), icon: "external-link",
-              action: function() {
-                  const url = projectPath.startsWith("file:") ? projectPath : ("file:///" + projectPath.replace(/\\/g, "/"))
-                  Qt.openUrlExternally(url)
-              } },
-            { separator: true },
-            { text: qsTr("Remove project"), icon: "trash", danger: true,
-              action: function() {
-                  confirmDialog.openFor(qsTr("Remove project"),
-                      qsTr("Remove “%1”? All project tiles and sessions must be closed first.").arg(projectName),
-                      qsTr("Remove"),
-                      function() { WorkspaceController.removeProject(projectPath) })
-              } }
-        ]))
+
+        // Worktrees of a main project: create one, or list an existing one
+        // that is not shown yet. Nothing is listed without being asked for.
+        if (!isWorktree && Tools.gitAvailable && ProjectRegistry.isGitRepository(projectPath)) {
+            const worktreeItems = [
+                { text: qsTr("New worktree..."), icon: "plus",
+                  enabled: !WorkspaceController.worktreeBusy,
+                  action: function() {
+                      if (root.hostWindow && root.hostWindow.openNewWorktree)
+                          root.hostWindow.openNewWorktree(projectPath)
+                  } }
+            ]
+            const unlisted = ProjectRegistry.unlistedWorktrees(projectPath)
+            if (unlisted.length > 0)
+                worktreeItems.push({ separator: true })
+            for (const worktree of unlisted) {
+                const path = worktree.path
+                worktreeItems.push({
+                    text: worktree.branch.length > 0 && worktree.branch !== worktree.name
+                          ? qsTr("Show %1 (%2)").arg(worktree.name).arg(worktree.branch)
+                          : qsTr("Show %1").arg(worktree.name),
+                    icon: "git-branch",
+                    action: function() { ProjectRegistry.addProject(path) } })
+            }
+            items.push({ text: qsTr("Worktrees"), icon: "git-branch", submenu: worktreeItems })
+        }
+
+        // Open in: File Explorer, then the editors Windows recommends for
+        // source files (detected, not a fixed list).
+        const openItems = [
+            { text: qsTr("File Explorer"), icon: "folder-open",
+              programIcon: OpenTargets.fileExplorerIcon,
+              action: function() { OpenTargets.showInFileExplorer(projectPath) } }
+        ].concat(OpenTargets.editors.map(editor => ({
+            text: editor.name, icon: "code", programIcon: editor.executable,
+            action: function() { OpenTargets.openFolderWith(editor.executable, projectPath) } })))
+        items.push({ separator: true },
+                   { text: qsTr("Open in"), icon: "external-link", submenu: openItems },
+                   { separator: true })
+
+        if (isWorktree) {
+            items.push(
+                { text: qsTr("Delete worktree..."), icon: "trash", danger: true,
+                  enabled: !WorkspaceController.worktreeBusy,
+                  action: function() {
+                      confirmDialog.openFor(qsTr("Delete worktree"),
+                          qsTr("Delete the worktree “%1”? Its folder is removed with git worktree remove; the branch is kept. All its tiles and sessions must be closed first.").arg(projectName),
+                          qsTr("Delete"),
+                          function() { WorkspaceController.deleteWorktree(projectPath) })
+                  } },
+                { text: qsTr("Remove from list"), icon: "x",
+                  action: function() { WorkspaceController.removeProject(projectPath) } })
+        } else {
+            items.push(
+                { text: qsTr("Remove project"), icon: "trash", danger: true,
+                  action: function() {
+                      confirmDialog.openFor(qsTr("Remove project"),
+                          qsTr("Remove “%1” and the worktrees listed under it from the list? No files are deleted. All their tiles and sessions must be closed first.").arg(projectName),
+                          qsTr("Remove"),
+                          function() { WorkspaceController.removeProject(projectPath) })
+                  } })
+        }
+        contextMenu.openAt(source, x, y, items)
     }
 
     function openSessionMenu(source, x, y, sessionIndex, sessionId, sessionName) {
@@ -155,6 +216,108 @@ Item {
         }
     }
 
+    // One project row: folder icon, name, and its checked-out branch on the
+    // right. Expanded, a main project shows its listed worktrees (through
+    // `nested`) and then its own sessions at the bottom. A worktree row
+    // starts with a corner glyph in its main project's icon column, and its
+    // sessions line up under its folder icon. "No sessions" shows only when
+    // the row has nothing under it at all. A project whose folder is gone is
+    // dimmed and says so on hover.
+    component ProjectNode: Column {
+        id: node
+        property string name: ""
+        property string path: ""
+        property string branch: ""
+        property bool expanded: false
+        property bool available: true
+        property bool worktree: false
+        property int nestedCount: 0
+        default property alias nested: nestedColumn.data
+        // Rows under a worktree start at its folder icon.
+        readonly property real childIndent: worktree ? Theme.iconMd + Theme.spaceSm : 0
+        readonly property var sessions: {
+            const revision = root.sessionRevision
+            return SessionModel.sessionsForProject(path)
+        }
+        spacing: Theme.spaceSm
+
+        ListItem {
+            id: nodeHeader
+            width: parent.width
+            expandable: true
+            cursorShape: Qt.PointingHandCursor
+            onToggled: ProjectRegistry.setExpanded(node.path, !node.expanded)
+            onClicked: mouse => {
+                if (mouse.button === Qt.RightButton)
+                    root.openProjectMenu(mouseArea, mouse.x, mouse.y, node.path, node.name)
+            }
+            RowLayout {
+                anchors.fill: parent
+                spacing: Theme.spaceSm
+                opacity: node.available ? 1 : Theme.opacityDisabled
+                Icon {
+                    visible: node.worktree
+                    name: "tree-corner"
+                    size: Theme.iconMd
+                    color: Theme.muted
+                }
+                FileIcon {
+                    Layout.preferredWidth: Theme.iconMd
+                    Layout.preferredHeight: Theme.iconMd
+                    fileName: node.name
+                    isDir: true
+                    isRoot: true
+                    expanded: node.expanded
+                    size: Theme.iconMd
+                }
+                UiText { Layout.fillWidth: true; text: node.name; elide: Text.ElideRight }
+                UiText {
+                    visible: node.branch.length > 0
+                    // The name keeps at least half the row.
+                    Layout.maximumWidth: nodeHeader.width / 2
+                    text: node.branch
+                    tone: "muted"
+                    size: "sm"
+                    elide: Text.ElideMiddle
+                }
+            }
+            Tip {
+                visible: nodeHeader.hovered && !node.available
+                text: qsTr("Folder not found: %1 — right-click to remove it from the list").arg(node.path)
+            }
+        }
+
+        TreeExpandHost {
+            width: parent.width
+            expanded: node.expanded
+            hasContent: true
+            spacing: Theme.spaceSm
+            Column {
+                id: nestedColumn
+                width: parent.width
+                spacing: Theme.spaceSm
+                visible: node.nestedCount > 0
+            }
+            Repeater {
+                model: node.sessions
+                delegate: SessionRow {
+                    x: node.childIndent
+                    width: node.width - x
+                }
+            }
+            UiText {
+                x: node.childIndent
+                width: node.width - x
+                height: Theme.sizeMd
+                leftPadding: Theme.spaceMd
+                verticalAlignment: Text.AlignVCenter
+                text: qsTr("No sessions")
+                tone: "muted"
+                visible: node.sessions.length === 0 && node.nestedCount === 0
+            }
+        }
+    }
+
     AppContextMenu { id: contextMenu }
     NameDialog { id: nameDialog }
     ConfirmDialog { id: confirmDialog }
@@ -223,55 +386,34 @@ Item {
                     required property string name
                     required property string path
                     required property bool expanded
-                    readonly property var sessions: {
-                        const revision = root.sessionRevision
-                        return SessionModel.sessionsForProject(path)
-                    }
+                    required property bool available
+                    required property string branch
+                    // [{name, path, expanded, available, branch}], listed worktrees.
+                    required property var worktrees
                     width: projectList.width - Theme.spaceMd
-                    height: projectColumn.implicitHeight
+                    height: projectNode.implicitHeight
 
-                    Column {
-                        id: projectColumn
+                    ProjectNode {
+                        id: projectNode
                         width: parent.width
-                        spacing: Theme.spaceSm
+                        name: projectItem.name
+                        path: projectItem.path
+                        expanded: projectItem.expanded
+                        available: projectItem.available
+                        branch: projectItem.branch
+                        nestedCount: projectItem.worktrees.length
 
-                        ListItem {
-                            id: projectHeader
-                            width: parent.width
-                            expandable: true
-                            cursorShape: Qt.PointingHandCursor
-                            onToggled: ProjectRegistry.setExpanded(projectItem.path, !projectItem.expanded)
-                            onClicked: mouse => {
-                                if (mouse.button === Qt.RightButton) {
-                                    root.openProjectMenu(mouseArea, mouse.x, mouse.y,
-                                                         projectItem.path, projectItem.name)
-                                }
-                            }
-                            RowLayout {
-                                anchors.fill: parent
-                                spacing: Theme.spaceSm
-                                FileIcon { Layout.preferredWidth: Theme.iconMd; Layout.preferredHeight: Theme.iconMd; fileName: projectItem.name; isDir: true; isRoot: true; expanded: projectItem.expanded; size: Theme.iconMd }
-                                UiText { Layout.fillWidth: true; text: projectItem.name; elide: Text.ElideRight }
-                            }
-                        }
-
-                        TreeExpandHost {
-                            width: parent.width
-                            expanded: projectItem.expanded
-                            hasContent: true
-                            spacing: Theme.spaceSm
-                            UiText {
-                                width: parent.width
-                                height: Theme.sizeMd
-                                leftPadding: Theme.spaceMd
-                                verticalAlignment: Text.AlignVCenter
-                                text: qsTr("No sessions")
-                                tone: "muted"
-                                visible: projectItem.sessions.length === 0
-                            }
-                            Repeater {
-                                model: projectItem.sessions
-                                delegate: SessionRow { width: projectItem.width }
+                        Repeater {
+                            model: projectItem.worktrees
+                            delegate: ProjectNode {
+                                required property var modelData
+                                width: projectNode.width
+                                worktree: true
+                                name: modelData.name
+                                path: modelData.path
+                                branch: modelData.branch
+                                expanded: modelData.expanded
+                                available: modelData.available
                             }
                         }
                     }

@@ -25,6 +25,9 @@ class WorkspaceSettings final : public QObject {
     // User-chosen executables (tool id -> absolute path). ToolRegistry owns
     // detection and validation and writes here; absent ids are auto-detected.
     Q_PROPERTY(QVariantMap toolPathOverrides READ toolPathOverrides NOTIFY toolPathOverridesChanged FINAL)
+    // Folder new Git worktrees go under (`<root>\<project>\<name>`); "" until
+    // the first worktree asks for it.
+    Q_PROPERTY(QString worktreeRoot READ worktreeRoot WRITE setWorktreeRoot NOTIFY worktreeRootChanged FINAL)
 
 public:
     explicit WorkspaceSettings(SettingsStore *store = nullptr, QObject *parent = nullptr);
@@ -37,12 +40,15 @@ public:
     int performanceMonitorIntervalSeconds() const { return m_performanceMonitorIntervalSeconds; }
     QVariantMap shortcutOverrides() const { return m_shortcutOverrides; }
     QVariantMap toolPathOverrides() const { return m_toolPathOverrides; }
+    QString worktreeRoot() const { return m_worktreeRoot; }
 
     void setScriptRunMode(const QString &value);
     void setRenderMode(const QString &value);
     void setPerformanceMonitorIntervalSeconds(int value);
     void setShortcutOverrides(const QVariantMap &value);
     void setToolPathOverrides(const QVariantMap &value);
+    // Stored with native separators; anything but an absolute path clears it.
+    void setWorktreeRoot(const QString &value);
 
 signals:
     void scriptRunModeChanged();
@@ -50,6 +56,7 @@ signals:
     void performanceMonitorIntervalChanged();
     void shortcutOverridesChanged();
     void toolPathOverridesChanged();
+    void worktreeRootChanged();
 
 private:
     void store(const QString &key, const QString &value);
@@ -60,6 +67,7 @@ private:
     int m_performanceMonitorIntervalSeconds = kMonitorIntervalDefaultSeconds;
     QVariantMap m_shortcutOverrides;
     QVariantMap m_toolPathOverrides;
+    QString m_worktreeRoot;
 };
 
 } // namespace span::application

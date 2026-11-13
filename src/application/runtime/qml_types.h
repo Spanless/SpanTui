@@ -13,6 +13,7 @@
 #include "application/graphics_mode_service.h"
 #include "application/icon_motion.h"
 #include "application/message_center.h"
+#include "application/open_target_registry.h"
 #include "application/pixel_snap.h"
 #include "application/preferences.h"
 #include "application/project_context.h"
@@ -371,6 +372,15 @@ struct ToolsQml {
     QML_SINGLETON
 public:
     static ToolRegistry *create(QQmlEngine *, QJSEngine *) { return QmlInstance<ToolRegistry>::create(); }
+};
+
+struct OpenTargetsQml {
+    Q_GADGET
+    QML_FOREIGN(span::application::OpenTargetRegistry)
+    QML_NAMED_ELEMENT(OpenTargets)
+    QML_SINGLETON
+public:
+    static OpenTargetRegistry *create(QQmlEngine *, QJSEngine *) { return QmlInstance<OpenTargetRegistry>::create(); }
 };
 
 struct ShellsQml {

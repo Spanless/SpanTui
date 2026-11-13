@@ -303,6 +303,8 @@ qt_add_qml_module(SpanTui
         qml/components/business/workspace/WorkspaceCanvas.qml
         qml/components/business/workspace/ZoneTileDelegate.qml
         qml/components/business/workspace/WorkspaceTab.qml
+        qml/components/business/workspace/WorktreeDialog.qml
+        qml/components/business/workspace/WorktreeRootDialog.qml
 )
 
 add_custom_command(TARGET SpanTui POST_BUILD
@@ -560,6 +562,8 @@ spantui_add_library_test(git_repository_concurrency_test
     tests/git/git_repository_concurrency_test.cpp LIBS spantui_git_test_support)
 spantui_add_library_test(git_lane_scheduler_test
     tests/git/git_lane_scheduler_test.cpp LIBS spantui_git_test_support)
+spantui_add_library_test(git_worktree_test
+    tests/git/git_worktree_test.cpp LIBS spantui_git_test_support)
 
 spantui_add_library_test(process_containment_test
     tests/platform/process_containment_test.cpp LIBS SpanPlatform)

@@ -2,6 +2,7 @@
 
 #include "application/graphics_mode_service.h"
 #include "application/idle_governor.h"
+#include "application/open_target_registry.h"
 #include "application/preferences.h"
 #include "application/project_workspace_registry.h"
 #include "application/shell_profile_registry.h"
@@ -12,6 +13,7 @@
 #include "application/ui_icon_catalog.h"
 #include "application/window_transition_coordinator.h"
 #include "application/workspace_controller.h"
+#include "git/git_worktree_commands.h"
 #include "monitoring/resource_monitor.h"
 #include "platform/diagnostics/graphics_startup.h"
 #include "platform/windows/window_chrome.h"
@@ -100,6 +102,8 @@ private:
     std::unique_ptr<ShellProfileRegistry> m_shells;
     std::unique_ptr<span::platform::diagnostics::GraphicsStartupWatch> m_graphicsWatch;
     std::unique_ptr<GraphicsModeService> m_graphics;
+    OpenTargetRegistry m_openTargets;
+    GitWorktreeCommands m_worktreeCommands;
     std::unique_ptr<ProjectWorkspaceRegistry> m_projectRegistry;
     span::remote::SshAskpassBroker m_askpassBroker;
     std::unique_ptr<span::remote::RemoteHostRegistry> m_remoteHosts;

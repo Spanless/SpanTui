@@ -31,6 +31,9 @@ public:
     ~GitLaneScheduler() override;
 
     static Lane laneForOperation(const QString &operation);
+    // Every Git process SpanTui starts: no prompts or editors, English
+    // messages, no optional locks.
+    static const QProcessEnvironment &environment();
 
     // False when nothing was started or queued: an empty directory, or a
     // silent request that would supersede a visible one of its kind.

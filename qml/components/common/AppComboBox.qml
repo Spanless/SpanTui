@@ -309,7 +309,9 @@ Item {
             anchors.fill: edit
             verticalAlignment: Text.AlignVCenter
             visible: edit.text.length === 0 && !edit.inputMethodComposing
-            text: comboPopup.opened && (root.filterable || root.editable)
+            // `visible`, not `opened`: opening clears the face text, and
+            // `opened` turns true only after the enter transition.
+            text: comboPopup.visible && (root.filterable || root.editable)
                   ? root.displayText : root.placeholderText
             tone: "muted"
             size: "md"

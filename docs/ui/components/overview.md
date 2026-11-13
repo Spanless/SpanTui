@@ -24,7 +24,7 @@
 | 输入 | `UiField`；列表过滤 `FilterBar`；查找 `FindBar`；数字 `Stepper` |
 | 选择 | `AppComboBox`（`FontPicker`、`FontWeightPicker` 基于它）、`SegmentedControl`、`AppSwitch` |
 | 按钮 | `ChromeButton`（`kind`：`secondary`/`primary`/`danger`/`ghost`/`selected`/`close`）；限宽用 `maxWidth`（标签末尾省略，余量不足 `minLabelWidth` 时带图标的按钮只留图标），按自然宽度做预算读 `naturalWidth`；开关语义用 `AppSwitch` |
-| 弹层 | 模态 `AppDialog` / `ConfirmDialog` / `NameDialog`；锚定列表 `AnchorPopup`；裸锚定面板 `AnchorPanel`；菜单 `AppContextMenu`（行项 `ActionList`）；提示 `Tip` / `HelpTooltip` |
+| 弹层 | 模态 `AppDialog` / `ConfirmDialog` / `NameDialog`；锚定列表 `AnchorPopup`；裸锚定面板 `AnchorPanel`；菜单 `AppContextMenu`（行项 `ActionList`；带 `submenu` 的行悬停展开二级菜单，同时带 `action` 的为拆分行：点击执行默认项，悬停展开其余选项）；提示 `Tip` / `HelpTooltip` |
 | 表面 | `CrispSurface`（圆角、描边、投影）；浮层 `PopupSurface`；分隔线 `PixelLine`；状态条 `InlineBanner` |
 | 行与树 | `ListItem`（行原子）/ `NavRow`（图标+标签）/ `TreeListView` / `TreeGroupHeader` / `TreeChevron` / `TreeExpandHost`；行间滑动悬停 `GlideHighlight` |
 | 滚动 | `DesktopScrollView` / `DesktopListView` / `DesktopFlickable`，都内建 `SlimScrollBar` 与 `DesktopWheelHandler` |
