@@ -8,7 +8,7 @@
 | `master` | 稳定线；只接受来自 `dev` 的 PR | 稳定版（`vX.Y.Z`） |
 | 功能分支 | `feat/…`、`fix/…`、`chore/…`，合并后删除 | — |
 
-- `master`、`dev` 不能直接推送、强推或删除。规则在 `.github/rulesets/dev-branch.json`、`master-branch.json`，用 `gh api repos/{owner}/{repo}/rulesets --method POST --input <文件>` 启用（GitHub 只对公开或付费私有仓库执行）；本地由 `.githooks/pre-push` 拦截。
+- `master`、`dev` 不能直接推送、强推或删除；发版 tag `v*` 建立后不能删除或移动（发版任务新建 tag 不受限）。规则在 `.github/rulesets/dev-branch.json`、`master-branch.json`、`release-tags.json`，用 `gh api repos/{owner}/{repo}/rulesets --method POST --input <文件>` 启用（GitHub 只对公开或付费私有仓库执行）；本地由 `.githooks/pre-push` 拦截。
 - 合入 `dev` 用 squash，`dev` 合入 `master` 用合并提交；规则集的 `allowed_merge_methods` 各只允许一种。
 - `.github/CODEOWNERS` 自动请求维护者审查；不要求批准数。
 
