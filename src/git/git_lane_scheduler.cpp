@@ -17,8 +17,10 @@ namespace {
 constexpr qsizetype kDefaultOutputLimit = qsizetype(16) * 1024 * 1024;
 constexpr qsizetype kHistoryOutputLimit = qsizetype(128) * 1024 * 1024;
 constexpr int kOutputFileWatchdogMs = 500;
+} // namespace
 
-const QProcessEnvironment &baseGitEnvironment() {
+const QProcessEnvironment &GitLaneScheduler::environment()
+{
     static const QProcessEnvironment env = []() {
         QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
         environment.insert(QStringLiteral("GIT_TERMINAL_PROMPT"), QStringLiteral("0"));
@@ -30,7 +32,6 @@ const QProcessEnvironment &baseGitEnvironment() {
     }();
     return env;
 }
-} // namespace
 
 GitLaneScheduler::GitLaneScheduler(FailureDetail failureDetail)
     : m_failureDetail(std::move(failureDetail))
@@ -415,7 +416,7 @@ bool GitLaneScheduler::startProcess(Lane lane, const QString &directory,
                       QStringLiteral("-c"), QStringLiteral("core.editor=true"),
                       QStringLiteral("-C"), directory};
     args.append(arguments);
-    state.process.setProcessEnvironment(baseGitEnvironment());
+    state.process.setProcessEnvironment(environment());
     state.process.setProcessChannelMode(QProcess::SeparateChannels);
     if (history) {
         state.stdoutFile = QDir::temp().filePath(

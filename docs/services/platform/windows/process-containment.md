@@ -6,7 +6,7 @@
 |---|---|
 | `installApplicationContainment()` | `main` 启动即创建带 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 的应用 Job 并加入当前进程；之后的子进程（含 Git）自动继承 |
 | `startOwnedProcess(program, args, cwd)` | 启动须随主程序退出的辅助进程 |
-| `startUnaffiliatedProcess(program, args, cwd)` | `CREATE_BREAKAWAY_FROM_JOB`，只用于更新安装程序，使其在主程序退出后继续运行 |
+| `startUnaffiliatedProcess(program, args, cwd)` | `CREATE_BREAKAWAY_FROM_JOB`，只用于须在主程序退出后继续运行的程序：更新安装程序，以及项目“打开方式”启动的外部编辑器 |
 
 - 主进程以任何方式结束（含崩溃、被强杀），内核终止 Job 内全部子进程。
 - 受管子进程不得用 `QProcess::startDetached`，否则会逃出 Job。

@@ -201,6 +201,12 @@ signals:
     void diffLinesChanged(const QString &scope, const QStringList &paths);
     void worktreeChangesChanged();
 
+public:
+    // A ref name safe as a git argument: not empty, no leading `-`, no
+    // spaces, tabs, line breaks, NUL or `..`. Shared with the worktree
+    // write commands.
+    static bool isSafeGitRef(const QString &ref);
+
 private:
     using Completion = GitLaneScheduler::Completion;
     using GitLane = GitLaneScheduler::Lane;
@@ -291,7 +297,6 @@ private:
     // Rejects empty paths, absolute escapes and ".." traversal.
     bool resolveWorktreePath(const QString &path, QString *absoluteOut, QString *relativeOut = nullptr) const;
     static bool isSafeGitObjectId(const QString &hash);
-    static bool isSafeGitRef(const QString &ref);
     static QString statusName(QChar code);
     static int statusPriority(const QString &status);
     static QString cleanError(const QByteArray &stderrData);

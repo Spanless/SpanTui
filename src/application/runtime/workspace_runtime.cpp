@@ -179,6 +179,17 @@ int WorkspaceRuntime::initializePersistence()
     m_workspaceController = std::make_unique<WorkspaceController>(
         m_projectRegistry.get(), &m_workspaceLayout, &m_sessionModel,
         &m_terminalManager, m_remoteHosts.get());
+    m_workspaceController->setWorktreeCommands(&m_worktreeCommands);
+    // A project folder deleted or restored outside SpanTui shows as such
+    // once the window is back in front.
+    QObject::connect(&m_app, &QGuiApplication::applicationStateChanged, m_projectRegistry.get(),
+                     [this](Qt::ApplicationState state) {
+                         if (state == Qt::ApplicationActive) {
+                             m_projectRegistry->refreshFolders();
+                         }
+                     });
+    m_openTargets.refresh();
+    reportErrors(&m_openTargets);
     reportErrors(m_projectRegistry.get());
     reportErrors(m_remoteHosts.get());
     reportErrors(m_workspaceController.get());
@@ -265,6 +276,7 @@ void WorkspaceRuntime::wireContexts()
     QObject::connect(m_remoteHosts.get(), &span::remote::RemoteHostRegistry::contextCreated, m_remoteHosts.get(),
                      [this](span::remote::RemoteHostContext *context) { wireRemoteContext(context); });
     bindProgress(&m_taskProgress, &m_updateService, ProgressOwner::Update);
+    bindProgress(&m_taskProgress, &m_worktreeCommands, ProgressOwner::Git);
 }
 
 void WorkspaceRuntime::wireAppearance()
@@ -359,6 +371,7 @@ bool WorkspaceRuntime::loadQml()
     QmlInstance<TaskProgressService>::set(&m_taskProgress);
     QmlInstance<ToolRegistry>::set(m_tools.get());
     QmlInstance<ShellProfileRegistry>::set(m_shells.get());
+    QmlInstance<OpenTargetRegistry>::set(&m_openTargets);
     QmlInstance<GraphicsModeService>::set(m_graphics.get());
     QmlInstance<FileIconTheme>::set(&m_fileIconTheme);
     QmlInstance<UiIconCatalog>::set(&m_uiIcons);

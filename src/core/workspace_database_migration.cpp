@@ -23,7 +23,7 @@ const QStringList &baselineSchema()
         QStringLiteral("create table if not exists projects ("
                        "id integer primary key autoincrement, path text unique not null, "
                        "name text not null, last_opened integer default 0, "
-                       "expanded integer default 1)"),
+                       "expanded integer default 1, parent_path text not null default '')"),
         QStringLiteral("create table if not exists sessions ("
                        "id text primary key, project_path text not null default '', "
                        "name text not null, cwd text not null, active integer default 0, "
@@ -93,6 +93,13 @@ bool addSessionShellProfile(QSqlQuery &query)
 {
     return hasColumn(query, QStringLiteral("sessions"), QStringLiteral("shell_profile"))
         || query.exec(QStringLiteral("alter table sessions add column shell_profile text not null default ''"));
+}
+
+// v11: a linked Git worktree listed under its main project ('' = top level).
+bool addProjectParentPath(QSqlQuery &query)
+{
+    return hasColumn(query, QStringLiteral("projects"), QStringLiteral("parent_path"))
+        || query.exec(QStringLiteral("alter table projects add column parent_path text not null default ''"));
 }
 
 // v10: settings keys take a `domain.` prefix. A new key already present wins.
@@ -174,7 +181,8 @@ bool migrateWorkspaceDatabase(QSqlDatabase &database, QString *errorMessage)
             return fail(database, errorMessage, query.lastError().text());
         }
     }
-    if (!dropRetiredSchema(query) || !addSessionShellProfile(query) || !renameSettingKeys(query)) {
+    if (!dropRetiredSchema(query) || !addSessionShellProfile(query) || !renameSettingKeys(query)
+        || !addProjectParentPath(query)) {
         return fail(database, errorMessage, query.lastError().text());
     }
     if (!query.exec(QStringLiteral("pragma user_version = %1").arg(kWorkspaceDatabaseVersion)) || !database.commit()) {

@@ -28,7 +28,7 @@
 
 | kind | 组件 | 功能 |
 |---|---|---|
-| `projects` | `Sidebar.qml` | 项目、远程主机与会话（仅左栏） |
+| `projects` | `Sidebar.qml` | 项目、远程主机与会话（仅左栏）；列出的工作树以直角图标缩进挂在主项目下、主项目自己的会话之前，行右侧小字显示当前分支，文件夹缺失的项目变灰（见 [项目与会话](../../services/application/projects-sessions.md#工作树子项)）。工作树对话框（`WorktreeRootDialog`/`WorktreeDialog`）与强制删除确认挂在 `Main.qml`：侧栏是瓦片，可能不存在或不止一个 |
 | `editor` | `PreviewPane.qml` | 只读查看 |
 | `terminal` | `TerminalPane.qml` | 终端会话 |
 

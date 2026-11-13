@@ -12,7 +12,7 @@ inline constexpr QLatin1StringView kSqliteDriver{"QSQLITE"};
 // processes waits for a lock instead of failing.
 inline constexpr QLatin1StringView kSqliteBusyTimeoutPragma{"pragma busy_timeout=3000"};
 // PRAGMA user_version of a fully migrated workspace database.
-inline constexpr int kWorkspaceDatabaseVersion = 10;
+inline constexpr int kWorkspaceDatabaseVersion = 11;
 
 // Wait after QProcess::kill() so the process is reaped before the QProcess
 // is disconnected or destroyed.
