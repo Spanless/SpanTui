@@ -49,7 +49,7 @@ dev.bat test -R x_test --function f --repeat 10   :: 只跑一个测试函数，
 dev.bat test --coverage               :: 插桩构建并输出覆盖率
 dev.bat run --smoke                   :: 无窗口冒烟
 dev.bat package                       :: 便携包与安装程序
-dev.bat release [--dry-run]           :: 对 CI 测过的 master 头发布 vX.Y.Z
+dev.bat release [--dry-run]           :: 对 CI 测过的 master 头发布 vX.Y.Z（合并进 master 后 CI 自动执行）
 dev.bat diag [<探针>]                 :: 性能诊断
 dev.bat clean                         :: 删除 .dev\
 dev.bat check                         :: 只跑检查脚本

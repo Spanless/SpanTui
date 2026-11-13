@@ -8,7 +8,7 @@
 | `master` | 稳定线；只接受来自 `dev` 的 PR | 稳定版（`vX.Y.Z`） |
 | 功能分支 | `feat/…`、`fix/…`、`chore/…`，合并后删除 | — |
 
-- `master`、`dev` 不能直接推送、强推或删除。规则在 `.github/rulesets/dev-branch.json`、`master-branch.json`，用 `gh api repos/{owner}/{repo}/rulesets --method POST --input <文件>` 启用（GitHub 只对公开或付费私有仓库执行）；本地由 `.githooks/pre-push` 拦截。
+- `master`、`dev` 不能直接推送、强推或删除；发版 tag `v*` 建立后不能删除或移动（发版任务新建 tag 不受限）。规则在 `.github/rulesets/dev-branch.json`、`master-branch.json`、`release-tags.json`，用 `gh api repos/{owner}/{repo}/rulesets --method POST --input <文件>` 启用（GitHub 只对公开或付费私有仓库执行）；本地由 `.githooks/pre-push` 拦截。
 - 合入 `dev` 用 squash，`dev` 合入 `master` 用合并提交；规则集的 `allowed_merge_methods` 各只允许一种。
 - `.github/CODEOWNERS` 自动请求维护者审查；不要求批准数。
 
@@ -19,7 +19,7 @@
 1. 每个指向 `dev`、`master` 的 PR 必须通过 `windows`，进 `master` 还须通过 `version`（CI 内容见 [验证门禁](verification.md#4-cigithubworkflowsciyml)）。
 2. 不要求分支与 dev 同步（`strict_required_status_checks_policy: false`），否则每次合并都迫使其余 PR 重跑。两个各自通过的 PR 合并后可能失败，由第 3 步兜底。
 3. 合并进 `dev` 后跑全量；dev 变红时先 `git revert` 引入问题的提交（另开 PR），再修。这次运行也负责更新 dev 的编译缓存。
-4. dev → master 的 PR 与合并提交 tree 与 dev 已通过的提交相同，`reuse` 跳过构建。合并前先在 dev 准备好版本（§4）。
+4. dev → master 的 PR 与合并提交 tree 与 dev 已通过的提交相同，`reuse` 跳过构建。合并前先在 dev 准备好版本（§4）；合并即发版。
 
 ## 2. 二进制身份定义
 
@@ -41,9 +41,9 @@ GitHub 稳定版（`vX.Y.Z`，非 pre-release）必须含 `SpanTui-<版本>-Setu
 
 ## 4. 发版
 
-合并进 `master` 后，维护者在本机对 master 头提交运行 `dev.bat release`：
+dev → master 的 PR 合并后，master 的推送 CI 在测试通过（或 `reuse` 沿用 dev 的结果）后由 `release` 任务自动运行 `dev.bat release`；维护者只需在 dev 上准备好版本再合并。自动发版失败时，修复原因后在 Actions 页重跑该任务，或在本机对 master 头手动运行 `dev.bat release`（需本机证书库有同一张签名证书）。`dev.bat release` 依次：
 
-1. HEAD 为 `origin/master` 且工作树干净（可 `git switch --detach origin/master`），该提交在 master 的推送 CI 已成功。
+1. HEAD 为 `origin/master` 且工作树干净（本机可 `git switch --detach origin/master`），该提交在 master 的推送 CI 已成功（CI 内运行时由任务依赖保证）。
 2. `tools/check-version.ps1` 通过；本机 Qt、MinGW 与 `tools/toolchain-versions.json` 一致。
 3. 执行与 `dev.bat package` 相同的打包，核对 `release-manifest.json` 与 `spantui-build.json` 版本均为 `X.Y.Z`。
 4. 以草稿创建 `vX.Y.Z`，上传 Setup、portable zip、`release-manifest.json`，说明取 `CHANGELOG.md` 该版本段落；全部上传后转正式并标为最新。中途失败只留草稿，删除后重跑。
@@ -55,7 +55,19 @@ GitHub 稳定版（`vX.Y.Z`，非 pre-release）必须含 `SpanTui-<版本>-Setu
 - `CHANGELOG.md` 有非空 `## [X.Y.Z]`，`## [Unreleased]` 已清空；
 - 远端无 `vX.Y.Z` 标签，且高于所有稳定版标签（更新检查只提供更高版本）。
 
-需要 `gh auth login` 与本机证书库的 `CN=Span` 签名证书（`tools/create-shell-signing-certificate.ps1`）。签名在本机进行：安装程序把自签名 `.cer` 加入 `LocalMachine\TrustedPeople`，私钥不能放进任何 PR 都能读取的仓库机密。
+### 签名证书
+
+资源管理器菜单的身份包用自签名 `CN=Span` 证书签名，安装程序把它的 `.cer` 按指纹加入 `LocalMachine\TrustedPeople`（换证书后已安装版本下次更新会请求一次提权）。证书由维护者在本机一次性准备：
+
+```powershell
+tools\create-shell-signing-certificate.ps1 -BackupDir <仓库外的安全目录> -Publish
+```
+
+- 在 `Cert:\CurrentUser\My` 建（或复用）私钥可导出的证书，本机 `dev package`/`dev release` 直接使用；旧版脚本建的不可导出证书加 `-Replace` 换掉。
+- 向 `-BackupDir` 写备份：`SpanTui-shell-signing.pfx`、密码 `SpanTui-shell-signing-password.txt`、公钥 `.cer`。目录必须在仓库外（`dev clean` 会删 `.dev\`），自行妥善保管。
+- `-Publish` 建 GitHub 环境 `release`，部署分支策略只放行 `master`，并把 PFX（base64）与密码存为该环境机密 `SHELL_SIGNING_PFX`、`SHELL_SIGNING_PFX_PASSWORD`。PR 运行的 ref 不是 `master`，即使改了工作流引用该环境也拿不到机密。需要对仓库有管理员权限的 `gh auth login`。
+
+CI 的 `release` 任务把 PFX 导入 runner 的证书库、以指纹交给打包，结束时删除。
 
 `--dry-run` 在任意提交上演练：逐条报告 `BLOCKED:` 但不停止，照常打包核对，只打印 `gh` 命令；全部通过输出 `DRY_RUN_OK`，否则 `DRY_RUN_BLOCKED` 并非零退出。beta 不由 `dev release` 发布。
 
@@ -66,4 +78,4 @@ GitHub 稳定版（`vX.Y.Z`，非 pre-release）必须含 `SpanTui-<版本>-Setu
 - [ ] 安装程序与便携包已生成到制品目录。
 - [ ] `licenses/` 与 `THIRD_PARTY_NOTICES.md` 覆盖包内全部第三方文件。
 
-相关源码：`tools/devtool/package-worker.ps1`、`tools/devtool/release-worker.ps1`、`installer/`、`tools/write_build_stamp.cmake`。
+相关源码：`tools/devtool/package-worker.ps1`、`tools/devtool/release-worker.ps1`、`tools/create-shell-signing-certificate.ps1`、`.github/workflows/ci.yml`（`release` 任务）、`installer/`、`tools/write_build_stamp.cmake`。

@@ -15,7 +15,8 @@ Usage (first time: dev doctor, then dev build):
   dev run     [--headless|--show-window] [--smoke] [-- app-args...]
   dev test    [-R regex]... [--label L] [--function name]... [--repeat N] [--build-only] [--list] [--coverage] [--jobs N] [--config C] [--reconfigure]
   dev package [--quick] [--clean] [--reconfigure] [--jobs N]
-  dev release [--dry-run] [--jobs N]  (package master's tested head and publish GitHub release vX.Y.Z;
+  dev release [--dry-run] [--jobs N]  (package master's tested head and publish GitHub release vX.Y.Z,
+              as CI does after every push to master;
               --dry-run: report the gates, build and check the package, publish nothing)
   dev diag    [<probe> [args...]]  (no probe lists what is available)
   dev clean   (deletes .dev\: dev-run data, test TEMP/APPDATA, scratch)

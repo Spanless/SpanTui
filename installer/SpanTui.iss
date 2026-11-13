@@ -1,6 +1,6 @@
 #define MyAppName "SpanTui"
 #ifndef MyAppVersion
-  #define MyAppVersion "0.2.4"
+  #define MyAppVersion "0.1.0"
 #endif
 #define MyAppPublisher "Span"
 ; Public portable and installed executable name (overridable via /D).
