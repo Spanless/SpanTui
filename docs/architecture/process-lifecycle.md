@@ -13,3 +13,5 @@
 2. **会话 Job**：`WinConPtyProcess`（`src/terminal/platform/windows/win_conpty_process.cpp`）为每个会话建独立 Job，关闭会话即终止该会话启动的全部进程，不影响其他会话。
 3. **Git**：`GitLaneScheduler`（`src/git/git_lane_scheduler.cpp`）用 `QProcess` 启动 `git.exe`，继承应用 Job；全部在后台车道异步执行，GUI 线程不调用 `waitForFinished()`。
 4. **更新安装程序**：应用 Job 内启动的进程会在主程序退出时被杀死，因此 `startUnaffiliatedProcess()`（`src/platform/windows/process_containment.cpp`）以 `CreateProcessW` + `CREATE_BREAKAWAY_FROM_JOB` 启动，脱离失败即报错、不降级。项目“打开方式”启动的外部编辑器同样经它脱离 Job，关闭 SpanTui 不结束编辑器。安装程序以 `/WAITPID=<pid>` 等主程序释放文件，替换后以 `/RELAUNCH=1` 启动新版（见 [应用更新](../services/update/updater.md)）。
+
+**macOS** 没有 Job：`installApplicationContainment()` 不做事。主程序退出（含崩溃）时内核关闭 pty 主端，会话首进程收到 `SIGHUP`，终端进程树照常结束；但 Git 等 `QProcess` 子进程不随之回收，会跑完当前命令后自行退出。见 [macOS 平台](../services/platform/macos.md)。

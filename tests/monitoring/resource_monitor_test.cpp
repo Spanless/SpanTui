@@ -114,7 +114,7 @@ void ResourceMonitorTest::providerFailureIsReportedAndSamplingContinues()
     QSignalSpy samples(&monitor, &ResourceMonitor::metricsChanged);
     monitor.setActive(true);
     QTRY_COMPARE(samples.count(), 1);
-    QCOMPARE(monitor.pdhStatus(), int(ResourceSampleProvider::PdhStatus::ProviderFailed));
+    QCOMPARE(monitor.gpuCounterStatus(), int(ResourceSampleProvider::GpuCounterStatus::ProviderFailed));
     QVERIFY(!monitor.samplingInProgress());
 
     // A failed sample must not leave the single-in-flight guard set.

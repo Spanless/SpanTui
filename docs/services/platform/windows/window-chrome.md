@@ -1,6 +1,6 @@
 # 无边框窗口
 
-`WindowChrome`（`src/platform/windows/window_chrome.*`）以原生事件过滤器处理：
+`WindowChrome`（头 `src/platform/window_chrome.h`，Windows 实现 `src/platform/windows/window_chrome.cpp`，几何计算 `src/platform/window_chrome_geometry.*`；macOS 见 [macOS 平台](../macos.md)）以原生事件过滤器处理：
 
 | 消息 | 处理 |
 |---|---|

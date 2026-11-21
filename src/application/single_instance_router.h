@@ -1,5 +1,7 @@
 #pragma once
 
+#include "platform/instance_lock.h"
+
 #include <QObject>
 #include <QString>
 
@@ -47,8 +49,8 @@ private:
 
     SingleInstanceAcceptWorker *m_acceptWorker = nullptr;
     QThread *m_acceptThread = nullptr;
-    // Win32 mutex handle held while this router is the primary.
-    void *m_primaryLock = nullptr;
+    // Held while this router is the primary.
+    span::platform::InstanceLock m_primaryLock;
     QString m_endpointName;
     std::atomic_bool m_primaryListening{false};
 };

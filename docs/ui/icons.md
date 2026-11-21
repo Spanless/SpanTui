@@ -17,11 +17,11 @@
 部分入口图标有逐个设计的动作；文件类型图标与窗口按钮没有。
 
 - 宿主经 `Icon` 的 `hovered`/`pressed`/`active` 传入状态：
-  - 悬浮：播放后保持末值，可循环；离开时缓出回静止。
+  - 悬浮：指针停留 `kIconHoverIntentMs`（120ms）后才开始，划过的图标不启动动效、不创建逐部件图形；播放后保持末值，可循环；离开时取消等待或缓出回静止。`hovered` 表达状态而非指针的宿主（`LoadingSpinner`）设 `hoverIntent: false`，立即开始。
   - 按下：播放一次，必须回到静止。
   - 激活：过渡到静止的激活姿态（语义色 + 一个部件变实心），不循环；激活期间屏蔽悬浮层的同名属性。
 - 宿主映射：`ChromeButton`、`NavRow`、`SegmentedControl`、`ActionList`；其余用处不传状态。
-- 图标落在同色实心底（accent/danger 高亮、`primary`/`close` 按钮）上时设 `tinted: false`，否则 `tint` 部件与底色同色而消失。
+- 图标落在同色实心底（`primary`/`close` 按钮）上时设 `tinted: false`，否则 `tint` 部件与底色同色而消失。
 - 资源：SVG 中每个可动部件是带 `id` 的 `<path>`，拼接后等于静态字形；只在动画中出现的几何放进 `<defs>`。`<name>.motion.json` 的 `parts` 声明部件（`path`、`origin`、`parent` 须在自身之前、`solid`、`tint`、`rest`、`wrap`、`length`），`hover`/`press`/`active` 三组轨道；属性 `rotate`、`tx`/`ty`、`scale`/`sx`/`sy`、`opacity`、`draw`（需 `length`）、`morph`（两端命令结构一致）、`tint`、`fill`；关键帧 `[t, 增量, 缓动]`，缓动 `l`/`i`/`o`/`io`/`back`，各层相加。
 - 加载时校验未知部件/属性/缓动、父级顺序、`draw` 缺长度、`morph` 结构不一致、非悬浮层循环、按下不回静止；任一失败则整个目录加载失败。
 - 运行时：`IconMotionPlayer`（`src/application/icon_motion.cpp`）确定性求值，`IconMotion` 只在有部件运动时运行时钟。时间按真实流逝计算，不取动画驱动时间（驱动每帧固定步进，高刷屏上会加速）。静止时只画一条静态路径。创建时已激活的图标直接落在姿态上。减弱动效下不播放悬浮与按下，激活瞬切。
@@ -43,7 +43,7 @@
 - 唯一源 `assets/brand/spantui.svg`。`tools/brand_icon_generator.cpp` 在构建时生成 `spantui.ico`：16–128 为 32 位 DIB + AND 遮罩，256 为 PNG；经 `assets/brand/spantui.rc` 嵌入 exe。
 - 光标辉光与底板投影依赖 Qt SVG 6.7+ 的滤镜；改图后检查 ICO 各帧仍渲染滤镜。
 - Shell 扩展包的 `StoreLogo.png`（50）、`Square44x44Logo.png`、`Square150x150Logo.png` 不随构建生成：改 SVG 后从新 ICO 的 256 帧以 Lanczos 缩放导出，同轮提交。
-- 程序自带图标（Shell 等）走 `ProgramIcon.qml` + `src/platform/windows/program_icon_provider.*`，不属于矢量图标库。
+- 程序自带图标（Shell 等）走 `ProgramIcon.qml` + `src/platform/program_icon_provider.h`（Windows 取 PE 图标，macOS 取 `NSWorkspace` 图标），不属于矢量图标库。
 
 ## 5. 检查与测试
 

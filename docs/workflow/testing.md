@@ -34,8 +34,9 @@
 - 根 `CMakeLists.txt` 的 `SPANTUI_CORE_TESTS` 带 CTest 标签 `core`，标准是"坏了会怎样"：终端不可用、用户数据丢失或损坏、残留进程、无法启动或更新、告警丢失。新测试默认不进核心；列表含未注册名时配置失败。本地 `dev.bat test --label core`。
 - 新测试用 `spantui_add_terminal_test` 或 `spantui_add_library_test` 链接被测库，并确认 `dev.bat test --list -R <名称>` 可见——未注册的测试从不运行。不再使用的测试文件直接删除。
 - 纯 QML 交互没有自动化入口：smoke 覆盖加载，交互由维护者验证，交付时列出操作路径。
+- **平台测试**：直接驱动 Win32 的测试（ConPTY、Job、Shell 扩展、IME、命名管道、文件 ACL）与它们的辅助子进程只在 `if(WIN32)` 下注册，macOS 的终端后端由 `mac_pty_process_test` 覆盖，macOS 的脚本运行由 `script_launch_test` 覆盖（Windows 的由 `file_tree_model_test` 覆盖），macOS 的凭据密钥文件由 `credential_protection_test` 覆盖（Windows 的 DPAPI 由 `remote_host_registry_test` 覆盖）；`SPANTUI_CORE_TESTS` 按平台追加各自的核心测试。跨平台测试里平台相关的夹具（路径、启动的命令）按运行平台选取，测的是仅一个平台存在的行为时 `QSKIP` 并写明原因（见 [macOS 平台](../services/platform/macos.md#4-已知局限)）。
 - 性能基准（`terminal_core_worker_benchmark`、`terminal_render_benchmark`）用 `qt_add_executable` 构建但不注册 CTest，手动运行。
-- `workspace_startup_smoke`（仅 Debug）：以 `--workspace-shot` 在 offscreen 下启动完整工作区，用隔离数据目录在 `.dev\tmp` 打开真实 ConPTY（`GIT_CEILING_DIRECTORIES` 阻止 git 上爬进本仓库），`--workspace-shot-delay-ms=500` 后退出。只断言启动与正常退出，截图不比对。
+- `workspace_startup_smoke`（仅 Debug）：以 `--workspace-shot` 在 offscreen 下启动完整工作区，用隔离数据目录在 `.dev\tmp` 打开真实终端（ConPTY 或 macOS pty；`GIT_CEILING_DIRECTORIES` 阻止 git 上爬进本仓库），`--workspace-shot-delay-ms=500` 后退出。只断言启动与正常退出，截图不比对。
 - `WorkspaceRuntime` 的接线抽成应用层函数（如 `connectSessionTerminals`、`connect*Messages`），组合根与测试调用同一份。
 - CTest 只注册产品测试。翻译目录与图标引用的完整性由 `tools/check-translations.ps1`、`tools/check-icons.ps1` 检查，和其他静态检查一起在 `dev.bat check`、CI 与提交前运行。
 
@@ -45,11 +46,11 @@
 
 | 领域 | 要求 |
 |---|---|
-| 写出位置 | `spantui_set_test_environment` 把 `TEMP`/`TMP` 设为 `.dev\tmp\tests\<测试名>\temp`，`APPDATA`/`LOCALAPPDATA` 设为同级 `appdata`、`localappdata`；每个测试独占（测试并行运行，固定文件名会互相覆盖）。`spantui_add_library_test` 已调用；直接 `add_test` 的须自行调用。不用 `QStandardPaths` 的其他位置。 |
+| 写出位置 | `spantui_set_test_environment` 把 `TEMP`/`TMP` 设为 `.dev\tmp\tests\<测试名>\temp`，`APPDATA`/`LOCALAPPDATA` 设为同级 `appdata`、`localappdata`（macOS：`TMPDIR` 为同一 `temp`，`HOME` 为同级 `home`，数据目录随之落在 `home/Library/Application Support`）；本地 IPC 端点在 macOS 上是用户系统临时目录下的套接字文件（与 Windows 命名管道同类，服务端关闭即删除；见 [macOS 平台](../services/platform/macos.md#1-各能力的-macos-实现)）；每个测试独占（测试并行运行，固定文件名会互相覆盖）。`spantui_add_library_test` 已调用；直接 `add_test` 的须自行调用。不用 `QStandardPaths` 的其他位置。 |
 | 配置与数据库 | `QTemporaryDir` 或 `ProductPaths::setRootOverride`；不用默认 `QSettings`（写注册表）。 |
 | Git | 只用临时目录内的本地 bare 仓库作远端。测试环境清除 `GIT_DIR`、`GIT_WORK_TREE`、`GIT_INDEX_FILE` 等变量：git 钩子导出它们，子进程继承后会改写运行钩子的检出。无 `git.exe` 时 `QSKIP`。 |
 | SSH | 不连真实服务器：askpass 管道进程内往返；远程脚本在 Git for Windows 的 `sh.exe` + GNU `find` 上只操作 `mktemp -d` 目录，缺失时 `QSKIP`；凭据只用临时数据库。 |
 | 终端与 ConPTY | 用专用夹具（如 `pty_echo_child.exe`）。夹具回显走 UTF-16 控制台 API（CP 437 下窄字符读写会把中文变 `?`）；标准输出全缓冲，每条回复一次 flush（逐次写入在 CPU 争用下每次往返上百毫秒，多行回复会超时）。输入前同时等 `running()` 与就绪标记（`waitForChildOutput`）：首批输出可能早于运行态通知到达，未运行时 `sendText`/`sendKeyStroke` 丢弃输入。分片场景显式逐块 `WriteFile`。 |
 | 进程 | 断言父子 PID 与 Job 归属。 |
 | 仓库文件与构建产物 | 不以编译定义传入源码或构建树路径（sccache 在检出间共享对象，见 [编译缓存](build.md#编译缓存)）：要用的仓库文件以资源嵌入（字体用 `spantui_add_font_resources`，取 `:/fonts/...`），构建产物按 `QCoreApplication::applicationDirPath()` 查找。 |
-| 窗口与焦点 | 创建窗口的测试以 `OFFSCREEN` 注册（`spantui_add_terminal_test` 默认带上），`QT_QPA_PLATFORM=offscreen`，`QT_QPA_FONTDIR` 指向系统字体目录（offscreen 默认只扫 `<Qt>/lib/fonts`）。依赖原生窗口的断言改测 Qt 公开查询（如焦点对象的 `Qt::ImEnabled`）。 |
+| 窗口与焦点 | 创建窗口的测试以 `OFFSCREEN` 注册（`spantui_add_terminal_test` 默认带上），`QT_QPA_PLATFORM=offscreen`，Windows 上 `QT_QPA_FONTDIR` 指向系统字体目录（offscreen 默认只扫 `<Qt>/lib/fonts`；macOS 的 offscreen 经 Core Text 取系统字体）。依赖原生窗口的断言改测 Qt 公开查询（如焦点对象的 `Qt::ImEnabled`）。 |

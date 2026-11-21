@@ -1,6 +1,6 @@
 #include "update/update_service.h"
 #include "core/product_paths.h"
-#include "platform/windows/process_containment.h"
+#include "platform/process_containment.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>

@@ -88,7 +88,7 @@ void UiHealthMonitorTest::oneReportPerStallAndNewReportAfterRecovery()
     QCOMPARE(first.count("===== SpanTui UI stall ====="), 1);
     QVERIFY(first.contains("stallEpoch=1"));
     QVERIFY(first.contains("persist.queueDepth=0"));
-    QVERIFY(first.contains("monitor.pdhStatus=0"));
+    QVERIFY(first.contains("monitor.gpuCounters=0"));
     QVERIFY(first.contains("dump=skipped-in-process"));
 
     QTRY_VERIFY_WITH_TIMEOUT(fileContains(report.fileName(), "recovered stallEpoch=1"), 1000);

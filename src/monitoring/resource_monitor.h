@@ -15,11 +15,15 @@ class QTimer;
 
 class ResourceSampleProvider {
 public:
-    enum class PdhStatus : int {
+    // State of the per-process GPU counters behind gpuPercent;
+    // ProviderFailed when the whole sample failed.
+    enum class GpuCounterStatus : int {
         NotInitialized = 0,
         Ready = 1,
         QueryFailed = 2,
         ProviderFailed = 3,
+        // The platform has no per-process GPU counters; gpuPercent stays 0.
+        Unavailable = 4,
     };
 
     struct SessionSample {
@@ -42,7 +46,7 @@ public:
         QHash<QString, SessionSample> sessions;
         double cpuPercent = 0;
         double gpuPercent = 0;
-        PdhStatus pdhStatus = PdhStatus::NotInitialized;
+        GpuCounterStatus gpuCounterStatus = GpuCounterStatus::NotInitialized;
     };
 
     virtual ~ResourceSampleProvider() = default;
@@ -86,7 +90,7 @@ public:
     bool active() const { return m_active; }
     int effectiveIntervalMs() const;
     bool samplingInProgress() const { return m_samplingInProgress; }
-    int pdhStatus() const { return static_cast<int>(m_pdhStatus); }
+    int gpuCounterStatus() const { return static_cast<int>(m_gpuCounterStatus); }
 
     void setIntervalSeconds(int seconds);
     void setIdle(bool idle);
@@ -120,8 +124,8 @@ private:
     bool m_idle = false;
     bool m_active = false;
     QHash<QObject *, QMetaObject::Connection> m_visibleConsumers;
-    ResourceSampleProvider::PdhStatus m_pdhStatus =
-        ResourceSampleProvider::PdhStatus::NotInitialized;
+    ResourceSampleProvider::GpuCounterStatus m_gpuCounterStatus =
+        ResourceSampleProvider::GpuCounterStatus::NotInitialized;
     QHash<QString, ResourceSampleProvider::SessionSample> m_sessionSamples;
     qint64 m_physicalMemoryBytes = 0;
     bool m_samplingInProgress = false;

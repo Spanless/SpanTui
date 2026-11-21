@@ -14,7 +14,7 @@
 #include "application/diagnostics/ui_health_monitor.h"
 #include "core/product_paths.h"
 #include "platform/diagnostics/graphics_startup.h"
-#include "platform/windows/window_chrome.h"
+#include "platform/window_chrome.h"
 #include "terminal/api/terminal_manager.h"
 #include "terminal/core/terminal_color.h"
 #include "terminal/terminal_constants.h"

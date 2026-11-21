@@ -87,4 +87,15 @@ inline constexpr double kScrollSettleLines = 0.01;
 // frame resumes the ease instead of landing on the target in one step.
 inline constexpr qint64 kScrollMaxFrameMs = 33;
 
+// Pasted images and dropped temporary files (terminal_paste.h). The folder
+// under ProductPaths::cacheDirectory(), the largest image kept, and how long
+// and how many staged files survive.
+inline constexpr QLatin1StringView kPasteStagingDirectoryName{"paste-images"};
+inline constexpr qsizetype kPasteImageMaxBytes = 10 * 1024 * 1024;
+inline constexpr qint64 kPasteStagingMaxAgeSeconds = 24 * 60 * 60;
+inline constexpr int kPasteStagingMaxFiles = 50;
+// MIME types a Kitty paste event (mode 5522) offers.
+inline constexpr QLatin1StringView kPasteMimeText{"text/plain"};
+inline constexpr QLatin1StringView kPasteMimePng{"image/png"};
+
 } // namespace span::terminal

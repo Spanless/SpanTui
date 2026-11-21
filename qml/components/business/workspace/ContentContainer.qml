@@ -253,7 +253,8 @@ Item {
             // fixed order: the readout first, then the diff stat, then the
             // branch name (elided, then icon only, then gone). The budget
             // reads natural widths only, never allocated ones, so it cannot
-            // feed back into itself.
+            // feed back into itself; the readout counts at its width as last
+            // shown (ResourceStrip.fitWidth), since collapsing changes it.
             readonly property real titleFloor: Math.min(titleText.implicitWidth, Theme.dialogSm / 4)
             readonly property real dividerSpan: spacing + statusDivider.implicitWidth
             readonly property real baseNeed: statusIcon.implicitWidth + spacing + titleFloor
@@ -267,7 +268,7 @@ Item {
             readonly property real diffNeed: diffOn ? spacing + terminalDiffStat.implicitWidth : 0
             // The readout and the hairline after it.
             readonly property real resourceNeed: resourceStrip.active
-                                                 ? spacing + resourceStrip.implicitWidth + dividerSpan : 0
+                                                 ? spacing + resourceStrip.fitWidth + dividerSpan : 0
             readonly property bool resourcesFit: baseNeed + branchNeed + diffNeed + resourceNeed <= width
             readonly property bool diffShown: diffOn && baseNeed + branchNeed + diffNeed <= width
             // What is left for the chip once everything ahead of it in the

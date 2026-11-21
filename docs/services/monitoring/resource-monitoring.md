@@ -8,7 +8,8 @@
 - 定时器（`performanceMonitorIntervalSeconds`）把采样投递到后台单线程（`ResourceSampleProvider`），同时最多一个在途，上一次未完成则跳过本次；结果以不可变快照交给 GUI。
 - **按需激活**：显示读数的界面以 `setConsumerVisible(consumer, visible)` 登记（按消费者记集合，不计数）。有可见消费者时 `setActive(true)`，立即采一次并启动定时器；最后一个隐藏或销毁时停表。未激活时读数为 0，不调用 `sessionMetrics`。
 - **空闲退避**：`IdleGovernor`（窗口未激活或 30 秒无输入）使间隔 ×5；恢复活跃且处于激活状态时立即补采。
-- **指标**：`GetProcessMemoryInfo`（私有字节、工作集）、`GetProcessTimes`（CPU，记录上次值，进程树成员变化不产生尖峰）、`GlobalMemoryStatusEx`（物理内存，作内存等级的分母）。GPU 经 PDH 英文计数器 `\GPU Engine(*)\Utilization Percentage`，`gpu_engine_metrics.cpp` 解析实例名中的 `pid_<n>` 汇总会话进程树；不支持或无权限时只缺 GPU 项。
+- **指标**：`GetProcessMemoryInfo`（私有字节、工作集）、`GetProcessTimes`（CPU，记录上次值，进程树成员变化不产生尖峰）、`GlobalMemoryStatusEx`（物理内存，作内存等级的分母）。GPU 经 PDH 英文计数器 `\GPU Engine(*)\Utilization Percentage`，`gpu_engine_metrics.cpp` 解析实例名中的 `pid_<n>` 汇总会话进程树；不支持或无权限时只缺 GPU 项。macOS 用 `proc_pidinfo`/`task_info`，没有按进程的 GPU 计数器（见 [macOS 平台](../platform/macos.md)）。
+- **GPU 计数器状态**（`ResourceSampleProvider::GpuCounterStatus`，界面卡顿报告中为 `monitor.gpuCounters`）：`NotInitialized`、`Ready`、`QueryFailed`（Windows PDH 查询失败）、`ProviderFailed`（整轮采样失败）、`Unavailable`（平台没有按进程的 GPU 计数器，macOS）。
 
 远程终端改用该主机的 `RemoteSystemMonitor`（见 [SSH 远程 §6](../remote/ssh-remote.md#6-服务器资源读数)）。
 

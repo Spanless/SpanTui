@@ -1,4 +1,4 @@
-#include "platform/windows/credential_protection.h"
+#include "platform/credential_protection.h"
 
 #include <QDir>
 #include <QFileInfo>

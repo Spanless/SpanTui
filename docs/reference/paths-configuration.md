@@ -8,7 +8,7 @@
 |---|---|---|
 | 1 | `--data-dir <绝对路径>`（由此打开的独立终端继承） | 该目录，不存在则创建 |
 | 2 | exe 旁有 `portable.txt` | `<exe 目录>\data` |
-| 3 | 默认 | `%LOCALAPPDATA%\SpanTui`（旧数据根迁移见 [数据根](../services/storage/roots-migration.md)） |
+| 3 | 默认 | Windows：`%LOCALAPPDATA%\SpanTui`（旧数据根迁移见 [数据根](../services/storage/roots-migration.md)）；macOS：`~/Library/Application Support/SpanTui`（无旧数据根） |
 
 | 内容 | 路径 | 接口 | 说明 |
 |---|---|---|---|
@@ -35,6 +35,8 @@ Git、ssh/sftp、Tailscale 不随产品分发，`ToolRegistry` 在启动与"设�
 | 1 | 用户指定（`tools.paths`） | 用户指定 |
 | 2 | PATH 绝对条目：进程 PATH，加注册表中的系统、用户 PATH | `%SystemRoot%\System32\OpenSSH` |
 | 3 | `%ProgramW6432%`/`%ProgramFiles%`/`%ProgramFiles(x86)%` 下 `Git\cmd`（Tailscale 为 `Tailscale`）；Git 另查 `%LOCALAPPDATA%\Programs\Git\cmd` | PATH 绝对条目 |
+
+macOS 上第 2、3 步改为：PATH 绝对条目取进程 PATH 加 `/etc/paths`、`/etc/paths.d/*`（从 Finder 启动的进程 PATH 很短）；固定目录为 Git 的 `/opt/homebrew/bin`、`/usr/local/bin`、`/usr/bin`，ssh/sftp 的 `/usr/bin`，Tailscale 的 `/Applications/Tailscale.app/Contents/MacOS` 与 Homebrew 目录（`src/core/macos/external_tool_locations.cpp`）。
 
 PATH 相对条目一律忽略：从资源管理器菜单启动时当前目录是被打开的文件夹，相对条目会执行其中的同名程序。
 

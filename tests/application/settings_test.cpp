@@ -721,7 +721,8 @@ void SettingsTest::terminalFontUsesFixedPitch()
     QVERIFY(!state.uiPrimaryFontFamily().isEmpty());
     QVERIFY(!state.uiFallbackFontFamily().isEmpty());
     QVERIFY(state.isFixedPitch(QStringLiteral("")));
-    QVERIFY(state.isFixedPitch(QStringLiteral("Consolas")));
+    // The platform's own monospace face (Courier New, Menlo).
+    QVERIFY(state.isFixedPitch(QFontDatabase::systemFont(QFontDatabase::FixedFont).family()));
     QVERIFY(!state.isFixedPitch(QStringLiteral("Arial")));
 
     // A proportional terminal face is the user's call and is kept.

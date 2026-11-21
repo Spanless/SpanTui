@@ -1,8 +1,7 @@
 #include "application/open_target_registry.h"
 
 #include "application/application_constants.h"
-#include "platform/windows/open_with_handlers.h"
-#include "platform/windows/process_containment.h"
+#include "platform/open_with_handlers.h"
 
 #include <QCoreApplication>
 #include <QDesktopServices>
@@ -94,12 +93,10 @@ bool OpenTargetRegistry::openFolderWith(const QString &executable, const QString
     if (!known || !target.isDir()) {
         return false;
     }
-    const QString directory = QDir::toNativeSeparators(QDir::cleanPath(target.absoluteFilePath()));
+    const QString directory = QDir::cleanPath(target.absoluteFilePath());
     QString error;
-    if (span::platform::process::startUnaffiliatedProcess(QDir::toNativeSeparators(executable), {directory}, directory,
-                                                          &error)
-        == 0) {
-        emit errorOccurred(tr("Could not open %1: %2").arg(directory, error));
+    if (!span::platform::openFolderWith(executable, directory, &error)) {
+        emit errorOccurred(tr("Could not open %1: %2").arg(QDir::toNativeSeparators(directory), error));
         return false;
     }
     return true;

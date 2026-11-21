@@ -39,9 +39,10 @@ Item {
     readonly property bool hovered: hoverHandler.hovered
     // Flat-state tint of an inactive Tab; the active Tab takes the raised
     // recipe instead.
-    readonly property color capsuleFill: tabMouse.pressed ? Theme.pressed
-                                         : root.hovered ? Theme.hover
-                                         : "transparent"
+    property color capsuleFill: tabMouse.pressed ? Theme.pressed
+                                : root.hovered ? Theme.hover
+                                : Theme.withAlpha(Theme.hover, 0)
+    Behavior on capsuleFill { ColorAnimation { duration: Theme.durHover } }
 
     width: PixelGrid.snapSize(Theme.sizeLg * 5, renderDpr)
     activeFocusOnTab: true
@@ -90,6 +91,7 @@ Item {
                 isDir: false
                 size: Theme.iconSm
                 color: root.active || root.hovered ? root.textColor : Theme.muted
+                Behavior on color { ColorAnimation { duration: Theme.durHover } }
             }
         }
         Component {
@@ -105,6 +107,7 @@ Item {
             emphasis: root.active
             color: root.active || root.hovered || tabMouse.pressed ? root.textColor
                                                                   : Theme.muted
+            Behavior on color { ColorAnimation { duration: Theme.durHover } }
             text: root.text
             horizontalAlignment: Text.AlignLeft
             verticalAlignment: Text.AlignVCenter

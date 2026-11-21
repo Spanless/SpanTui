@@ -1,5 +1,6 @@
 #include "terminal/render/terminal_input_routing.h"
 
+#include <QGuiApplication>
 #include <QInputEvent>
 #include <QKeySequence>
 
@@ -18,6 +19,27 @@ constexpr quint16 kVirtualKeyUp = 0x26;
 constexpr quint16 kVirtualKeyDown = 0x28;
 constexpr quint16 kScanCodeUp = 0x48;
 constexpr quint16 kScanCodeDown = 0x50;
+
+// The macOS (cocoa) platform plugin reports Command as Ctrl and Control as
+// Meta, so that portable "Ctrl+…" shortcuts mean Command there. Strokes
+// carry the physical keys: Ctrl is Control, Meta is Command (Super). Option
+// produces text there (Option+2 is '™'), as in Terminal, rather than Alt chords.
+bool cocoaKeyboard()
+{
+    return QGuiApplication::platformName() == QLatin1String("cocoa");
+}
+
+Qt::KeyboardModifiers physicalModifiers(Qt::KeyboardModifiers modifiers)
+{
+    if (!cocoaKeyboard() || QCoreApplication::testAttribute(Qt::AA_MacDontSwapCtrlAndMeta)) {
+        return modifiers;
+    }
+    const bool command = modifiers.testFlag(Qt::ControlModifier);
+    const bool control = modifiers.testFlag(Qt::MetaModifier);
+    modifiers.setFlag(Qt::ControlModifier, control);
+    modifiers.setFlag(Qt::MetaModifier, command);
+    return modifiers;
+}
 
 int unshiftedAsciiCodepoint(int codepoint)
 {
@@ -234,7 +256,7 @@ std::optional<TerminalKeyStroke> TerminalInputRouting::translateKey(const QKeyEv
     TerminalKeyStroke result;
     result.event = keyEvent;
     result.native = nativeKey(event);
-    result.modifiers = event->modifiers()
+    result.modifiers = physicalModifiers(event->modifiers())
         & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
     TerminalKey key = TerminalKey::Enter;
     if (functionalKey(event->key(), &key, &result.functionNumber)) {
@@ -250,17 +272,20 @@ std::optional<TerminalKeyStroke> TerminalInputRouting::translateKey(const QKeyEv
 
     const bool control = result.modifiers.testFlag(Qt::ControlModifier);
     const bool alt = result.modifiers.testFlag(Qt::AltModifier);
-    if (altGrActive && control && alt && !event->text().isEmpty()) {
-        // Windows reports AltGr as Ctrl+Alt. The produced character already
-        // carries the layout's meaning; encoding it as a Ctrl+Alt chord would
-        // turn '@' or '{' on European layouts into a shortcut.
+    const bool composed = (altGrActive && control && alt) || (cocoaKeyboard() && alt && !control);
+    if (composed && !event->text().isEmpty()) {
+        // Windows reports AltGr as Ctrl+Alt; macOS Option is a text modifier.
+        // The produced character already carries the layout's meaning;
+        // encoding it as a Ctrl+Alt chord would turn '@' or '{' on European
+        // layouts into a shortcut.
         result.text = event->text();
         result.modifiers &= ~(Qt::ControlModifier | Qt::AltModifier);
     } else if (control || alt) {
         result.text = shortcutText(event);
     } else if (!result.modifiers.testFlag(Qt::MetaModifier)) {
         // Plain and Shift-produced text, including punctuation delivered by
-        // an IME as a key event. Win-key chords are left to the desktop.
+        // an IME as a key event. Win-key and Command chords are left to the
+        // desktop and the application.
         result.text = event->text();
     }
     if (result.text.isEmpty()) {
@@ -318,6 +343,19 @@ bool TerminalInputRouting::isPlainCtrlC(const QKeyEvent *event,
 {
     return event && event->key() == Qt::Key_C
         && modifiers == Qt::ControlModifier;
+}
+
+bool TerminalInputRouting::claimsShortcutOverride(const QKeyEvent *event, const QHash<int, QStringList> &table,
+                                                  const QHash<int, QStringList> &applicationTable)
+{
+    if (!event) {
+        return false;
+    }
+    if (!shortcutActions(event, table).isEmpty()) {
+        return true;
+    }
+    return !physicalModifiers(event->modifiers()).testFlag(Qt::MetaModifier)
+        && shortcutActions(event, applicationTable).isEmpty();
 }
 
 } // namespace span::terminal

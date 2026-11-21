@@ -35,6 +35,15 @@ public:
     static QStringList shortcutActions(const QKeyEvent *event,
                                        const QHash<int, QStringList> &table);
     static bool isPlainCtrlC(const QKeyEvent *event, Qt::KeyboardModifiers modifiers);
+    // Whether a focused terminal claims this press (QEvent::ShortcutOverride)
+    // ahead of application shortcuts and, on macOS, the menu bar's key
+    // equivalents. A chord bound to a terminal action is claimed. Otherwise
+    // every press is, except an application chord (`applicationTable`, the
+    // window's own commands) and an unbound Super chord (Command, Windows
+    // key): those never reach the shell (translateKey), so claiming them
+    // would only take ⌘Q, ⌘H, ⌘M and the like from the system.
+    static bool claimsShortcutOverride(const QKeyEvent *event, const QHash<int, QStringList> &table,
+                                       const QHash<int, QStringList> &applicationTable = {});
     // Alternate scroll mode: wheel rows on an alternate screen without mouse
     // reporting become Up (rows > 0) or Down presses and releases, carrying
     // the arrow keys' own records so console programs see real keys.

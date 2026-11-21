@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <QByteArray>
 #include <QByteArrayView>
 #include <QHash>
@@ -44,7 +45,8 @@ public:
     // Bytes for the child: device reports and encoded input.
     void setOutputCallback(OutputCallback callback) { m_onOutput = std::move(callback); }
     void setTitleCallback(TitleCallback callback) { m_onTitle = std::move(callback); }
-    // OSC 52 writes only. Reads are never answered: the clipboard may hold
+    // OSC 52 writes only. Reads are answered only with what the user just
+    // pasted as a Kitty paste event (pasteEvent): the clipboard may hold
     // secrets.
     void setClipboardCallback(ClipboardCallback callback) { m_onClipboard = std::move(callback); }
     void setHostEventCallback(HostEventCallback callback) { m_onHostEvent = std::move(callback); }
@@ -81,6 +83,12 @@ public:
     void endPaste();
     // Paste body: encoded as text, never as key events.
     void sendPasteBody(const QString &text);
+    // One MIME type and its bytes.
+    using PasteRepresentation = std::pair<QByteArray, QByteArray>;
+    // A clipboard paste offered as a Kitty paste event (mode 5522): false,
+    // writing nothing, unless the child enabled the mode. The child then
+    // reads the representations it wants; only that read is answered.
+    bool pasteEvent(const QVector<PasteRepresentation> &representations);
     bool mouseTracking() const;
     // `row`/`column` are viewport cells.
     void sendMouseMove(int row, int column, Qt::KeyboardModifiers modifiers);
@@ -139,6 +147,7 @@ private:
     static bool sizeCallback(GhosttyTerminal, void *user, GhosttySizeReportSize *size);
     static bool colorSchemeCallback(GhosttyTerminal, void *user, GhosttyColorScheme *scheme);
     static void clipboardWriteCallback(GhosttyTerminal, void *user, const GhosttyClipboardWrite *write);
+    static void clipboardReadCallback(GhosttyTerminal, void *user, const GhosttyClipboardRead *read);
     static void notificationCallback(GhosttyTerminal, void *user,
                                      const GhosttyTerminalDesktopNotification *notification);
     static void progressCallback(GhosttyTerminal, void *user, const GhosttyTerminalProgressReport *report);
@@ -212,6 +221,8 @@ private:
     GhosttySurfacePosition m_dragPosition{};
     QString m_searchNeedle;
     QByteArray m_xtversion;
+    // The last paste event's contents, until the child reads them.
+    QVector<PasteRepresentation> m_pasteEventContents;
 
     // Converted rows by id, from the previous frame.
     QHash<TerminalRowId, CachedLine> m_lines;

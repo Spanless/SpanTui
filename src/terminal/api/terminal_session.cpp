@@ -3,11 +3,13 @@
 
 #include "terminal/core/terminal_color.h"
 #include "terminal/core/terminal_core_worker.h"
-#include "terminal/platform/windows/win_conpty_process.h"
+#include "terminal/api/platform_terminal.h"
+#include "terminal/api/shell_catalog.h"
 #include "terminal/shared/terminal_output_queue.h"
 #include "terminal/shared/terminal_frame_store.h"
 
 #include <QClipboard>
+#include <QDateTime>
 #include <QGuiApplication>
 #include <QMetaObject>
 
@@ -95,9 +97,7 @@ TerminalSession::TerminalSession(QString id, QString cwd, QVariantMap options, Q
 {
     m_callbackState->owner = this;
     if (!m_processFactory) {
-        m_processFactory = []() {
-            return std::make_unique<WinConPtyProcess>();
-        };
+        m_processFactory = &createPlatformTerminalProcess;
     }
     connectCore();
     m_retryTimer.setSingleShot(true);
@@ -165,6 +165,9 @@ void TerminalSession::connectCore() {
             [this, core](const QString &text, const TerminalInputToken &token) {
         if (core != m_core || !token.valid()) return;
         if (QClipboard *clipboard = QGuiApplication::clipboard()) clipboard->setText(text);
+    }, Qt::QueuedConnection);
+    connect(core, &TerminalCoreWorker::pasteDeclined, this, [this, core](const QString &message) {
+        if (core == m_core) emit errorOccurred(message);
     }, Qt::QueuedConnection);
     connect(core, &TerminalCoreWorker::hostEventRequested, this,
             [this, core](const TerminalHostEvent &event, const TerminalInputToken &token) {
@@ -673,6 +676,69 @@ void TerminalSession::paste(const QString &text) {
     m_input.paste(text);
 }
 
+void TerminalSession::pasteClipboard(const QString &text, const QByteArray &png) {
+    if (!m_running || (text.isEmpty() && png.isEmpty())) {
+        return;
+    }
+    if (!text.isEmpty()) {
+        markActivity();
+        m_input.paste(text, {{{QByteArray(kPasteMimeText.data(), kPasteMimeText.size()), text.toUtf8()}}, {}});
+        return;
+    }
+    if (png.size() > kPasteImageMaxBytes) {
+        emit errorOccurred(tr("The image is larger than %1 MB and was not pasted.")
+                               .arg(kPasteImageMaxBytes / (1024 * 1024)));
+        return;
+    }
+    markActivity();
+    // The fallback is decided before the offer is queued, so the paste keeps
+    // its place among the keys typed around it; a child that takes the event
+    // leaves the staged copy to the staging prune.
+    TerminalPasteOffer offer{{{QByteArray(kPasteMimePng.data(), kPasteMimePng.size()), png}}, {}};
+    QString fallback;
+    const PathQuoting quoting = pathQuoting();
+    if (quoting == PathQuoting::Remote) {
+        offer.declinedMessage = tr("A remote terminal takes a pasted image only when its program asks for it; "
+                                   "copy the image file to the host instead.");
+    } else {
+        QString error;
+        const QString path =
+            stagePastedImage(png, pasteStagingDirectory(), QDateTime::currentDateTime(), &error);
+        if (path.isEmpty()) {
+            offer.declinedMessage = tr("Could not save the pasted image: %1").arg(error);
+        } else {
+            fallback = pastePaths({path}, quoting);
+        }
+    }
+    m_input.paste(fallback, offer);
+}
+
+void TerminalSession::pasteFiles(const QStringList &paths) {
+    if (!m_running || paths.isEmpty()) {
+        return;
+    }
+    const PathQuoting quoting = pathQuoting();
+    if (quoting == PathQuoting::Remote) {
+        emit errorOccurred(tr("Local files cannot be pasted into a remote terminal; copy them to the host first."));
+        return;
+    }
+    const QDateTime now = QDateTime::currentDateTime();
+    QStringList staged;
+    for (const QString &path : paths) {
+        staged.append(stageDroppedFile(path, pasteStagingDirectory(), now));
+    }
+    paste(pastePaths(staged, quoting));
+}
+
+PathQuoting TerminalSession::pathQuoting() const {
+    if (!m_commandLine.trimmed().isEmpty()) {
+        return pathQuotingForCommandLine(m_commandLine);
+    }
+    // "" starts the platform's default shell, the first one detected.
+    const QVector<ShellCandidate> shells = detectShells();
+    return shells.isEmpty() ? PathQuoting::Posix : pathQuotingForCommandLine(shells.constFirst().executable);
+}
+
 void TerminalSession::interrupt() {
     if (!m_running || !m_process) {
         return;
@@ -790,7 +856,30 @@ void TerminalSession::setProgress(TerminalProgressState state, int value) {
 
 void TerminalSession::handleExit(quint32 exitCode, quint64 generation) {
     if (generation != m_processGeneration || (!m_running && !m_processStarting)) return;
-    ++m_processGeneration;
+    // The child's last output can still be queued for the core. The host
+    // events it carries (title, progress, notifications) are only accepted
+    // under the live input epoch, so the core parses it before completeExit()
+    // ends the epoch; its signals are queued ahead of the completion.
+    const quint64 exitGeneration = ++m_processGeneration;
+    if (!m_core || !m_coreThread || !m_coreThread->isRunning()) {
+        completeExit(exitCode, exitGeneration);
+        return;
+    }
+    postCore([callbackState = m_callbackState, exitCode, exitGeneration](TerminalCoreWorker *core) {
+        core->settleOutput();
+        const std::lock_guard lock(callbackState->mutex);
+        if (TerminalSession *session = callbackState->owner) {
+            QMetaObject::invokeMethod(
+                session, [session, exitCode, exitGeneration]() { session->completeExit(exitCode, exitGeneration); },
+                Qt::QueuedConnection);
+        }
+    });
+}
+
+void TerminalSession::completeExit(quint32 exitCode, quint64 generation)
+{
+    // A stop or restart while the core settled the output owns the session now.
+    if (generation != m_processGeneration) return;
     m_exitCode = int(exitCode);
     transitionTo(Lifecycle::Exited);
     abandonQueuedWork();

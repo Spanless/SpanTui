@@ -1,6 +1,7 @@
 #include "remote/remote_shell_channel.h"
 
 #include "core/core_constants.h"
+#include "core/external_tool_locations.h"
 
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -161,7 +162,8 @@ void RemoteShellChannel::terminate(const QString &message, State state)
 void RemoteShellChannel::start()
 {
     if (m_program.isEmpty()) {
-        m_errorMessage = tr("The OpenSSH client (ssh.exe) was not found.");
+        m_errorMessage = tr("The OpenSSH client (%1) was not found.")
+                             .arg(span::core::executableFileName(QStringLiteral("ssh")));
         setState(State::Failed);
         return;
     }

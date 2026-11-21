@@ -1,7 +1,8 @@
 #include "remote/remote_host_registry.h"
 
 #include "core/core_constants.h"
-#include "platform/windows/credential_protection.h"
+#include "core/external_tool_locations.h"
+#include "platform/credential_protection.h"
 #include "remote/remote_host_context.h"
 #include "remote/ssh_askpass.h"
 
@@ -441,7 +442,7 @@ QString RemoteHostRegistry::terminalCommandLine(const QString &hostId) const
     // fails to start visibly instead of silently opening a local shell.
     QString program = sshExecutable();
     if (program.isEmpty()) {
-        program = QStringLiteral("ssh.exe");
+        program = core::executableFileName(core::toolId(core::ExternalTool::Ssh));
     }
     return windowsCommandLine(program, sshTerminalArguments(launchEndpoint(m_hosts.at(row))));
 }

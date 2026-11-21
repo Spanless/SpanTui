@@ -361,24 +361,45 @@ void TerminalCoreWorker::drainOutput() {
     QElapsedTimer budget;
     budget.start();
     qsizetype processed = 0;
-    QByteArray bytes;
-    bool endsWrite = false;
-    while (processed < kWorkerOutputBudgetBytes && budget.elapsed() < kWorkerOutputBudgetMs &&
-           m_outputQueue && m_outputQueue->take(&bytes, kWorkerOutputSliceBytes, &endsWrite)) {
-        processed += bytes.size();
-        processOutput(bytes);
-        // Only the end of a producer write is a cut point; evaluating per
-        // chunk publishes there instead of wherever a slice or timer lands.
-        m_scheduler.outputConsumed(nowMs(), endsWrite);
-        schedulePresentation();
+    while (processed < kWorkerOutputBudgetBytes && budget.elapsed() < kWorkerOutputBudgetMs) {
+        const qsizetype slice = consumeOutputSlice();
+        if (slice == 0) break;
+        processed += slice;
     }
-    if (processed > 0) {
-        scheduleSearchStep();
-        m_compressTimer->start();
-    }
+    finishConsumingOutput(processed);
     if (m_outputQueue && m_outputQueue->finishWake()) {
         QMetaObject::invokeMethod(this, &TerminalCoreWorker::drainOutput, Qt::QueuedConnection);
     }
+}
+
+void TerminalCoreWorker::settleOutput()
+{
+    if (!ensureInitialized()) return;
+    // Unbudgeted: everything queued now is parsed before this returns. A wake
+    // reservation stays with the drainOutput() already posted for it.
+    qsizetype processed = 0;
+    while (const qsizetype slice = consumeOutputSlice()) processed += slice;
+    finishConsumingOutput(processed);
+}
+
+qsizetype TerminalCoreWorker::consumeOutputSlice()
+{
+    QByteArray bytes;
+    bool endsWrite = false;
+    if (!m_outputQueue || !m_outputQueue->take(&bytes, kWorkerOutputSliceBytes, &endsWrite)) return 0;
+    processOutput(bytes);
+    // Only the end of a producer write is a cut point; evaluating per chunk
+    // publishes there instead of wherever a slice or timer lands.
+    m_scheduler.outputConsumed(nowMs(), endsWrite);
+    schedulePresentation();
+    return bytes.size();
+}
+
+void TerminalCoreWorker::finishConsumingOutput(qsizetype processed)
+{
+    if (processed == 0) return;
+    scheduleSearchStep();
+    m_compressTimer->start();
 }
 
 void TerminalCoreWorker::processOutput(const QByteArray &bytes) {
@@ -635,21 +656,32 @@ void TerminalCoreWorker::sendText(const QString &text) {
         m_engine->sendText(text);
     }
 }
-void TerminalCoreWorker::beginPaste() {
-    if (ensureInitialized() && !m_pasteActive) {
-        m_pasteActive = true;
-        followInput();
+void TerminalCoreWorker::beginPaste(const TerminalPasteOffer &offer, bool hasText) {
+    if (!ensureInitialized() || m_pasteActive) return;
+    m_pasteActive = true;
+    m_pasteBracketed = false;
+    followInput();
+    if (!offer.representations.isEmpty()) {
+        // The event is a request the child answers, not the opening of a
+        // bracket the transport must close on interrupt.
+        const TerminalInputKind kind = std::exchange(m_inputToken.kind, TerminalInputKind::User);
+        const bool taken = m_engine->pasteEvent(offer.representations);
+        m_inputToken.kind = kind;
+        if (taken) return;
+        if (!hasText && !offer.declinedMessage.isEmpty()) emit pasteDeclined(offer.declinedMessage);
+    }
+    if (hasText) {
+        m_pasteBracketed = true;
         m_engine->beginPaste();
     }
 }
 void TerminalCoreWorker::endPaste() {
-    if (ensureInitialized() && m_pasteActive) {
-        m_pasteActive = false;
-        m_engine->endPaste();
-    }
+    if (!ensureInitialized() || !m_pasteActive) return;
+    m_pasteActive = false;
+    if (std::exchange(m_pasteBracketed, false)) m_engine->endPaste();
 }
 void TerminalCoreWorker::sendPasteBody(const QString &text) {
-    if (ensureInitialized() && !text.isEmpty()) {
+    if (ensureInitialized() && m_pasteBracketed && !text.isEmpty()) {
         m_engine->sendPasteBody(text);
     }
 }

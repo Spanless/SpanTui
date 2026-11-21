@@ -109,6 +109,17 @@ void fillNewColumnWidths(QVector<int> &widths, int fallback)
     }
 }
 
+void openColumn(QVector<int> &widths, QVector<qreal> &ratios, int at, int splitFrom)
+{
+    int width = 0;
+    if (splitFrom >= 0 && splitFrom < widths.size() && widths.at(splitFrom) > 0) {
+        width = widths.at(splitFrom) / 2;
+        widths[splitFrom] -= width;
+    }
+    widths.insert(std::clamp(at, 0, int(widths.size())), width);
+    ratios.insert(std::clamp(at, 0, int(ratios.size())), 0.5);
+}
+
 QVector<int> distributeWidths(const QVector<int> &weights, const QVector<Tile> &tiles, int available)
 {
     const int count = weights.size();
@@ -120,7 +131,19 @@ QVector<int> distributeWidths(const QVector<int> &weights, const QVector<Tile> &
         minSum += mins.at(column);
     }
     if (available <= minSum) {
-        return mins;
+        // Too narrow for every minimum: the columns share what there is in
+        // the ratio of their minimums rather than overflow past the canvas.
+        if (minSum == 0 || available == minSum) {
+            return mins;
+        }
+        QVector<int> scaled(count);
+        int assigned = 0;
+        for (int column = 0; column < count; ++column) {
+            scaled[column] = int(qint64(mins.at(column)) * available / minSum);
+            assigned += scaled.at(column);
+        }
+        scaled[count - 1] += available - assigned;
+        return scaled;
     }
     qreal weightSum = 0;
     for (int weight : weights) {
@@ -177,10 +200,6 @@ bool moveTile(QVector<Tile> &tiles, QVector<int> &widths, QVector<qreal> &ratios
             }
         }
     };
-    const auto insertSlot = [&widths, &ratios](int at) {
-        widths.insert(std::min(at, int(widths.size())), kMinCenterWidth);
-        ratios.insert(std::min(at, int(ratios.size())), 0.5);
-    };
     const auto placeFull = [&moving](int col) {
         moving.column = col;
         moving.row = 0;
@@ -205,15 +224,18 @@ bool moveTile(QVector<Tile> &tiles, QVector<int> &widths, QVector<qreal> &ratios
     const int columns = columnCount(tiles);
     dest = std::min(dest, columns);
 
-    // Step 2: insert into the target column and slot.
+    // Step 2: insert into the target column and slot. A new column beside
+    // the target splits the target's width (openColumn); past the last
+    // column it takes the mean width.
+    const int neighbour = dest < columns ? dest : -1;
     if (slot == DropLeft) {
         shiftFrom(dest, 1);
-        insertSlot(dest);
+        openColumn(widths, ratios, dest, neighbour);
         placeFull(dest);
     } else if (slot == DropRight || slot == DropColumn || dest >= columns) {
         const int targetCol = (slot == DropRight && dest < columns) ? dest + 1 : dest;
         shiftFrom(targetCol, 1);
-        insertSlot(targetCol);
+        openColumn(widths, ratios, targetCol, neighbour);
         placeFull(targetCol);
     } else {
         const QVector<int> occ = columnOccupants(tiles, dest);
@@ -235,7 +257,7 @@ bool moveTile(QVector<Tile> &tiles, QVector<int> &widths, QVector<qreal> &ratios
             });
             if (victim != occ.cend()) {
                 shiftFrom(dest + 1, 1);
-                insertSlot(dest + 1);
+                openColumn(widths, ratios, dest + 1, dest);
                 tiles[*victim].column = dest + 1;
                 tiles[*victim].row = 0;
                 tiles[*victim].rowSpan = 2;

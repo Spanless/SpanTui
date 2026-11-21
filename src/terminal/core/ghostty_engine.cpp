@@ -267,6 +267,9 @@ GhosttyEngine::GhosttyEngine(int columns, int rows)
     setCallback<GhosttyTerminalColorSchemeFn>(m_terminal, GHOSTTY_TERMINAL_OPT_COLOR_SCHEME, &colorSchemeCallback);
     setCallback<GhosttyTerminalClipboardWriteFn>(m_terminal, GHOSTTY_TERMINAL_OPT_CLIPBOARD_WRITE,
                                                  &clipboardWriteCallback);
+    // Installing a reader also enables Kitty paste events (mode 5522).
+    setCallback<GhosttyTerminalClipboardReadFn>(m_terminal, GHOSTTY_TERMINAL_OPT_CLIPBOARD_READ,
+                                                &clipboardReadCallback);
     setCallback<GhosttyTerminalDesktopNotificationFn>(m_terminal, GHOSTTY_TERMINAL_OPT_DESKTOP_NOTIFICATION,
                                                       &notificationCallback);
     setCallback<GhosttyTerminalProgressReportFn>(m_terminal, GHOSTTY_TERMINAL_OPT_PROGRESS_REPORT, &progressCallback);
@@ -405,6 +408,41 @@ void GhosttyEngine::clipboardWriteCallback(GhosttyTerminal, void *user, const Gh
             reply.result = GHOSTTY_CLIPBOARD_WRITE_RESULT_UNSUPPORTED;
     }
     write->reply(write, &reply);
+}
+
+void GhosttyEngine::clipboardReadCallback(GhosttyTerminal, void *user, const GhosttyClipboardRead *read)
+{
+    auto *engine = static_cast<GhosttyEngine *>(user);
+    GhosttyClipboardReadReply reply = GHOSTTY_INIT_SIZED(GhosttyClipboardReadReply);
+    reply.result = GHOSTTY_CLIPBOARD_READ_RESULT_DENIED;
+    // `granted` marks the read that follows a paste event the user made;
+    // OSC 52 reads and unprompted 5522 reads stay unanswered.
+    QVector<GhosttyClipboardContent> contents;
+    QVector<GhosttyString> available;
+    if (read->granted && !engine->m_pasteEventContents.isEmpty()) {
+        reply.result = GHOSTTY_CLIPBOARD_READ_RESULT_SUCCESS;
+        for (const PasteRepresentation &representation : std::as_const(engine->m_pasteEventContents)) {
+            const GhosttyString mime{reinterpret_cast<const uint8_t *>(representation.first.constData()),
+                                     size_t(representation.first.size())};
+            available.push_back(mime);
+            for (size_t index = 0; index < read->mimes_len; ++index) {
+                const QByteArrayView wanted(read->mimes[index].ptr, qsizetype(read->mimes[index].len));
+                if (wanted != representation.first) continue;
+                contents.push_back({mime, {reinterpret_cast<const uint8_t *>(representation.second.constData()),
+                                           size_t(representation.second.size())}});
+                break;
+            }
+        }
+        reply.contents = contents.constData();
+        reply.contents_len = size_t(contents.size());
+        if (read->list) {
+            reply.available = available.constData();
+            reply.available_len = size_t(available.size());
+        }
+    }
+    read->reply(read, &reply);
+    // The grant is one-time: later reads would be denied anyway.
+    if (read->granted) engine->m_pasteEventContents.clear();
 }
 
 void GhosttyEngine::notificationCallback(GhosttyTerminal, void *user,
@@ -636,6 +674,11 @@ void GhosttyEngine::sendKeyStroke(const TerminalKeyStroke &stroke)
 QByteArray GhosttyEngine::encodeKey(const TerminalKeyStroke &stroke)
 {
     ghostty_key_encoder_setopt_from_terminal(m_keyEncoder, m_terminal);
+    // Input routing already sent the text an Option chord composed; Alt that
+    // reaches the encoder is a modifier. Only macOS builds read the option,
+    // and the call above resets it.
+    const GhosttyOptionAsAlt optionAsAlt = GHOSTTY_OPTION_AS_ALT_TRUE;
+    ghostty_key_encoder_setopt(m_keyEncoder, GHOSTTY_KEY_ENCODER_OPT_MACOS_OPTION_AS_ALT, &optionAsAlt);
     ghostty_key_event_set_action(m_keyEvent,
                                  stroke.event == TerminalKeyEvent::Release      ? GHOSTTY_KEY_ACTION_RELEASE
                                      : stroke.event == TerminalKeyEvent::Repeat ? GHOSTTY_KEY_ACTION_REPEAT
@@ -703,6 +746,30 @@ void GhosttyEngine::sendPasteBody(const QString &text)
     // Paste is text, never key events: shells expect the literal clipboard
     // characters inside bracketed paste markers.
     sendText(text);
+}
+
+bool GhosttyEngine::pasteEvent(const QVector<PasteRepresentation> &representations)
+{
+    if (!m_ready || representations.isEmpty() || !modeEnabled(GHOSTTY_MODE_PASTE_EVENTS)) return false;
+    QVector<GhosttyString> mimes;
+    for (const PasteRepresentation &representation : representations) {
+        mimes.push_back({reinterpret_cast<const uint8_t *>(representation.first.constData()),
+                         size_t(representation.first.size())});
+    }
+    GhosttyPaste paste = GHOSTTY_INIT_SIZED(GhosttyPaste);
+    paste.location = GHOSTTY_CLIPBOARD_LOCATION_STANDARD;
+    paste.source = GHOSTTY_PASTE_SOURCE_CLIPBOARD;
+    paste.mimes = mimes.constData();
+    paste.mimes_len = size_t(mimes.size());
+    // A paste event reads nothing; the reader only satisfies the API.
+    paste.reader = {[](void *, GhosttyString, GhosttyWriter) { return false; }, nullptr};
+    m_pasteEventContents = representations;
+    bool written = false;
+    if (ghostty_terminal_paste(m_terminal, &paste, &written) != GHOSTTY_SUCCESS || !written) {
+        m_pasteEventContents.clear();
+        return false;
+    }
+    return true;
 }
 
 bool GhosttyEngine::mouseTracking() const

@@ -8,7 +8,7 @@
 | DropSlot | 拖拽瓦片时按指针在目标列内的位置算出的插入位置 | [工作区组合](../ui/layout/workspace-composition.md) |
 | ProgressOwner | `TaskProgressService` 发放的长任务进度令牌 | [消息与任务进度](../services/application/messages-task-progress.md) |
 | AppPopup / PopupLayerStack | 浮层公共根 / 弹层栈，栈顶独占外点关闭 | [组件库](../ui/components/overview.md) |
-| GlideHighlight | 行间滑动的共享悬停 pill | [组件库](../ui/components/overview.md) |
+| GlideHighlight | 行间共享、随指针滑动跟随的悬停 pill | [组件库](../ui/components/overview.md) |
 | CrispSurface | 物理像素对齐的 SDF 圆角表面 | [像素边界](../ui/pixel-boundaries.md) |
 | PixelLine | 单物理像素分隔线 | [像素边界](../ui/pixel-boundaries.md) |
 | ProductPaths | 数据根与各运行时路径 | [路径配置](paths-configuration.md) |

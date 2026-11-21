@@ -3,7 +3,7 @@
 #include "core/operation_outcome.h"
 #include "git/git_diff_store.h"
 #include "git/git_lane_scheduler.h"
-#include "platform/windows/directory_change_watcher.h"
+#include "platform/directory_change_watcher.h"
 
 #include <QAbstractListModel>
 #include <QFileSystemWatcher>

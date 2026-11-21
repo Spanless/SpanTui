@@ -2,6 +2,14 @@ cmake_minimum_required(VERSION 3.22)
 
 project(SpanTui VERSION 0.1.0 LANGUAGES C CXX)
 
+# Windows (MinGW) and macOS (Apple Silicon); every module keeps one
+# implementation per platform behind a neutral header.
+if(APPLE)
+    enable_language(OBJCXX)
+elseif(NOT WIN32)
+    message(FATAL_ERROR "SpanTui builds on Windows and macOS only.")
+endif()
+
 find_program(SPANTUI_SCCACHE_EXECUTABLE NAMES sccache)
 if(SPANTUI_SCCACHE_EXECUTABLE)
     set(CMAKE_C_COMPILER_LAUNCHER "${SPANTUI_SCCACHE_EXECUTABLE}")
@@ -73,32 +81,34 @@ set(TS_FILES
     translations/SpanTui_zh_CN.ts
 )
 
-# The ICO is generated from assets/brand/spantui.svg before every dependent
-# build; identical bytes leave the file untouched.
-set(SPANTUI_BRAND_SVG "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui.svg")
-set(SPANTUI_BRAND_ICO "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui.ico")
-set(SPANTUI_APP_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui.manifest")
-set(SPANTUI_DEV_APP_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui_dev.manifest")
-add_executable(spantui_brand_icon_generator tools/brand_icon_generator.cpp)
-target_link_libraries(spantui_brand_icon_generator PRIVATE Qt6::Core Qt6::Gui Qt6::Svg)
-set_target_properties(spantui_brand_icon_generator PROPERTIES WIN32_EXECUTABLE FALSE)
-add_custom_command(
-    OUTPUT "${SPANTUI_BRAND_ICO}"
-    COMMAND $<TARGET_FILE:spantui_brand_icon_generator>
-            "${SPANTUI_BRAND_SVG}" "${SPANTUI_BRAND_ICO}"
-    DEPENDS spantui_brand_icon_generator "${SPANTUI_BRAND_SVG}"
-    COMMENT "Generating multi-size Windows icon from assets/brand/spantui.svg"
-    VERBATIM)
-add_custom_target(spantui_brand_icon DEPENDS "${SPANTUI_BRAND_ICO}")
-# Script entrypoints invoke this target in a separate build phase before the
-# application build. It checks SVG content even when a copied file preserved an
-# older timestamp; the following build can then see any changed ICO immediately.
-add_custom_target(spantui_brand_icon_refresh
-    COMMAND $<TARGET_FILE:spantui_brand_icon_generator>
-            "${SPANTUI_BRAND_SVG}" "${SPANTUI_BRAND_ICO}"
-    DEPENDS spantui_brand_icon_generator
-    COMMENT "Refreshing Windows icon from SVG content"
-    VERBATIM)
+if(WIN32)
+    # The ICO is generated from assets/brand/spantui.svg before every dependent
+    # build; identical bytes leave the file untouched.
+    set(SPANTUI_BRAND_SVG "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui.svg")
+    set(SPANTUI_BRAND_ICO "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui.ico")
+    set(SPANTUI_APP_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui.manifest")
+    set(SPANTUI_DEV_APP_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/spantui_dev.manifest")
+    add_executable(spantui_brand_icon_generator tools/brand_icon_generator.cpp)
+    target_link_libraries(spantui_brand_icon_generator PRIVATE Qt6::Core Qt6::Gui Qt6::Svg)
+    set_target_properties(spantui_brand_icon_generator PROPERTIES WIN32_EXECUTABLE FALSE)
+    add_custom_command(
+        OUTPUT "${SPANTUI_BRAND_ICO}"
+        COMMAND $<TARGET_FILE:spantui_brand_icon_generator>
+                "${SPANTUI_BRAND_SVG}" "${SPANTUI_BRAND_ICO}"
+        DEPENDS spantui_brand_icon_generator "${SPANTUI_BRAND_SVG}"
+        COMMENT "Generating multi-size Windows icon from assets/brand/spantui.svg"
+        VERBATIM)
+    add_custom_target(spantui_brand_icon DEPENDS "${SPANTUI_BRAND_ICO}")
+    # Script entrypoints invoke this target in a separate build phase before the
+    # application build. It checks SVG content even when a copied file preserved an
+    # older timestamp; the following build can then see any changed ICO immediately.
+    add_custom_target(spantui_brand_icon_refresh
+        COMMAND $<TARGET_FILE:spantui_brand_icon_generator>
+                "${SPANTUI_BRAND_SVG}" "${SPANTUI_BRAND_ICO}"
+        DEPENDS spantui_brand_icon_generator
+        COMMENT "Refreshing Windows icon from SVG content"
+        VERBATIM)
+endif()
 
 qt_add_executable(SpanTui
     src/main.cpp
@@ -114,18 +124,30 @@ qt_add_executable(SpanTui
     src/application/runtime/workspace_visual_harness.cpp
     src/application/runtime/workspace_visual_harness.h
 )
-set_target_properties(SpanTui PROPERTIES
-    OUTPUT_NAME "${SPANTUI_OUTPUT_NAME}"
-    # Windows GUI app: without this the PE subsystem is CONSOLE and a black
-    # terminal window appears next to the Qt window on every launch.
-    WIN32_EXECUTABLE TRUE
-)
-add_dependencies(SpanTui spantui_brand_icon)
+set_target_properties(SpanTui PROPERTIES OUTPUT_NAME "${SPANTUI_OUTPUT_NAME}")
 # The generated QML type registration includes qml_types.h by its bare name.
 target_include_directories(SpanTui PRIVATE src/application/runtime)
-# WIN32_EXECUTABLE needs Qt's WinMain shim. Setting the property after
-# qt_add_executable does not always pull it in via the finalizer alone.
-target_link_libraries(SpanTui PRIVATE Qt6::EntryPointPrivate)
+if(WIN32)
+    set_target_properties(SpanTui PROPERTIES
+        # Windows GUI app: without this the PE subsystem is CONSOLE and a
+        # black terminal window appears next to the Qt window on every launch.
+        WIN32_EXECUTABLE TRUE
+    )
+    add_dependencies(SpanTui spantui_brand_icon)
+    # WIN32_EXECUTABLE needs Qt's WinMain shim. Setting the property after
+    # qt_add_executable does not always pull it in via the finalizer alone.
+    target_link_libraries(SpanTui PRIVATE Qt6::EntryPointPrivate)
+else()
+    # An application bundle: the Dock, menu bar and keyboard focus belong to
+    # bundles. Unsigned; nothing is notarized (docs/workflow/build.md).
+    set_target_properties(SpanTui PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "${SPANTUI_OUTPUT_NAME}"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "local.spantui.${SPANTUI_OUTPUT_NAME}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    )
+endif()
 
 # Stamp next to the built binary so portable installs can detect newer local builds.
 add_custom_command(TARGET SpanTui POST_BUILD
@@ -137,38 +159,40 @@ add_custom_command(TARGET SpanTui POST_BUILD
     COMMENT "Writing spantui-build.json next to SpanTui"
     VERBATIM)
 
-# windres does not reliably list the ICO in its depfile, hence OBJECT_DEPENDS.
-# The manifests never bind the process to the sparse package: a packaged
-# process makes the taskbar use package visuals instead of the PE icon.
-if(SPANTUI_INSTALLED_IMAGE)
-    set(SPANTUI_APP_RESOURCE assets/brand/spantui.rc)
-    set(SPANTUI_SELECTED_APP_MANIFEST "${SPANTUI_APP_MANIFEST}")
-else()
-    set(SPANTUI_APP_RESOURCE assets/brand/spantui_dev.rc)
-    set(SPANTUI_SELECTED_APP_MANIFEST "${SPANTUI_DEV_APP_MANIFEST}")
-endif()
-set_property(SOURCE ${SPANTUI_APP_RESOURCE} APPEND PROPERTY
-    OBJECT_DEPENDS "${SPANTUI_BRAND_ICO};${SPANTUI_SELECTED_APP_MANIFEST}")
-target_sources(SpanTui PRIVATE ${SPANTUI_APP_RESOURCE})
+if(WIN32)
+    # windres does not reliably list the ICO in its depfile, hence OBJECT_DEPENDS.
+    # The manifests never bind the process to the sparse package: a packaged
+    # process makes the taskbar use package visuals instead of the PE icon.
+    if(SPANTUI_INSTALLED_IMAGE)
+        set(SPANTUI_APP_RESOURCE assets/brand/spantui.rc)
+        set(SPANTUI_SELECTED_APP_MANIFEST "${SPANTUI_APP_MANIFEST}")
+    else()
+        set(SPANTUI_APP_RESOURCE assets/brand/spantui_dev.rc)
+        set(SPANTUI_SELECTED_APP_MANIFEST "${SPANTUI_DEV_APP_MANIFEST}")
+    endif()
+    set_property(SOURCE ${SPANTUI_APP_RESOURCE} APPEND PROPERTY
+        OBJECT_DEPENDS "${SPANTUI_BRAND_ICO};${SPANTUI_SELECTED_APP_MANIFEST}")
+    target_sources(SpanTui PRIVATE ${SPANTUI_APP_RESOURCE})
 
-add_library(SpanTui-shell-extension SHARED
-    src/platform/windows/shell_extension.cpp
-    src/platform/windows/shell_extension_contract.h
-    src/platform/windows/spantui_shell_extension.def
-)
-target_include_directories(SpanTui-shell-extension PRIVATE src)
-target_compile_definitions(SpanTui-shell-extension PRIVATE
-    UNICODE
-    _UNICODE
-    WIN32_LEAN_AND_MEAN
-    NOMINMAX
-)
-target_link_libraries(SpanTui-shell-extension PRIVATE ole32 shell32 uuid)
-set_target_properties(SpanTui-shell-extension PROPERTIES
-    PREFIX ""
-    OUTPUT_NAME "SpanTui-shell-extension"
-)
-add_dependencies(SpanTui SpanTui-shell-extension)
+    add_library(SpanTui-shell-extension SHARED
+        src/platform/windows/shell_extension.cpp
+        src/platform/windows/shell_extension_contract.h
+        src/platform/windows/spantui_shell_extension.def
+    )
+    target_include_directories(SpanTui-shell-extension PRIVATE src)
+    target_compile_definitions(SpanTui-shell-extension PRIVATE
+        UNICODE
+        _UNICODE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+    )
+    target_link_libraries(SpanTui-shell-extension PRIVATE ole32 shell32 uuid)
+    set_target_properties(SpanTui-shell-extension PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME "SpanTui-shell-extension"
+    )
+    add_dependencies(SpanTui SpanTui-shell-extension)
+endif()
 
 qt_add_qml_module(SpanTui
     URI SpanTui
@@ -294,6 +318,10 @@ qt_add_qml_module(SpanTui
         qml/components/business/workspace/ContentContainer.qml
         qml/components/business/workspace/RightDock.qml
         qml/components/business/workspace/Sidebar.qml
+        qml/components/business/workspace/SidebarToggles.qml
+        qml/components/business/app/AppCommands.qml
+        qml/components/business/app/AppShortcuts.qml
+        qml/components/business/app/MacMenuBar.qml
         qml/components/business/workspace/CanvasDragGhost.qml
         qml/components/business/workspace/CanvasDropTarget.qml
         qml/components/business/workspace/CanvasGeometry.qml
@@ -400,13 +428,13 @@ set(SPANTUI_TEST_ENVIRONMENT_MODIFICATION
     "GIT_ALTERNATE_OBJECT_DIRECTORIES=unset:"
     "GIT_PREFIX=unset:"
 )
-# Window tests run offscreen, whose font database scans only QT_QPA_FONTDIR
-# (default <Qt>/lib/fonts, absent on Windows).
-file(TO_CMAKE_PATH "$ENV{SystemRoot}/Fonts" SPANTUI_SYSTEM_FONT_DIR)
-set(SPANTUI_OFFSCREEN_ENVIRONMENT_MODIFICATION
-    "QT_QPA_PLATFORM=set:offscreen"
-    "QT_QPA_FONTDIR=set:${SPANTUI_SYSTEM_FONT_DIR}"
-)
+set(SPANTUI_OFFSCREEN_ENVIRONMENT_MODIFICATION "QT_QPA_PLATFORM=set:offscreen")
+if(WIN32)
+    # On Windows the offscreen font database scans only QT_QPA_FONTDIR
+    # (default <Qt>/lib/fonts, absent there); on macOS it asks Core Text.
+    file(TO_CMAKE_PATH "$ENV{SystemRoot}/Fonts" SPANTUI_SYSTEM_FONT_DIR)
+    list(APPEND SPANTUI_OFFSCREEN_ENVIRONMENT_MODIFICATION "QT_QPA_FONTDIR=set:${SPANTUI_SYSTEM_FONT_DIR}")
+endif()
 
 # The scratch directory of test `name`; its TEMP/TMP is the temp/ child.
 set(SPANTUI_TEST_SCRATCH_DIR "${SPANTUI_DEV_DIR}/tmp/tests")
@@ -417,19 +445,31 @@ function(spantui_test_temp_dir name out)
     set(${out} "${_dir}" PARENT_SCOPE)
 endfunction()
 
-# Gives test `name` the shared environment plus its own TEMP, TMP, APPDATA and
-# LOCALAPPDATA. OFFSCREEN adds the offscreen platform; EXTRA appends entries.
+# Gives test `name` the shared environment plus its own temp and data
+# folders: TEMP, TMP, APPDATA and LOCALAPPDATA on Windows; TMPDIR and the
+# Library/Application Support under a scratch HOME on macOS. OFFSCREEN adds
+# the offscreen platform; EXTRA appends entries.
 function(spantui_set_test_environment name)
     cmake_parse_arguments(ARG "OFFSCREEN" "" "EXTRA" ${ARGN})
     spantui_test_temp_dir(${name} _temp)
-    file(TO_NATIVE_PATH "${SPANTUI_TEST_SCRATCH_DIR}/${name}/appdata" _appdata)
-    file(TO_NATIVE_PATH "${SPANTUI_TEST_SCRATCH_DIR}/${name}/localappdata" _localappdata)
-    file(MAKE_DIRECTORY "${_temp}" "${_appdata}" "${_localappdata}")
-    set(_env ${SPANTUI_TEST_ENVIRONMENT_MODIFICATION}
-        "TEMP=set:${_temp}"
-        "TMP=set:${_temp}"
-        "APPDATA=set:${_appdata}"
-        "LOCALAPPDATA=set:${_localappdata}")
+    if(WIN32)
+        file(TO_NATIVE_PATH "${SPANTUI_TEST_SCRATCH_DIR}/${name}/appdata" _appdata)
+        file(TO_NATIVE_PATH "${SPANTUI_TEST_SCRATCH_DIR}/${name}/localappdata" _localappdata)
+        file(MAKE_DIRECTORY "${_temp}" "${_appdata}" "${_localappdata}")
+        set(_env ${SPANTUI_TEST_ENVIRONMENT_MODIFICATION}
+            "TEMP=set:${_temp}"
+            "TMP=set:${_temp}"
+            "APPDATA=set:${_appdata}"
+            "LOCALAPPDATA=set:${_localappdata}")
+    else()
+        # Git and ssh read their configuration from HOME too; the scratch
+        # HOME keeps the developer's out of the tests.
+        set(_home "${SPANTUI_TEST_SCRATCH_DIR}/${name}/home")
+        file(MAKE_DIRECTORY "${_temp}" "${_home}/Library/Application Support")
+        set(_env ${SPANTUI_TEST_ENVIRONMENT_MODIFICATION}
+            "TMPDIR=set:${_temp}"
+            "HOME=set:${_home}")
+    endif()
     if(ARG_OFFSCREEN)
         list(APPEND _env ${SPANTUI_OFFSCREEN_ENVIRONMENT_MODIFICATION})
     endif()
@@ -459,19 +499,6 @@ function(spantui_add_library_test target source)
     endif()
 endfunction()
 
-spantui_add_library_test(shell_extension_contract_test
-    tests/platform/shell_extension_contract_test.cpp
-    LIBS Qt6::Core ole32 shell32 uuid
-    SOURCES src/platform/windows/shell_extension_contract.h)
-target_include_directories(shell_extension_contract_test PRIVATE src)
-target_compile_definitions(shell_extension_contract_test PRIVATE
-    UNICODE
-    _UNICODE
-    WIN32_LEAN_AND_MEAN
-    NOMINMAX
-)
-add_dependencies(shell_extension_contract_test SpanTui-shell-extension SpanTui)
-
 # The composition root's only test: the Debug visual harness starts the
 # workspace offscreen with isolated data, opens a real terminal, saves one
 # frame and quits. Its .dev/tmp directory keeps git from climbing into this
@@ -481,12 +508,12 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     spantui_test_temp_dir(workspace_startup_smoke _smoke_temp)
     add_test(NAME workspace_startup_smoke
         COMMAND SpanTui
-                --data-dir "${_smoke_temp}\\data"
-                "--workspace-shot=${_smoke_temp}\\workspace-smoke.png"
+                --data-dir "${_smoke_temp}/data"
+                "--workspace-shot=${_smoke_temp}/workspace-smoke.png"
                 "--workspace-shot-project=${_smoke_temp}"
                 --workspace-shot-terminal
                 --workspace-shot-delay-ms=500
-                "--resource-report=${_smoke_temp}\\workspace-smoke-resources.jsonl"
+                "--resource-report=${_smoke_temp}/workspace-smoke-resources.jsonl"
                 --trace-viewport)
     set_tests_properties(workspace_startup_smoke PROPERTIES TIMEOUT 60)
     spantui_set_test_environment(workspace_startup_smoke OFFSCREEN
@@ -525,12 +552,8 @@ spantui_add_library_test(workspace_session_routing_test
 spantui_add_library_test(message_center_wiring_test
     tests/application/message_center_wiring_test.cpp LIBS SpanApplication)
 
-spantui_add_library_test(remote_host_registry_test
-    tests/remote/remote_host_registry_test.cpp LIBS SpanRemote Qt6::Sql OFFSCREEN)
 spantui_add_library_test(ssh_command_test
     tests/remote/ssh_command_test.cpp LIBS SpanRemote)
-spantui_add_library_test(ssh_askpass_test
-    tests/remote/ssh_askpass_test.cpp LIBS SpanRemote)
 spantui_add_library_test(remote_shell_channel_test
     tests/remote/remote_shell_channel_test.cpp LIBS SpanRemote)
 spantui_add_library_test(remote_system_monitor_test
@@ -538,8 +561,6 @@ spantui_add_library_test(remote_system_monitor_test
 spantui_add_library_test(tailscale_devices_test
     tests/remote/tailscale_devices_test.cpp LIBS SpanRemote)
 
-spantui_add_library_test(file_tree_model_test
-    tests/workspace/file_tree_model_test.cpp LIBS SpanWorkspace)
 spantui_add_library_test(workspace_layout_test
     tests/workspace/workspace_layout_test.cpp LIBS SpanWorkspace)
 spantui_add_library_test(session_model_test
@@ -565,8 +586,6 @@ spantui_add_library_test(git_lane_scheduler_test
 spantui_add_library_test(git_worktree_test
     tests/git/git_worktree_test.cpp LIBS spantui_git_test_support)
 
-spantui_add_library_test(process_containment_test
-    tests/platform/process_containment_test.cpp LIBS SpanPlatform)
 spantui_add_library_test(window_chrome_geometry_test
     tests/platform/window_chrome_geometry_test.cpp LIBS SpanPlatform)
 spantui_add_library_test(launch_diagnostics_test
@@ -616,26 +635,12 @@ spantui_add_terminal_test(ghostty_engine_test tests/terminal/ghostty_engine_test
 target_link_libraries(ghostty_engine_test PRIVATE SpanGhosttyVt)
 spantui_add_terminal_test(terminal_font_set_test tests/terminal/terminal_font_set_test.cpp)
 spantui_add_font_resources(terminal_font_set_test)
-spantui_add_terminal_test(terminal_session_test tests/terminal/terminal_session_test.cpp)
-# Builds engines of its own for the session's engine factory.
-target_link_libraries(terminal_session_test PRIVATE SpanGhosttyVt)
 spantui_add_terminal_test(terminal_view_binding_test tests/terminal/terminal_view_binding_test.cpp)
 spantui_add_terminal_test(terminal_core_worker_test tests/terminal/terminal_core_worker_test.cpp)
-# Ten-second throughput benchmark of the same worker: built with the tests,
-# never registered in CTest; run by hand (docs/workflow/testing.md §3).
-qt_add_executable(terminal_core_worker_benchmark tests/terminal/terminal_core_worker_benchmark.cpp)
-target_link_libraries(terminal_core_worker_benchmark PRIVATE SpanTerminal Qt6::Gui Qt6::Quick Qt6::Test)
-# Frame benchmark of the render path, also run by hand only. The private
-# modules serve the probe alone: QRhi reads back what the frame shows, and
-# QQuickItemPrivate exposes the view's scene-graph nodes for counting.
-qt_add_executable(terminal_render_benchmark tests/terminal/terminal_render_benchmark.cpp)
-target_link_libraries(terminal_render_benchmark PRIVATE
-    SpanTerminal Qt6::Gui Qt6::GuiPrivate Qt6::Quick Qt6::QuickPrivate)
-spantui_add_font_resources(terminal_render_benchmark)
-spantui_skip_qml_import_scan(terminal_render_benchmark)
 spantui_add_terminal_test(terminal_manager_test tests/terminal/terminal_manager_test.cpp)
-spantui_add_terminal_test(win_conpty_process_test tests/terminal/win_conpty_process_test.cpp)
 spantui_add_terminal_test(terminal_input_routing_test tests/terminal/terminal_input_routing_test.cpp)
+spantui_add_terminal_test(terminal_paste_test tests/terminal/terminal_paste_test.cpp)
+spantui_add_terminal_test(terminal_session_input_test tests/terminal/terminal_session_input_test.cpp)
 
 spantui_add_library_test(markdown_gfm_adapter_test
     tests/markdown/markdown_gfm_adapter_test.cpp LIBS SpanDocuments)
@@ -666,31 +671,88 @@ target_link_libraries(single_instance_client_helper PRIVATE SpanApplication)
 spantui_skip_qml_import_scan(single_instance_client_helper)
 add_dependencies(single_instance_router_test single_instance_client_helper)
 
-add_executable(pty_echo_child tests/terminal/pty_echo_child.cpp)
-target_compile_definitions(pty_echo_child PRIVATE _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A000006)
-add_dependencies(terminal_session_test pty_echo_child)
-# Observes the window's IME context the way Windows sees it.
-target_link_libraries(terminal_session_test PRIVATE imm32)
-add_dependencies(win_conpty_process_test pty_echo_child)
+# Windows-only tests: they drive Win32 directly (ConPTY, jobs, the shell
+# extension, IME, named pipes, file ACLs and share modes) or start the Windows helper children below.
+# macOS covers the same contracts through the neutral interfaces' own tests.
+if(WIN32)
+    spantui_add_library_test(shell_extension_contract_test
+        tests/platform/shell_extension_contract_test.cpp
+        LIBS Qt6::Core ole32 shell32 uuid
+        SOURCES src/platform/windows/shell_extension_contract.h)
+    target_include_directories(shell_extension_contract_test PRIVATE src)
+    target_compile_definitions(shell_extension_contract_test PRIVATE
+        UNICODE
+        _UNICODE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+    )
+    add_dependencies(shell_extension_contract_test SpanTui-shell-extension SpanTui)
 
-# Records the command line it was started with (tests/platform/argv_echo_child.cpp).
-add_executable(argv_echo_child tests/platform/argv_echo_child.cpp)
-target_link_libraries(argv_echo_child PRIVATE shell32)
-add_dependencies(process_containment_test argv_echo_child)
-add_dependencies(shell_extension_contract_test argv_echo_child)
-add_dependencies(update_service_test argv_echo_child)
-add_dependencies(tool_registry_test argv_echo_child)
+    spantui_add_library_test(remote_host_registry_test
+        tests/remote/remote_host_registry_test.cpp LIBS SpanRemote Qt6::Sql OFFSCREEN)
+    spantui_add_library_test(ssh_askpass_test
+        tests/remote/ssh_askpass_test.cpp LIBS SpanRemote)
+    spantui_add_library_test(file_tree_model_test
+        tests/workspace/file_tree_model_test.cpp LIBS SpanWorkspace)
+    spantui_add_library_test(process_containment_test
+        tests/platform/process_containment_test.cpp LIBS SpanPlatform)
+    spantui_add_terminal_test(terminal_session_test tests/terminal/terminal_session_test.cpp)
+    # Builds engines of its own for the session's engine factory.
+    target_link_libraries(terminal_session_test PRIVATE SpanGhosttyVt)
+    spantui_add_terminal_test(win_conpty_process_test tests/terminal/win_conpty_process_test.cpp)
+    # Ten-second throughput benchmark of the same worker: built with the tests,
+    # never registered in CTest; run by hand (docs/workflow/testing.md §3).
+    qt_add_executable(terminal_core_worker_benchmark tests/terminal/terminal_core_worker_benchmark.cpp)
+    target_link_libraries(terminal_core_worker_benchmark PRIVATE SpanTerminal Qt6::Gui Qt6::Quick Qt6::Test)
+    # Frame benchmark of the render path, also run by hand only. The private
+    # modules serve the probe alone: QRhi reads back what the frame shows, and
+    # QQuickItemPrivate exposes the view's scene-graph nodes for counting.
+    qt_add_executable(terminal_render_benchmark tests/terminal/terminal_render_benchmark.cpp)
+    target_link_libraries(terminal_render_benchmark PRIVATE
+        SpanTerminal Qt6::Gui Qt6::GuiPrivate Qt6::Quick Qt6::QuickPrivate)
+    spantui_add_font_resources(terminal_render_benchmark)
+    spantui_skip_qml_import_scan(terminal_render_benchmark)
+
+    add_executable(pty_echo_child tests/terminal/pty_echo_child.cpp)
+    target_compile_definitions(pty_echo_child PRIVATE _WIN32_WINNT=0x0A00 NTDDI_VERSION=0x0A000006)
+    add_dependencies(terminal_session_test pty_echo_child)
+    # Observes the window's IME context the way Windows sees it.
+    target_link_libraries(terminal_session_test PRIVATE imm32)
+    add_dependencies(win_conpty_process_test pty_echo_child)
+
+    # Records the command line it was started with (tests/platform/argv_echo_child.cpp).
+    add_executable(argv_echo_child tests/platform/argv_echo_child.cpp)
+    target_link_libraries(argv_echo_child PRIVATE shell32)
+    add_dependencies(process_containment_test argv_echo_child)
+    add_dependencies(shell_extension_contract_test argv_echo_child)
+    add_dependencies(update_service_test argv_echo_child)
+    add_dependencies(tool_registry_test argv_echo_child)
+else()
+    spantui_add_terminal_test(mac_pty_process_test tests/terminal/mac_pty_process_test.cpp)
+    # Its cases are macOS script kinds; Windows scripts are covered by
+    # file_tree_model_test.
+    spantui_add_library_test(script_launch_test
+        tests/platform/script_launch_test.cpp LIBS SpanPlatform)
+    # The key-file form of saved secrets; Windows seals them with DPAPI,
+    # covered by remote_host_registry_test.
+    spantui_add_library_test(credential_protection_test
+        tests/platform/credential_protection_test.cpp LIBS SpanPlatform)
+endif()
 
 # Core tests: see docs/workflow/testing.md.
 set(SPANTUI_CORE_TESTS
-    ghostty_engine_test win_conpty_process_test
-    terminal_core_worker_test terminal_session_test terminal_manager_test
-    terminal_input_routing_test
+    ghostty_engine_test
+    terminal_core_worker_test terminal_manager_test
+    terminal_input_routing_test terminal_paste_test terminal_session_input_test
     workspace_database_migration_test settings_test product_paths_test
     document_manager_test workspace_layout_test workspace_controller_test
-    process_containment_test
     workspace_startup_smoke single_instance_router_test update_service_test
     message_center_test message_center_wiring_test)
+if(WIN32)
+    list(APPEND SPANTUI_CORE_TESTS win_conpty_process_test terminal_session_test process_containment_test)
+else()
+    list(APPEND SPANTUI_CORE_TESTS mac_pty_process_test)
+endif()
 foreach(_core_test IN LISTS SPANTUI_CORE_TESTS)
     if(TEST ${_core_test})
         set_tests_properties(${_core_test} PROPERTIES LABELS core)

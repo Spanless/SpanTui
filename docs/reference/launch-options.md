@@ -46,7 +46,7 @@ SpanTui.exe --help
 | `--workspace-shot-viewport=<宽x高>` | 默认 `1600x900` |
 | `--workspace-shot-page=<workspace\|settings>` | 页面 |
 | `--workspace-shot-right-tool=<files\|diff\|history>` | 右栏页 |
-| `--workspace-shot-terminal` | 创建一个 `cmd.exe /Q /K` 终端 |
+| `--workspace-shot-terminal` | 创建一个运行平台默认 shell 的终端 |
 | `--workspace-shot-delay-ms=<ms>` | [500, 30000]，默认 1600 |
 
 `dev.bat run --smoke` 附加 `--data-dir <仓库>\.dev\data --isolated-workspace`，进程在限定时间内存活即输出 `SMOKE_OK`。测试：`tests/application/launch_options_test.cpp`。

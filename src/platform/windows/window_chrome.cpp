@@ -1,6 +1,6 @@
-#include "platform/windows/window_chrome.h"
+#include "platform/window_chrome.h"
 
-#include "platform/windows/window_chrome_geometry.h"
+#include "platform/window_chrome_geometry.h"
 
 #include <QGuiApplication>
 #include <QDebug>
@@ -112,18 +112,61 @@ void showNativeSystemMenu(HWND hwnd, int screenX, int screenY) {
     }
 }
 
-} // namespace
-
-struct WindowChrome::AutoHideTaskbarCache {
+struct AutoHideTaskbarCache {
     std::atomic_uint edges{0};
     std::atomic_bool queryActive{false};
     std::atomic_bool refreshRequested{false};
 };
 
-WindowChrome::WindowChrome(QObject *parent)
-    : QObject(parent),
-      m_autoHideTaskbarCache(std::make_shared<AutoHideTaskbarCache>()) {
+QRect physicalItemRect(const QQuickWindow *window, const QQuickItem *item)
+{
+    if (!item || !item->isVisible() || !window) {
+        return QRect();
+    }
+    const QRectF scene = item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
+    const qreal dpr = window->devicePixelRatio();
+    return QRectF(scene.x() * dpr, scene.y() * dpr, scene.width() * dpr, scene.height() * dpr).toRect();
 }
+
+// Queries the auto-hide taskbar edges off the GUI thread; overlapping
+// requests collapse into one more query.
+void refreshAutoHideTaskbarEdges(HWND hwnd, const std::shared_ptr<AutoHideTaskbarCache> &cache)
+{
+    if (!hwnd) {
+        cache->edges.store(0, std::memory_order_release);
+        return;
+    }
+    cache->refreshRequested.store(true, std::memory_order_release);
+    bool expected = false;
+    if (!cache->queryActive.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+    std::thread([cache, hwnd]() {
+        while (true) {
+            cache->refreshRequested.store(false, std::memory_order_release);
+            cache->edges.store(queryAutoHideTaskbarEdges(hwnd), std::memory_order_release);
+            cache->queryActive.store(false, std::memory_order_release);
+            if (!cache->refreshRequested.load(std::memory_order_acquire)) {
+                return;
+            }
+            bool idle = false;
+            if (!cache->queryActive.compare_exchange_strong(idle, true, std::memory_order_acq_rel)) {
+                return;
+            }
+        }
+    }).detach();
+}
+
+} // namespace
+
+struct WindowChrome::Native {
+    HWND hwnd = nullptr;
+    std::shared_ptr<AutoHideTaskbarCache> autoHideTaskbarCache = std::make_shared<AutoHideTaskbarCache>();
+    // Last WM_SIZE type reported through nativeWindowStateChanged.
+    unsigned int lastNativeSizeType = 0;
+};
+
+WindowChrome::WindowChrome(QObject *parent) : QObject(parent), m_native(std::make_unique<Native>()) {}
 
 WindowChrome::~WindowChrome()
 {
@@ -137,15 +180,15 @@ void WindowChrome::attach(QQuickWindow *window) {
     m_window = window;
     m_transitionFactsOnly = false;
     HWND hwnd = reinterpret_cast<HWND>(window->winId());
-    m_hwnd = hwnd;
-    m_lastNativeSizeType = IsIconic(hwnd) ? SIZE_MINIMIZED
-        : (IsZoomed(hwnd) ? SIZE_MAXIMIZED : SIZE_RESTORED);
-    QMetaObject::invokeMethod(this, &WindowChrome::refreshAutoHideTaskbarEdges,
-                              Qt::QueuedConnection);
-    connect(window, &QWindow::screenChanged, this, [this]() {
-        QMetaObject::invokeMethod(this, &WindowChrome::refreshAutoHideTaskbarEdges,
-                                  Qt::QueuedConnection);
-    });
+    m_native->hwnd = hwnd;
+    m_native->lastNativeSizeType = IsIconic(hwnd) ? SIZE_MINIMIZED : (IsZoomed(hwnd) ? SIZE_MAXIMIZED : SIZE_RESTORED);
+    const auto refreshTaskbarEdges = [this]() {
+        QMetaObject::invokeMethod(
+            this, [this]() { refreshAutoHideTaskbarEdges(m_native->hwnd, m_native->autoHideTaskbarCache); },
+            Qt::QueuedConnection);
+    };
+    refreshTaskbarEdges();
+    connect(window, &QWindow::screenChanged, this, refreshTaskbarEdges);
 
     // The filter must be in place before SWP_FRAMECHANGED below: that call
     // sends WM_NCCALCSIZE synchronously, and if default processing answers
@@ -183,16 +226,15 @@ void WindowChrome::observeTransitions(QQuickWindow *window)
     m_window = window;
     m_transitionFactsOnly = true;
     HWND hwnd = reinterpret_cast<HWND>(window->winId());
-    m_hwnd = hwnd;
-    m_lastNativeSizeType = IsIconic(hwnd) ? SIZE_MINIMIZED
-        : (IsZoomed(hwnd) ? SIZE_MAXIMIZED : SIZE_RESTORED);
+    m_native->hwnd = hwnd;
+    m_native->lastNativeSizeType = IsIconic(hwnd) ? SIZE_MINIMIZED : (IsZoomed(hwnd) ? SIZE_MAXIMIZED : SIZE_RESTORED);
     qGuiApp->installNativeEventFilter(this);
 }
 
 QRect WindowChrome::normalGeometry() const {
     // Live geometry while restored; last tracked rect while zoomed/minimized.
-    if (m_window && m_hwnd) {
-        HWND hwnd = static_cast<HWND>(m_hwnd);
+    if (m_window && m_native->hwnd) {
+        HWND hwnd = m_native->hwnd;
         if (!IsZoomed(hwnd) && !IsIconic(hwnd)) {
             return m_window->geometry();
         }
@@ -205,10 +247,10 @@ bool WindowChrome::maximized() const {
 }
 
 bool WindowChrome::effectivelyMaximized() const {
-    if (!m_hwnd) {
+    if (!m_native->hwnd) {
         return m_maximized;
     }
-    HWND hwnd = static_cast<HWND>(m_hwnd);
+    HWND hwnd = m_native->hwnd;
     if (IsZoomed(hwnd)) {
         return true;
     }
@@ -227,17 +269,17 @@ bool WindowChrome::effectivelyMaximized() const {
 }
 
 void WindowChrome::minimize() {
-    if (!m_hwnd) {
+    if (!m_native->hwnd) {
         return;
     }
-    PostMessageW(static_cast<HWND>(m_hwnd), WM_SYSCOMMAND, SC_MINIMIZE, 0);
+    PostMessageW(m_native->hwnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
 }
 
 void WindowChrome::toggleMaximize() {
-    if (!m_hwnd) {
+    if (!m_native->hwnd) {
         return;
     }
-    HWND hwnd = static_cast<HWND>(m_hwnd);
+    HWND hwnd = m_native->hwnd;
     if (IsZoomed(hwnd)) {
         PostMessageW(hwnd, WM_SYSCOMMAND, SC_RESTORE, 0);
     } else {
@@ -256,11 +298,11 @@ void WindowChrome::requestClose() {
 }
 
 void WindowChrome::setDarkFrame(bool dark) {
-    if (!m_hwnd) {
+    if (!m_native->hwnd) {
         return;
     }
     const BOOL value = dark ? TRUE : FALSE;
-    const HWND hwnd = static_cast<HWND>(m_hwnd);
+    const HWND hwnd = m_native->hwnd;
     if (FAILED(DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value)))) {
         DwmSetWindowAttribute(hwnd, kLegacyImmersiveDarkMode, &value, sizeof(value));
     }
@@ -276,6 +318,23 @@ void WindowChrome::addInteractiveItem(QQuickItem *item) {
     }
 }
 
+bool WindowChrome::nativeMoveOrResizeHeld(const QWindow *window)
+{
+    return window && ::GetCapture() == reinterpret_cast<HWND>(window->winId());
+}
+
+bool WindowChrome::systemCaptionButtons() const
+{
+    return false;
+}
+
+// Hit testing runs on WM_NCHITTEST (nativeEventFilter); window events need
+// nothing here.
+bool WindowChrome::eventFilter(QObject *watched, QEvent *event)
+{
+    return QObject::eventFilter(watched, event);
+}
+
 void WindowChrome::setMaximized(bool value) {
     if (m_maximized != value) {
         m_maximized = value;
@@ -284,37 +343,28 @@ void WindowChrome::setMaximized(bool value) {
 }
 
 void WindowChrome::syncMaximizedFromNative() {
-    if (!m_hwnd) {
+    if (!m_native->hwnd) {
         return;
     }
-    setMaximized(IsZoomed(static_cast<HWND>(m_hwnd)) != FALSE);
+    setMaximized(IsZoomed(m_native->hwnd) != FALSE);
 }
 
 void WindowChrome::trackNormalGeometry() {
-    if (!m_window || !m_hwnd) {
+    if (!m_window || !m_native->hwnd) {
         return;
     }
-    HWND hwnd = static_cast<HWND>(m_hwnd);
+    HWND hwnd = m_native->hwnd;
     if (!IsZoomed(hwnd) && !IsIconic(hwnd)) {
         m_normalGeometry = m_window->geometry();
     }
 }
 
-QRect WindowChrome::physicalItemRect(const QQuickItem *item) const {
-    if (!item || !item->isVisible() || !m_window) {
-        return QRect();
-    }
-    const QRectF scene = item->mapRectToScene(QRectF(0, 0, item->width(), item->height()));
-    const qreal dpr = m_window->devicePixelRatio();
-    return QRectF(scene.x() * dpr, scene.y() * dpr, scene.width() * dpr, scene.height() * dpr).toRect();
-}
-
 bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) {
-    if (eventType != "windows_generic_MSG" || !m_window || !m_hwnd) {
+    if (eventType != "windows_generic_MSG" || !m_window || !m_native->hwnd) {
         return false;
     }
     MSG *msg = static_cast<MSG *>(message);
-    HWND hwnd = static_cast<HWND>(m_hwnd);
+    HWND hwnd = m_native->hwnd;
     if (msg->hwnd != hwnd) {
         return false;
     }
@@ -322,11 +372,9 @@ bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message,
     if (m_transitionFactsOnly) {
         switch (msg->message) {
         case WM_SIZE:
-            if ((msg->wParam == SIZE_MAXIMIZED
-                 || msg->wParam == SIZE_RESTORED
-                 || msg->wParam == SIZE_MINIMIZED)
-                && msg->wParam != m_lastNativeSizeType) {
-                m_lastNativeSizeType = static_cast<unsigned int>(msg->wParam);
+            if ((msg->wParam == SIZE_MAXIMIZED || msg->wParam == SIZE_RESTORED || msg->wParam == SIZE_MINIMIZED)
+                && msg->wParam != m_native->lastNativeSizeType) {
+                m_native->lastNativeSizeType = static_cast<unsigned int>(msg->wParam);
                 emit nativeWindowStateChanged(static_cast<int>(msg->wParam));
             }
             return false;
@@ -352,10 +400,7 @@ bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message,
         auto *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
         RECT *client = &params->rgrc[0];
         if (IsZoomed(hwnd)) {
-            maximizedClientRect(
-                hwnd,
-                m_autoHideTaskbarCache->edges.load(std::memory_order_acquire),
-                client);
+            maximizedClientRect(hwnd, m_native->autoHideTaskbarCache->edges.load(std::memory_order_acquire), client);
         }
         // Leaving the rect untouched otherwise removes the non-client frame;
         // hit testing below supplies resize and drag behavior.
@@ -365,10 +410,9 @@ bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message,
 
     case WM_SIZE:
         // Keep the caption icon in sync after SC_MAXIMIZE / SC_RESTORE / min.
-        if ((msg->wParam == SIZE_MAXIMIZED || msg->wParam == SIZE_RESTORED
-             || msg->wParam == SIZE_MINIMIZED)
-            && msg->wParam != m_lastNativeSizeType) {
-            m_lastNativeSizeType = static_cast<unsigned int>(msg->wParam);
+        if ((msg->wParam == SIZE_MAXIMIZED || msg->wParam == SIZE_RESTORED || msg->wParam == SIZE_MINIMIZED)
+            && msg->wParam != m_native->lastNativeSizeType) {
+            m_native->lastNativeSizeType = static_cast<unsigned int>(msg->wParam);
             syncMaximizedFromNative();
             emit nativeWindowStateChanged(static_cast<int>(msg->wParam));
         }
@@ -380,8 +424,9 @@ bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message,
 
     case WM_EXITSIZEMOVE:
         emit interactiveResizeEnded();
-        QMetaObject::invokeMethod(this, &WindowChrome::refreshAutoHideTaskbarEdges,
-                                  Qt::QueuedConnection);
+        QMetaObject::invokeMethod(
+            this, [this]() { refreshAutoHideTaskbarEdges(m_native->hwnd, m_native->autoHideTaskbarCache); },
+            Qt::QueuedConnection);
         return false;
 
     case WM_DPICHANGED:
@@ -398,7 +443,7 @@ bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message,
         QVector<QRect> interactive;
         interactive.reserve(m_interactiveItems.size());
         for (const auto &item : m_interactiveItems) {
-            const QRect rect = physicalItemRect(item);
+            const QRect rect = physicalItemRect(m_window, item);
             if (rect.isValid()) {
                 interactive.push_back(rect);
             }
@@ -439,36 +484,4 @@ bool WindowChrome::nativeEventFilter(const QByteArray &eventType, void *message,
     default:
         return false;
     }
-}
-
-void WindowChrome::refreshAutoHideTaskbarEdges()
-{
-    const HWND hwnd = static_cast<HWND>(m_hwnd);
-    if (!hwnd) {
-        m_autoHideTaskbarCache->edges.store(0, std::memory_order_release);
-        return;
-    }
-    const auto cache = m_autoHideTaskbarCache;
-    cache->refreshRequested.store(true, std::memory_order_release);
-    bool expected = false;
-    if (!cache->queryActive.compare_exchange_strong(
-            expected, true, std::memory_order_acq_rel)) {
-        return;
-    }
-    std::thread([cache, hwnd]() {
-        while (true) {
-            cache->refreshRequested.store(false, std::memory_order_release);
-            cache->edges.store(queryAutoHideTaskbarEdges(hwnd),
-                               std::memory_order_release);
-            cache->queryActive.store(false, std::memory_order_release);
-            if (!cache->refreshRequested.load(std::memory_order_acquire)) {
-                return;
-            }
-            bool idle = false;
-            if (!cache->queryActive.compare_exchange_strong(
-                    idle, true, std::memory_order_acq_rel)) {
-                return;
-            }
-        }
-    }).detach();
 }

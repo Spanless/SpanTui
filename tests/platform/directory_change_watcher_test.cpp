@@ -1,4 +1,4 @@
-#include "platform/windows/directory_change_watcher.h"
+#include "platform/directory_change_watcher.h"
 
 #include <QDir>
 #include <QFile>

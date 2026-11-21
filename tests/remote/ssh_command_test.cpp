@@ -211,10 +211,13 @@ void SshCommandTest::sftpQuoteEscapesOnlyQuoteAndBackslash()
 
 void SshCommandTest::batchScriptQuotesEveryOperand()
 {
-    const QByteArray upload = RemoteTransferQueue::batchScript(
-        RemoteTransferQueue::Direction::Upload,
-        {QStringLiteral("C:\\data\\a*.txt"), QStringLiteral("C:\\data\\dir")},
-        QStringLiteral("/srv/in box"));
+    const QByteArray upload =
+        RemoteTransferQueue::batchScript(RemoteTransferQueue::Direction::Upload,
+                                         // Native local paths: backslashes on Windows, where the script
+                                         // must turn them into the slashes sftp expects.
+                                         {QDir::toNativeSeparators(QStringLiteral("C:/data/a*.txt")),
+                                          QDir::toNativeSeparators(QStringLiteral("C:/data/dir"))},
+                                         QStringLiteral("/srv/in box"));
     QCOMPARE(upload, QByteArray("put -r \"C:/data/a*.txt\" \"/srv/in box\"\n"
                                 "put -r \"C:/data/dir\" \"/srv/in box\"\n"));
 }

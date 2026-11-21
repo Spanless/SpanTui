@@ -26,11 +26,16 @@ private slots:
     void unknownKindsAreRejected();
     void restoreRejectsUnknownKinds();
     void rightPanelToggleAndWidth();
-    void refusesColResizeBelowMinWidth();
+    void clampsColResizeToMinWidth();
     void centerColumnsFillRemainingWindowWidth();
     void wideningWindowStretchesCenterColumns();
     void columnSeamStealsFromNeighborWithoutGap();
-    void narrowWindowKeepsColumnMinsAndOverflows();
+    void narrowWindowSharesCenterWidthByMinimumRatio();
+    void narrowingFloatsRightSideThenLeft();
+    void wideningDocksSidesBackPastHysteresis();
+    void floatingSideTogglesOverlayNotIntent();
+    void showingSideInNarrowWindowSlidesItIn();
+    void squeezedLayoutRestoresFromJson();
     void clampedColumnWidthDoesNotMutate();
     void stackedColumnReportsTwoRows();
     void clampsRowRatioToMinHeight();
@@ -53,6 +58,8 @@ private slots:
     void viewportPreviewIsTransientUntilCommit();
     void paneSeamSurvivesSameSizePreviewDuringTransaction();
     void dropRightAtRightmostEdgeDoesNotCreateGhostColumn();
+    void dropBesideColumnSplitsItEvenly();
+    void dropBesideColumnKeepsOtherColumnWidths();
     void clampedSideWidthDoesNotExceedWindowLimit();
 };
 
@@ -193,6 +200,8 @@ void WorkspaceLayoutTest::secondTileSplitsIntoTwoRows()
 void WorkspaceLayoutTest::thirdTileAddsFullHeightRightColumn()
 {
     WorkspaceLayout layout;
+    // Wide enough for two terminal columns at their minimum.
+    QVERIFY(layout.setLeftWidth(250, 1600));
     addCenterTerminal(layout);
     addCenterTerminal(layout);
     const QString third = addCenterTerminal(layout);
@@ -290,6 +299,8 @@ void WorkspaceLayoutTest::restoreRejectsUnknownKinds()
 void WorkspaceLayoutTest::rightPanelToggleAndWidth()
 {
     WorkspaceLayout layout;
+    // Wide enough to dock both sides.
+    QVERIFY(layout.setLeftWidth(kMinLeftWidth, 1600));
     QVERIFY(layout.rightCollapsed());
     QCOMPARE(layout.rightWidth(), 0);
     QCOMPARE(layout.rightPage(), QStringLiteral("files"));
@@ -313,17 +324,19 @@ void WorkspaceLayoutTest::rightPanelToggleAndWidth()
     QCOMPARE(layout.rightWidth(), 0);
 }
 
-void WorkspaceLayoutTest::refusesColResizeBelowMinWidth()
+void WorkspaceLayoutTest::clampsColResizeToMinWidth()
 {
     WorkspaceLayout layout;
+    // Wide enough for two terminal columns at their minimum.
+    QVERIFY(layout.setLeftWidth(250, 1600));
     addCenterTerminal(layout);
     addCenterTerminal(layout);
     addCenterTerminal(layout);
     QCOMPARE(layout.centerColumnWidths().size(), 2);
-    const int before = layout.centerColumnWidths().at(0).toInt();
+    const int pair = occupiedCenterWidth(layout);
     QVERIFY(layout.setCenterColumnWidth(0, 100));
-    QCOMPARE(layout.centerColumnWidths().at(0).toInt(), before);
-    QVERIFY(before >= kMinCenterWidth);
+    QCOMPARE(layout.centerColumnWidths().at(0).toInt(), kMinCenterWidth);
+    QCOMPARE(layout.centerColumnWidths().at(1).toInt(), pair - kMinCenterWidth);
 }
 
 void WorkspaceLayoutTest::centerColumnsFillRemainingWindowWidth()
@@ -375,18 +388,162 @@ void WorkspaceLayoutTest::columnSeamStealsFromNeighborWithoutGap()
     QCOMPARE(layout.centerColumnWidths().at(1).toInt(), beforeRight - 80);
 }
 
-void WorkspaceLayoutTest::narrowWindowKeepsColumnMinsAndOverflows()
+void WorkspaceLayoutTest::narrowWindowSharesCenterWidthByMinimumRatio()
+{
+    WorkspaceLayout layout;
+    QStringList ids;
+    fillTwoByTwo(layout, &ids);
+    layout.addProjectTile(QStringLiteral("editor"), QStringLiteral("C:/work"));
+    QCOMPARE(layout.centerColumnWidths().size(), 3);
+    // Minimums 440 + 440 (terminal columns) + 320 (editor) = 1200. The
+    // sidebar floats, and the 1010 window is still shared in that ratio.
+    QVERIFY(layout.previewViewport(1010, 640));
+    layout.commitViewport();
+    QVERIFY(layout.leftFloating());
+    QCOMPARE(occupiedCenterWidth(layout), 1010);
+    QCOMPARE(layout.centerColumnWidths().at(0).toInt(), 370);
+    QCOMPARE(layout.centerColumnWidths().at(1).toInt(), 370);
+    QCOMPARE(layout.centerColumnWidths().at(2).toInt(), 270);
+}
+
+void WorkspaceLayoutTest::narrowingFloatsRightSideThenLeft()
+{
+    WorkspaceLayout layout;
+    addCenterTerminal(layout);
+    QVERIFY(layout.setLeftWidth(300, 1600));
+    QVERIFY(layout.setRightWidth(300, 1600));
+    QVERIFY(!layout.leftFloating());
+    QVERIFY(!layout.rightFloating());
+
+    // 300 + 300 + 440 = 1040: below it the docked sides give way, the right
+    // one first, down to their minimums.
+    QVERIFY(layout.previewViewport(1000, 640));
+    layout.commitViewport();
+    QVERIFY(!layout.rightFloating());
+    QCOMPARE(layout.rightWidth(), 260);
+    QCOMPARE(layout.leftWidth(), 300);
+    QVERIFY(layout.previewViewport(960, 640));
+    layout.commitViewport();
+    QCOMPARE(layout.rightWidth(), kMinRightWidth);
+    QCOMPARE(layout.leftWidth(), 280);
+    QCOMPARE(occupiedCenterWidth(layout), kMinCenterWidth);
+    QCOMPARE(layout.rightPanelWidth(), 300);
+
+    // 250 + 240 + 440 = 930: the right side floats, and the left takes its
+    // own width again.
+    QVERIFY(layout.previewViewport(920, 640));
+    layout.commitViewport();
+    QVERIFY(layout.rightFloating());
+    QVERIFY(!layout.leftFloating());
+    QCOMPARE(layout.rightWidth(), 0);
+    QCOMPARE(layout.leftWidth(), 300);
+    QCOMPARE(occupiedCenterWidth(layout), 620);
+
+    // 250 + 440 = 690: then the left one.
+    QVERIFY(layout.previewViewport(680, 640));
+    layout.commitViewport();
+    QVERIFY(layout.leftFloating());
+    QCOMPARE(layout.leftWidth(), 0);
+    QCOMPARE(occupiedCenterWidth(layout), 680);
+    QVERIFY(!layout.leftCollapsed());
+    QVERIFY(!layout.rightCollapsed());
+}
+
+void WorkspaceLayoutTest::wideningDocksSidesBackPastHysteresis()
+{
+    WorkspaceLayout layout;
+    addCenterTerminal(layout);
+    QVERIFY(layout.setLeftWidth(250, 1600));
+    QVERIFY(layout.setRightWidth(300, 1600));
+    QVERIFY(layout.previewViewport(680, 640));
+    QVERIFY(layout.leftFloating());
+    QVERIFY(layout.rightFloating());
+
+    // Room for the left side, but not the hysteresis on top: still floating.
+    QVERIFY(layout.previewViewport(700, 640));
+    QVERIFY(layout.leftFloating());
+    QVERIFY(layout.previewViewport(kMinLeftWidth + kMinCenterWidth + kSideDockHysteresis, 640));
+    QVERIFY(!layout.leftFloating());
+    QVERIFY(layout.rightFloating());
+    // The right side docks once it fits at its minimum, narrower than stored.
+    const int docksRight = kMinLeftWidth + kMinRightWidth + kMinCenterWidth + kSideDockHysteresis;
+    QVERIFY(layout.previewViewport(docksRight - 1, 640));
+    QVERIFY(layout.rightFloating());
+    QVERIFY(layout.previewViewport(docksRight, 640));
+    QVERIFY(!layout.rightFloating());
+    QCOMPARE(layout.rightWidth(), docksRight - 250 - kMinCenterWidth);
+    QVERIFY(layout.previewViewport(1600, 640));
+    layout.commitViewport();
+    QCOMPARE(layout.leftWidth(), 250);
+    QCOMPARE(layout.rightWidth(), 300);
+}
+
+void WorkspaceLayoutTest::floatingSideTogglesOverlayNotIntent()
+{
+    WorkspaceLayout layout;
+    addCenterTerminal(layout);
+    QVERIFY(layout.setRightWidth(300, 1600));
+    QVERIFY(layout.previewViewport(900, 640));
+    layout.commitViewport();
+    QVERIFY(layout.rightFloating());
+    QVERIFY(!layout.rightShown());
+    const QString durable = layout.toJson();
+    QSignalSpy sides(&layout, &WorkspaceLayout::sidesChanged);
+
+    QVERIFY(layout.setSideShown(QStringLiteral("right"), true));
+    QVERIFY(layout.rightOverlayOpen());
+    QVERIFY(layout.rightShown());
+    QCOMPARE(sides.count(), 1);
+    QCOMPARE(layout.rightWidth(), 0);
+    QCOMPARE(layout.toJson(), durable);
+
+    QVERIFY(layout.setSideShown(QStringLiteral("right"), false));
+    QVERIFY(!layout.rightShown());
+    QVERIFY(!layout.rightCollapsed());
+    QCOMPARE(layout.toJson(), durable);
+
+    // Widening docks it and drops the overlay.
+    QVERIFY(layout.setSideShown(QStringLiteral("right"), true));
+    QVERIFY(layout.previewViewport(1600, 640));
+    layout.commitViewport();
+    QVERIFY(!layout.rightFloating());
+    QVERIFY(!layout.rightOverlayOpen());
+    QVERIFY(layout.rightShown());
+}
+
+void WorkspaceLayoutTest::showingSideInNarrowWindowSlidesItIn()
+{
+    WorkspaceLayout layout;
+    addCenterTerminal(layout);
+    QVERIFY(layout.previewViewport(900, 640));
+    layout.commitViewport();
+    QVERIFY(layout.rightCollapsed());
+    // 900 holds the sidebar and one terminal, not even a 240 dock on top.
+    QVERIFY(layout.setSideShown(QStringLiteral("right"), true));
+    QVERIFY(!layout.rightCollapsed());
+    QVERIFY(layout.rightFloating());
+    QVERIFY(layout.rightOverlayOpen());
+    QCOMPARE(layout.rightPanelWidth(), kDefaultRightWidth);
+    QCOMPARE(occupiedCenterWidth(layout), 650);
+
+    layout.closeOverlays();
+    QVERIFY(!layout.rightShown());
+    QVERIFY(layout.sideShown(QStringLiteral("left")));
+}
+
+void WorkspaceLayoutTest::squeezedLayoutRestoresFromJson()
 {
     WorkspaceLayout layout;
     addCenterTerminal(layout);
     addCenterTerminal(layout);
     addCenterTerminal(layout);
     QVERIFY(layout.setLeftWidth(250, 800));
-    QCOMPARE(layout.centerColumnWidths().at(0).toInt(), kMinCenterWidth);
-    QCOMPARE(layout.centerColumnWidths().at(1).toInt(), kMinCenterWidth);
-    const int occupied = occupiedCenterWidth(layout);
-    QCOMPARE(occupied, 2 * kMinCenterWidth);
-    QVERIFY(occupied > 800 - layout.leftWidth());
+    QVERIFY(layout.leftFloating());
+    QCOMPARE(layout.centerColumnWidths().at(0).toInt(), 400);
+
+    WorkspaceLayout restored;
+    QVERIFY(restored.restoreFromJson(layout.toJson()));
+    QCOMPARE(tilePlacements(restored), tilePlacements(layout));
 }
 
 void WorkspaceLayoutTest::newColumnSplitsEquallyWhenNeverDragged()
@@ -629,6 +786,9 @@ void WorkspaceLayoutTest::roundTripsJsonWithTwoByTwo()
 
     WorkspaceLayout restored;
     QVERIFY(restored.restoreFromJson(json));
+    // The window width is not stored; the restored layout gets the same one.
+    QVERIFY(restored.previewViewport(1200, kDefaultCenterHeight));
+    restored.commitViewport();
     QCOMPARE(restored.rowCount(), layout.rowCount());
     QCOMPARE(restored.leftWidth(), layout.leftWidth());
     QCOMPARE(restored.centerRowRatio(0), layout.centerRowRatio(0));
@@ -774,6 +934,49 @@ void WorkspaceLayoutTest::dropRightAtRightmostEdgeDoesNotCreateGhostColumn()
     QVERIFY(centerColumnsContiguous(layout, int(layout.centerColumnWidths().size())));
 }
 
+void WorkspaceLayoutTest::dropBesideColumnSplitsItEvenly()
+{
+    WorkspaceLayout layout;
+    addCenterTerminal(layout);
+    const QString lower = addCenterTerminal(layout);
+    QVERIFY(layout.setLeftWidth(250, 1600));
+    QCOMPARE(layout.centerColumnWidths().size(), 1);
+    QCOMPARE(roleInt(layout, lower, WorkspaceLayout::RowRole), 1);
+
+    // The lower tile of the stack dragged to the right edge of its column.
+    QVERIFY(layout.insertCenterTile(lower, 0, WorkspaceLayout::DropRight));
+    QCOMPARE(roleInt(layout, lower, WorkspaceLayout::ColumnRole), 1);
+    const QVariantList widths = layout.centerColumnWidths();
+    QCOMPARE(widths.size(), 2);
+    QCOMPARE(occupiedCenterWidth(layout), 1350);
+    QVERIFY2(qAbs(widths.at(0).toInt() - widths.at(1).toInt()) <= 1,
+             qPrintable(QStringLiteral("%1 vs %2").arg(widths.at(0).toInt()).arg(widths.at(1).toInt())));
+}
+
+void WorkspaceLayoutTest::dropBesideColumnKeepsOtherColumnWidths()
+{
+    WorkspaceLayout layout;
+    QStringList ids;
+    fillTwoByTwo(layout, &ids);
+    QVERIFY(layout.setLeftWidth(250, 2000));
+    // Column 0 narrow, column 1 wide.
+    QVERIFY(layout.setCenterColumnWidth(0, 650));
+    const int wide = layout.centerColumnWidths().at(1).toInt();
+    QCOMPARE(wide, 1750 - 650);
+
+    // A tile of column 0 opens a column left of column 1: column 1 gives
+    // half its width to it, column 0 keeps its own.
+    const QString moving = ids.at(0);
+    QCOMPARE(roleInt(layout, moving, WorkspaceLayout::ColumnRole), 0);
+    QVERIFY(layout.insertCenterTile(moving, 1, WorkspaceLayout::DropLeft));
+    const QVariantList widths = layout.centerColumnWidths();
+    QCOMPARE(widths.size(), 3);
+    QCOMPARE(roleInt(layout, moving, WorkspaceLayout::ColumnRole), 1);
+    QCOMPARE(widths.at(0).toInt(), 650);
+    QVERIFY(qAbs(widths.at(1).toInt() - widths.at(2).toInt()) <= 1);
+    QCOMPARE(occupiedCenterWidth(layout), 1750);
+}
+
 void WorkspaceLayoutTest::clampedSideWidthDoesNotExceedWindowLimit()
 {
     WorkspaceLayout layout;
@@ -782,8 +985,15 @@ void WorkspaceLayoutTest::clampedSideWidthDoesNotExceedWindowLimit()
     QVERIFY(layout.leftWidth() <= 1000 - kMinCenterWidth);
     QVERIFY(layout.leftWidth() >= kMinLeftWidth);
 
+    // The right side is held to its minimum; it still docks, and the left
+    // one gives way to make room for it.
     QVERIFY(layout.setRightWidth(5000, 1000));
+    QCOMPARE(layout.rightPanelWidth(), kMinRightWidth);
+    QVERIFY(!layout.rightFloating());
     QCOMPARE(layout.rightWidth(), kMinRightWidth);
+    QCOMPARE(layout.leftWidth(), 1000 - kMinRightWidth - kMinCenterWidth);
+    QCOMPARE(layout.clampedSideWidth(QStringLiteral("left"), 5000, 1000), layout.leftWidth());
+    QCOMPARE(layout.clampedSideWidth(QStringLiteral("left"), 10, 1000), kSideCollapseWidth);
 }
 
 QTEST_MAIN(WorkspaceLayoutTest)

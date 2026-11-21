@@ -1,6 +1,6 @@
 # 终端子系统
 
-基于 ConPTY 与 [libghostty-vt](../../legal/libghostty-vt.md)，全部在主进程内运行。
+基于平台伪终端（Windows ConPTY，macOS `forkpty`，见 [macOS 平台](../platform/macos.md#2-终端进程)）与 [libghostty-vt](../../legal/libghostty-vt.md)，全部在主进程内运行。后端由 `terminal/api/platform_terminal.h` 的 `createPlatformTerminalProcess()` 提供。
 
 ## 1. 拓扑与线程
 
@@ -12,7 +12,8 @@ TerminalSurface.qml          右键菜单、滚动条、聚焦
       ├ TerminalFrameStore   不可变帧交换
       └ TerminalOutputQueue  1 MiB 有界字节队列
 TerminalCoreWorker           每会话一个 QThread：独占 GhosttyEngine，解析与发布；网格变化后通知进程 resize
-TerminalProcess              无专属线程：重叠读写、退出等待与 resize 都在系统线程池回调中执行
+TerminalProcess              Windows 无专属线程（重叠读写、退出等待与 resize 都在系统线程池回调中执行）；
+                             macOS 每会话一个 I/O 线程与一个等待线程
 ```
 
 - 进程的 `start()`/`stop()` 会阻塞在操作系统上，Session 放到分离线程执行，GUI 线程从不等待。启动结果带 generation 排队回 GUI，过期结果只释放进程。
@@ -35,7 +36,9 @@ TerminalProcess              无专属线程：重叠读写、退出等待与 re
 
 停止、退出、启动失败与析构共用撤销排队工作的入口，但各自信号与代次语义不合并。
 
-相关测试：`tests/terminal/` 下 `ghostty_engine_test`、`terminal_session_test`、`terminal_core_worker_test`、`terminal_manager_test`、`terminal_view_binding_test`、`terminal_input_routing_test`、`win_conpty_process_test`。手工压测见 [压测 TUI](lab/stress-tui.md)。
+自然退出分两步：`handleExit` 推进进程 generation 后请 Core `settleOutput()`（不受消费预算限制，解析完已入队的全部输出），Core 再把 `completeExit` 排回会话。这样尾部输出里的标题、进度、通知等宿主事件先于输入纪元失效到达会话；其间的停止或重启再次推进 generation，`completeExit` 随之作废。
+
+相关测试：`tests/terminal/` 下 `ghostty_engine_test`、`terminal_session_test`、`terminal_core_worker_test`、`terminal_manager_test`、`terminal_view_binding_test`、`terminal_input_routing_test`、`terminal_paste_test`、`terminal_session_input_test`、`win_conpty_process_test`。手工压测见 [压测 TUI](lab/stress-tui.md)。
 
 ## 4. 本域改动完成标准
 

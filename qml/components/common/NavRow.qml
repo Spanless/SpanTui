@@ -15,7 +15,8 @@ ListItem {
     property string icon: ""
     property string label: ""
     property color contentColor: Theme.text
-    readonly property color iconColor: selected || hovered ? contentColor : Theme.muted
+    property color iconColor: selected || hovered ? contentColor : Theme.muted
+    Behavior on iconColor { ColorAnimation { duration: Theme.durHover } }
     property bool shimmer: false
     // Optional trailing content (badges, status dots) docked at the row's end.
     property alias trailing: trailingHost.data

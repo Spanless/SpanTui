@@ -3,6 +3,7 @@
 
 #include <QBuffer>
 #include <QImage>
+#include <QRegularExpression>
 #include <QTest>
 
 #include <algorithm>
@@ -145,6 +146,7 @@ private slots:
     void alternateScreenHasNoHistoryOrPromptMarks();
     void followsDefaultCursorShapeUntilTheChildSetsOne();
     void deliversClipboardWritesButNeverReads();
+    void offersPasteEventsOnlyWhenTheChildAsks();
     void reportsColorSchemeOnQueryAndChange();
     void deliversTitleBellNotificationAndProgress();
     void answersSizeAndVersionButNotTitleReports();
@@ -187,7 +189,8 @@ void GhosttyEngineTest::keepsThemeColorsSemantic()
     terminal.engine.setDefaultColors(Qt::white, Qt::black);
     terminal.engine.setAnsiPalette(distinctPalette());
     terminal.feed("\x1b[31mr\x1b[0m\x1b[38;5;200mx\x1b[38;2;1;2;3mt\x1b[0md\x1b[44m \x1b[0m");
-    const Line &line = terminal.engine.frame().lines.at(0);
+    const Frame frame = terminal.engine.frame();
+    const Line &line = frame.lines.at(0);
 
     // Theme slots stay palette indices, so a theme switch recolours them.
     QCOMPARE(line.cells.at(0).style.foregroundPaletteIndex, 1);
@@ -209,7 +212,8 @@ void GhosttyEngineTest::childColorsOverrideTheTheme()
     terminal.engine.setDefaultColors(Qt::white, Qt::black);
     // OSC 4 redefines ANSI red; OSC 10 the default foreground.
     terminal.feed("\x1b]4;1;rgb:12/34/56\x07\x1b]10;rgb:ff/80/00\x07\x1b[31mr\x1b[0md");
-    const Line &line = terminal.engine.frame().lines.at(0);
+    const Frame frame = terminal.engine.frame();
+    const Line &line = frame.lines.at(0);
     QCOMPARE(line.cells.at(0).style.foregroundPaletteIndex, -1);
     QCOMPARE(line.cells.at(0).style.foreground, QColor(0x12, 0x34, 0x56));
     QVERIFY(!line.cells.at(1).style.defaultForeground);
@@ -227,7 +231,8 @@ void GhosttyEngineTest::carriesTextAttributes()
     terminal.feed("\x1b[1ma\x1b[0m\x1b[2mb\x1b[0m\x1b[3mc\x1b[0m\x1b[4:3md\x1b[0m"
                   "\x1b[4;58;2;255;0;0me\x1b[0m\x1b[53mf\x1b[0m\x1b[9mg\x1b[0m\x1b[5mh\x1b[0m"
                   "\x1b[7mi\x1b[0m\x1b[8mj\x1b[0m");
-    const Line &line = terminal.engine.frame().lines.at(0);
+    const Frame frame = terminal.engine.frame();
+    const Line &line = frame.lines.at(0);
     QVERIFY(line.cells.at(0).style.bold);
     QVERIFY(line.cells.at(1).style.faint);
     QVERIFY(line.cells.at(2).style.italic);
@@ -380,6 +385,37 @@ void GhosttyEngineTest::deliversClipboardWritesButNeverReads()
     QCOMPARE(terminal.clipboard, QStringList{QStringLiteral("hello")});
     const QByteArray reply = terminal.feed("\x1b]52;c;?\x07");
     QVERIFY2(!reply.contains("aGVsbG8"), reply.constData());
+}
+
+void GhosttyEngineTest::offersPasteEventsOnlyWhenTheChildAsks()
+{
+    Terminal terminal;
+    const QByteArray data = QByteArrayLiteral("PNGDATA");
+    const QByteArray encoded = data.toBase64(QByteArray::OmitTrailingEquals);
+    const QVector<GhosttyEngine::PasteRepresentation> image{{QByteArrayLiteral("image/png"), data}};
+    QVERIFY(!terminal.engine.pasteEvent(image));
+    QVERIFY(terminal.output.isEmpty());
+
+    terminal.feed("\x1b[?5522h");
+    QVERIFY(terminal.engine.pasteEvent(image));
+    const QByteArray event = std::exchange(terminal.output, {});
+    QVERIFY2(event.startsWith("\x1b]5522;"), event.constData());
+    // The event names the types; the data waits for the child's read.
+    QVERIFY2(!event.contains(encoded), event.constData());
+    const QRegularExpressionMatch password =
+        QRegularExpression(QStringLiteral("pw=([^:;\\x07\\x1b]+)")).match(QString::fromLatin1(event));
+    QVERIFY2(password.hasMatch(), event.constData());
+
+    const QByteArray mime = QByteArrayLiteral("image/png").toBase64();
+    // libghostty consults grants only for a read that names its program.
+    const QByteArray read = "\x1b]5522;type=read:pw=" + password.captured(1).toLatin1() + ":name="
+        + QByteArrayLiteral("test").toBase64() + ";" + mime + "\x1b\\";
+    const QByteArray reply = terminal.feed(read);
+    QVERIFY2(reply.contains(encoded), reply.constData());
+    // One read per paste; a read without the event's password gets nothing.
+    QVERIFY(!terminal.feed(read).contains(encoded));
+    const QByteArray unprompted = terminal.feed("\x1b]5522;type=read;" + mime + "\x1b\\");
+    QVERIFY2(!unprompted.contains(encoded), unprompted.constData());
 }
 
 void GhosttyEngineTest::reportsColorSchemeOnQueryAndChange()

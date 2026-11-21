@@ -27,3 +27,6 @@ qmlcache/
 
 # Test result XML must never be committed to the worktree root
 /*.xml
+
+# macOS Finder metadata
+.DS_Store

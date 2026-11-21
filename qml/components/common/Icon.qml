@@ -18,6 +18,9 @@ Item {
     // — the light line weight of platform symbol sets.
     property real strokeWidth: 1.5
     property bool hovered: false
+    // Hover motion waits for the pointer to dwell (IconMotion.hoverIntent);
+    // off when `hovered` carries a state instead of the pointer.
+    property bool hoverIntent: true
     property bool pressed: false
     property bool active: false
     // Off on a fill of the motion's tint colour (accent/danger pill), or the
@@ -115,6 +118,7 @@ Item {
                 catalog: UiIcons
                 name: root.name
                 hovered: root.hovered
+                hoverIntent: root.hoverIntent
                 active: root.active
                 reduceMotion: Appearance.reduceMotion
             }

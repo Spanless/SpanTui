@@ -1,4 +1,5 @@
 #include "application/single_instance_router.h"
+#include "platform/local_endpoint.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -8,12 +9,14 @@
 #include <QLocalSocket>
 #include <QProcess>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QUuid>
 #include <QtTest>
 
 using span::application::SingleInstanceRouter;
+using span::platform::localEndpointAddress;
 
 class SingleInstanceRouterTest final : public QObject {
     Q_OBJECT
@@ -34,8 +37,9 @@ namespace {
 
 QString uniqueEndpoint()
 {
-    return QStringLiteral("SpanTui-router-test-%1")
-        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    // Short enough for a Unix socket path (104 bytes on macOS) under the
+    // per-user temp folder.
+    return QStringLiteral("SpanTui-router-test-%1").arg(QUuid::createUuid().toString(QUuid::Id128).left(16));
 }
 
 // Reads and discards every request on `server`'s pending connections without
@@ -55,7 +59,7 @@ void swallowPendingConnections(QLocalServer *server)
 QByteArray exchange(const QString &endpoint, const QByteArray &request)
 {
     QLocalSocket client;
-    client.connectToServer(endpoint);
+    client.connectToServer(localEndpointAddress(endpoint));
     if (!client.waitForConnected(2000) || client.write(request) != request.size()) return {};
     QByteArray response;
     // A partial line that never completes counts as no response.
@@ -65,8 +69,9 @@ QByteArray exchange(const QString &endpoint, const QByteArray &request)
 
 QString helperExecutable()
 {
-    return QDir(QCoreApplication::applicationDirPath())
-        .filePath(QStringLiteral("single_instance_client_helper.exe"));
+    // Built next to this test; findExecutable adds the platform's suffix.
+    return QStandardPaths::findExecutable(QStringLiteral("single_instance_client_helper"),
+                                          {QCoreApplication::applicationDirPath()});
 }
 
 int runHelper(const QString &endpoint, const QString &projectPath,
@@ -220,9 +225,8 @@ void SingleInstanceRouterTest::failsWhenPrimaryNeverAcknowledges()
     auto *silent = new QLocalServer;
     silent->setSocketOptions(QLocalServer::UserAccessOption);
     silent->moveToThread(&serverThread);
-    QObject::connect(&serverThread, &QThread::started, silent, [silent, endpoint]() {
-        silent->listen(endpoint);
-    });
+    QObject::connect(&serverThread, &QThread::started, silent,
+                     [silent, endpoint]() { silent->listen(localEndpointAddress(endpoint)); });
     QObject::connect(silent, &QLocalServer::newConnection, silent, [silent]() { swallowPendingConnections(silent); });
     serverThread.start();
     QTRY_VERIFY_WITH_TIMEOUT(silent->isListening(), 2000);
@@ -255,7 +259,7 @@ void SingleInstanceRouterTest::rejectsOversizedActivationRequest()
     QSignalSpy activation(&primary, &SingleInstanceRouter::activationRequested);
 
     QLocalSocket client;
-    client.connectToServer(endpoint);
+    client.connectToServer(localEndpointAddress(endpoint));
     QVERIFY(client.waitForConnected(2000));
     // Larger than the 64KiB request ceiling and intentionally without '\n'.
     const QByteArray huge(70 * 1024, 'A');

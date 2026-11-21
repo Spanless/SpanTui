@@ -173,6 +173,7 @@ Item {
             maximumFrameRate: TerminalSettings.refreshRate
             selectionColor: Theme.terminalSelection
             shortcutBindings: Shortcuts.terminalBindings
+            applicationBindings: Shortcuts.applicationBindings
             searchMatchColor: Theme.terminalSearchMatch
             searchCurrentColor: Theme.terminalSearchCurrent
 

@@ -149,8 +149,10 @@ LayoutParse layoutFromJson(const QString &json, LayoutSnapshot *snapshot)
         if (tile_grid::columnOccupants(parsed, column).isEmpty()) {
             continue;
         }
+        // A layout saved in a narrow window holds columns below their
+        // minimum; the widths are weights that fillCenterColumns refits.
         const int width = widthArray.at(column).toInt();
-        if (width < tile_grid::columnMinWidth(parsed, column)) {
+        if (width <= 0) {
             return LayoutParse::Invalid;
         }
         columnRemap.insert(column, widths.size());

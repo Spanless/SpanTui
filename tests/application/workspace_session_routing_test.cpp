@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QOperatingSystemVersion>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -29,15 +30,22 @@ QString projectPath(const QTemporaryDir &dir, const QString &name)
     return QFileInfo(path).canonicalFilePath();
 }
 
-QString cmd()
+bool onWindows()
 {
-    return QStandardPaths::findExecutable(QStringLiteral("cmd.exe"));
+    return QOperatingSystemVersion::currentType() == QOperatingSystemVersion::Windows;
 }
 
-// cmd.exe arguments that write `marker` and exit; it starts in a fraction of
-// PowerShell's time.
+// A shell that starts fast: cmd.exe (a fraction of PowerShell's time), or
+// /bin/sh outside Windows.
+QString markerShell()
+{
+    return onWindows() ? QStandardPaths::findExecutable(QStringLiteral("cmd.exe")) : QStringLiteral("/bin/sh");
+}
+
+// markerShell() arguments that write `marker` and exit.
 QString writeMarkerArguments(const QString &marker)
 {
+    if (!onWindows()) return QStringLiteral("-c \"echo started > '%1'\"").arg(marker);
     return QStringLiteral("/d /c echo started>\"%1\"").arg(QDir::toNativeSeparators(marker));
 }
 
@@ -122,7 +130,7 @@ void WorkspaceSessionRoutingTest::commandSessionCommandIsConsumedOnce()
     QVERIFY(dir.isValid());
     const QString project = projectPath(dir, QStringLiteral("run"));
     const QString marker = dir.filePath(QStringLiteral("command-started.txt"));
-    const QString command = QStringLiteral("cmd.exe ") + writeMarkerArguments(marker);
+    const QString command = QStringLiteral("\"%1\" %2").arg(markerShell(), writeMarkerArguments(marker));
 
     Workspace workspace(dir);
     QVERIFY(workspace.initialized);
@@ -183,7 +191,7 @@ void WorkspaceSessionRoutingTest::remoteSessionOfUnknownHostIsNotLaunched()
 
 void WorkspaceSessionRoutingTest::shellProfileReachesOnlyNewTerminals()
 {
-    if (cmd().isEmpty()) QSKIP("cmd.exe is not available");
+    if (markerShell().isEmpty()) QSKIP("cmd.exe is not available");
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString project = projectPath(dir, QStringLiteral("profiles"));
@@ -193,7 +201,7 @@ void WorkspaceSessionRoutingTest::shellProfileReachesOnlyNewTerminals()
     Workspace workspace(dir);
     QVERIFY(workspace.initialized);
     ShellProfileRegistry &shells = *workspace.shells;
-    const QString profile = shells.addCustomProfile(cmd());
+    const QString profile = shells.addCustomProfile(markerShell());
     QVERIFY(!profile.isEmpty());
     shells.setArguments(profile, writeMarkerArguments(first));
 
@@ -206,7 +214,7 @@ void WorkspaceSessionRoutingTest::shellProfileReachesOnlyNewTerminals()
     shells.setArguments(profile, writeMarkerArguments(edited));
     sessions.renameSession(sessions.indexForSessionId(id), QStringLiteral("renamed"));
     QVERIFY(workspace.terminals.session(id));
-    // A restarted cmd.exe would write the marker within this window.
+    // A restarted shell would write the marker within this window.
     QTest::qWait(250);
     QVERIFY(!QFileInfo::exists(edited));
 

@@ -10,7 +10,7 @@
 
 - 子进程参数一律用 `QStringList` 传递，不拼接 `cmd /c` 字符串。
 - SSH：主机名、用户、端口、私钥路径先经 `checkEndpoint()` 校验（拒绝 `-` 开头及空白、引号、`%` 等），以独立 argv 传递并在主机名前加 `--`；远程 shell 路径经 `shellQuote()`，sftp 操作数经 `sftpQuote()`（见 [SSH 远程主机](../services/remote/ssh-remote.md)）。
-- 文件树运行脚本只接受本地绝对路径，扩展名限 `.bat`、`.cmd`、`.ps1`。
+- 文件树运行脚本只接受项目内的本地绝对路径，扩展名由平台限定（Windows `.bat`、`.cmd`、`.ps1`；macOS `.sh`、`.command`、`.bash`、`.zsh`），路径含双引号或换行时拒绝；路径以单引号字面量传给 shell。
 - 项目右键“打开方式”只启动 `OpenTargetRegistry` 本轮探测到的可执行文件（QML 传来的路径须与探测结果一致），参数只有项目文件夹；Windows 目录下的程序与 SpanTui 自身不在候选中。
 - Git 写命令只有工作树新建与删除；`--force` 删除只在用户确认 Git 的拒绝原因后发出（见 [Git](../services/git/overview.md#工作树写操作)）。
 
@@ -33,5 +33,5 @@ Markdown 以 GFM + `MarkdownNoHTML` 装载；raw HTML 经有界适配器转换�
 
 ## 6. 凭据
 
-- 密码与私钥密码以 DPAPI（当前用户作用域 + 固定熵，`src/platform/windows/credential_protection.*`）密文存入 `remote_hosts` 表。明文只在进程内存与 askpass 一次往返中，不进日志、消息中心或 QML（对话框只知"是否已保存"）。
+- 密码与私钥密码以 DPAPI（当前用户作用域 + 固定熵，`src/platform/credential_protection.h`；macOS 改用数据根下的密钥文件，较弱，见 [macOS 平台](../services/platform/macos.md#3-凭据保护的局限)）密文存入 `remote_hosts` 表。明文只在进程内存与 askpass 一次往返中，不进日志、消息中心或 QML（对话框只知"是否已保存"）。
 - 私钥导入为 `<root>\ssh-keys\<hostId>`，创建时即带只含当前用户的受保护 DACL（满足 OpenSSH 权限检查）；暂存 `<hostId>.staged` 与备份 `<hostId>.previous` 在同目录改名，保留该 DACL。用户原文件不改。

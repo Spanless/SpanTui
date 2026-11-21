@@ -3,11 +3,21 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QOperatingSystemVersion>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QtTest>
 
 using span::core::ProductPaths;
+
+namespace {
+// An absolute path on this platform: C:/<relative> on Windows, /<relative>
+// on macOS.
+QString absolute(const QString &relative)
+{
+    return QDir::rootPath() + relative;
+}
+} // namespace
 
 class ProductPathsTest final : public QObject {
     Q_OBJECT
@@ -87,9 +97,9 @@ void ProductPathsTest::overrideWinsOverPortable()
     QTemporaryDir app;
     QVERIFY(app.isValid());
     writeFile(QDir(app.path()).filePath(ProductPaths::portableMarkerName()));
-    QCOMPARE(ProductPaths::resolveRoot(QStringLiteral("C:/work/repo/.dev/data/../data"), app.path(),
-                                       QStringLiteral("C:/Local")),
-             QStringLiteral("C:/work/repo/.dev/data"));
+    QCOMPARE(ProductPaths::resolveRoot(absolute(QStringLiteral("work/repo/.dev/data/../data")), app.path(),
+                                       absolute(QStringLiteral("Local"))),
+             absolute(QStringLiteral("work/repo/.dev/data")));
 
     ProductPaths::setRootOverride(app.path());
     QCOMPARE(ProductPaths::root(), QDir::cleanPath(app.path()));
@@ -99,18 +109,20 @@ void ProductPathsTest::overrideWinsOverPortable()
 
 void ProductPathsTest::everyDurableFileLivesUnderRoot()
 {
-    ProductPaths::setRootOverride(QStringLiteral("C:/data"));
+    ProductPaths::setRootOverride(absolute(QStringLiteral("data")));
 
-    QCOMPARE(ProductPaths::databasePath(), QStringLiteral("C:/data/span_tui.db"));
-    QCOMPARE(ProductPaths::settingsPath(), QStringLiteral("C:/data/settings.ini"));
-    QCOMPARE(ProductPaths::launchLogPath(), QStringLiteral("C:/data/last-launch.log"));
-    QCOMPARE(ProductPaths::crashLogDirectory(), QStringLiteral("C:/data"));
-    QCOMPARE(ProductPaths::logDirectory(), QStringLiteral("C:/data/logs"));
-    QCOMPARE(ProductPaths::cacheDirectory(), QStringLiteral("C:/data/cache"));
-    QCOMPARE(ProductPaths::pipelineCachePath(), QStringLiteral("C:/data/cache/product_paths_test.qtpipelinecache"));
-    QCOMPARE(ProductPaths::isolatedRunsDirectory(), QStringLiteral("C:/data/isolated"));
-    QCOMPARE(ProductPaths::hangDiagnosticDirectory(), QStringLiteral("C:/data/diagnostics/hang"));
-    QCOMPARE(ProductPaths::graphicsStartMarkerPath(), QStringLiteral("C:/data/product_paths_test.graphics-start"));
+    QCOMPARE(ProductPaths::databasePath(), absolute(QStringLiteral("data/span_tui.db")));
+    QCOMPARE(ProductPaths::settingsPath(), absolute(QStringLiteral("data/settings.ini")));
+    QCOMPARE(ProductPaths::launchLogPath(), absolute(QStringLiteral("data/last-launch.log")));
+    QCOMPARE(ProductPaths::crashLogDirectory(), absolute(QStringLiteral("data")));
+    QCOMPARE(ProductPaths::logDirectory(), absolute(QStringLiteral("data/logs")));
+    QCOMPARE(ProductPaths::cacheDirectory(), absolute(QStringLiteral("data/cache")));
+    QCOMPARE(ProductPaths::pipelineCachePath(),
+             absolute(QStringLiteral("data/cache/product_paths_test.qtpipelinecache")));
+    QCOMPARE(ProductPaths::isolatedRunsDirectory(), absolute(QStringLiteral("data/isolated")));
+    QCOMPARE(ProductPaths::hangDiagnosticDirectory(), absolute(QStringLiteral("data/diagnostics/hang")));
+    QCOMPARE(ProductPaths::graphicsStartMarkerPath(),
+             absolute(QStringLiteral("data/product_paths_test.graphics-start")));
 }
 
 void ProductPathsTest::movesLegacySettingsIntoSettingsIni()
@@ -192,6 +204,8 @@ void ProductPathsTest::leavesLegacyRootWhenRootExists()
 
 void ProductPathsTest::defaultRootMoveGoesFromAppDataToLocalAppData()
 {
+    if (QOperatingSystemVersion::currentType() != QOperatingSystemVersion::Windows)
+        QSKIP("The Roaming legacy data root exists on Windows only.");
     QTemporaryDir profile;
     QVERIFY(profile.isValid());
     const QString roaming = QDir(profile.path()).filePath(QStringLiteral("Roaming"));

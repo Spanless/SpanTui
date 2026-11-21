@@ -1,5 +1,7 @@
 #include "platform/diagnostics/graphics_startup.h"
 
+#include "platform/graphics_adapter.h"
+
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
@@ -9,11 +11,6 @@
 #include <QQuickGraphicsConfiguration>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
-
-#ifdef Q_OS_WIN
-#include <d3d11.h>
-#include <dxgi.h>
-#endif
 
 #include <utility>
 
@@ -39,33 +36,6 @@ QString apiName(QSGRendererInterface::GraphicsApi api)
         return QStringLiteral("unknown");
     }
 }
-
-#ifdef Q_OS_WIN
-// The adapter behind a Direct3D 11 window, through the public device
-// handle. WARP reports Microsoft's vendor id and the Basic Render Driver id.
-void readDirect3D11Adapter(QSGRendererInterface *renderer, QQuickWindow *window,
-                           RendererFacts *facts)
-{
-    auto *device = static_cast<ID3D11Device *>(
-        renderer->getResource(window, QSGRendererInterface::DeviceResource));
-    if (!device)
-        return;
-    IDXGIDevice *dxgiDevice = nullptr;
-    if (FAILED(device->QueryInterface(__uuidof(IDXGIDevice),
-                                      reinterpret_cast<void **>(&dxgiDevice))))
-        return;
-    IDXGIAdapter *adapter = nullptr;
-    if (SUCCEEDED(dxgiDevice->GetAdapter(&adapter))) {
-        DXGI_ADAPTER_DESC description{};
-        if (SUCCEEDED(adapter->GetDesc(&description))) {
-            facts->device = QString::fromWCharArray(description.Description);
-            facts->software = description.VendorId == 0x1414 && description.DeviceId == 0x8c;
-        }
-        adapter->Release();
-    }
-    dxgiDevice->Release();
-}
-#endif
 
 } // namespace
 
@@ -165,15 +135,13 @@ void GraphicsStartupWatch::finish()
     if (m_window) {
         if (QSGRendererInterface *renderer = m_window->rendererInterface()) {
             m_renderer.api = apiName(renderer->graphicsApi());
-#ifdef Q_OS_WIN
-            if (renderer->graphicsApi() == QSGRendererInterface::Direct3D11)
-                readDirect3D11Adapter(renderer, m_window, &m_renderer);
-#endif
-            if (renderer->graphicsApi() == QSGRendererInterface::Software)
-                m_renderer.software = true;
+            const GraphicsAdapter adapter = graphicsAdapter(m_window);
+            m_renderer.device = adapter.name;
+            m_renderer.software = adapter.software || renderer->graphicsApi() == QSGRendererInterface::Software;
         }
     }
-    qInfo().noquote() << "Graphics:" << m_renderer.api << "on" << m_renderer.device
+    const QString device = m_renderer.device.isEmpty() ? QStringLiteral("an unknown adapter") : m_renderer.device;
+    qInfo().noquote() << "Graphics:" << m_renderer.api << "on" << device
                       << (m_renderer.software ? "(software)" : "(hardware)");
     emit rendererReady();
 }

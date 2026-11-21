@@ -1453,14 +1453,6 @@ Delete it anyway? Its uncommitted changes and untracked files are lost.</source>
         <translation>更新并重启</translation>
     </message>
     <message>
-        <source>Toggle project sidebar</source>
-        <translation>切换项目侧栏</translation>
-    </message>
-    <message>
-        <source>Toggle side panel</source>
-        <translation>切换右侧面板</translation>
-    </message>
-    <message>
         <source>Install stable release?</source>
         <translation>安装稳定版？</translation>
     </message>
@@ -1535,6 +1527,97 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>Open download page</source>
         <translation>打开下载页</translation>
+    </message>
+</context>
+<context>
+    <name>MacMenuBar</name>
+    <message>
+        <source>File</source>
+        <translation>文件</translation>
+    </message>
+    <message>
+        <source>New Terminal</source>
+        <translation>新建终端</translation>
+    </message>
+    <message>
+        <source>Open Folder…</source>
+        <translation>打开文件夹…</translation>
+    </message>
+    <message>
+        <source>Close Tile</source>
+        <translation>关闭 Tile</translation>
+    </message>
+    <message>
+        <source>Settings…</source>
+        <translation>设置…</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>编辑</translation>
+    </message>
+    <message>
+        <source>Undo</source>
+        <translation>撤销</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>重做</translation>
+    </message>
+    <message>
+        <source>Cut</source>
+        <translation>剪切</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>拷贝</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>粘贴</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation>全选</translation>
+    </message>
+    <message>
+        <source>View</source>
+        <translation>显示</translation>
+    </message>
+    <message>
+        <source>Hide Project Sidebar</source>
+        <translation>隐藏项目侧栏</translation>
+    </message>
+    <message>
+        <source>Show Project Sidebar</source>
+        <translation>显示项目侧栏</translation>
+    </message>
+    <message>
+        <source>Hide Side Panel</source>
+        <translation>隐藏侧面板</translation>
+    </message>
+    <message>
+        <source>Show Side Panel</source>
+        <translation>显示侧面板</translation>
+    </message>
+    <message>
+        <source>Exit Full Screen</source>
+        <translation>退出全屏幕</translation>
+    </message>
+    <message>
+        <source>Enter Full Screen</source>
+        <translation>进入全屏幕</translation>
+    </message>
+    <message>
+        <source>Window</source>
+        <translation>窗口</translation>
+    </message>
+    <message>
+        <source>Minimize</source>
+        <translation>最小化</translation>
+    </message>
+    <message>
+        <source>Zoom</source>
+        <translation>缩放</translation>
     </message>
 </context>
 <context>
@@ -1615,6 +1698,17 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>OK</source>
         <translation>确定</translation>
+    </message>
+</context>
+<context>
+    <name>NativeDialog</name>
+    <message>
+        <source>Yes</source>
+        <translation>是</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>否</translation>
     </message>
 </context>
 <context>
@@ -2263,8 +2357,8 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>复制终端选区；没有选区时，按键照常发送给终端。</translation>
     </message>
     <message>
-        <source>Paste the clipboard into the terminal as one bracketed paste.</source>
-        <translation>将剪贴板内容作为一次括号粘贴送入终端。</translation>
+        <source>Paste the clipboard into the terminal: text as one bracketed paste, copied files as their paths, an image as the path of a saved copy.</source>
+        <translation>将剪贴板粘贴到终端：文本作为一次括号粘贴，拷贝的文件粘贴其路径，图片粘贴所存副本的路径。</translation>
     </message>
     <message>
         <source>Scroll to the previous shell prompt. Needs shell integration (OSC 133); otherwise the key goes to the terminal.</source>
@@ -2349,6 +2443,70 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>Closes the find bar and returns focus to its pane.</source>
         <translation>关闭查找栏并将焦点还给所在面板。</translation>
+    </message>
+    <message>
+        <source>New terminal</source>
+        <translation>新建终端</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>打开文件夹</translation>
+    </message>
+    <message>
+        <source>Close tile</source>
+        <translation>关闭 Tile</translation>
+    </message>
+    <message>
+        <source>Settings</source>
+        <translation>设置</translation>
+    </message>
+    <message>
+        <source>Show or hide the project sidebar</source>
+        <translation>显示或隐藏项目侧栏</translation>
+    </message>
+    <message>
+        <source>Show or hide the side panel</source>
+        <translation>显示或隐藏侧面板</translation>
+    </message>
+    <message>
+        <source>Full screen</source>
+        <translation>全屏幕</translation>
+    </message>
+    <message>
+        <source>Open a terminal in the project of the focused terminal.</source>
+        <translation>在当前终端所属项目中打开新终端。</translation>
+    </message>
+    <message>
+        <source>Choose a folder to add as a project.</source>
+        <translation>选择一个文件夹添加为项目。</translation>
+    </message>
+    <message>
+        <source>Close the focused tile.</source>
+        <translation>关闭当前聚焦的 Tile。</translation>
+    </message>
+    <message>
+        <source>Open Settings.</source>
+        <translation>打开设置。</translation>
+    </message>
+    <message>
+        <source>In a narrow window the sidebar slides in over the workspace.</source>
+        <translation>窗口较窄时，侧栏以浮层滑入，覆盖在工作区上。</translation>
+    </message>
+    <message>
+        <source>In a narrow window the panel slides in over the workspace.</source>
+        <translation>窗口较窄时，面板以浮层滑入，覆盖在工作区上。</translation>
+    </message>
+    <message>
+        <source>Enter or leave full screen.</source>
+        <translation>进入或退出全屏幕。</translation>
+    </message>
+    <message>
+        <source>Window</source>
+        <translation>窗口</translation>
+    </message>
+    <message>
+        <source>Use Command or Option with a key, or a function key.</source>
+        <translation>请用 Command 或 Option 加一个键，或使用功能键。</translation>
     </message>
 </context>
 <context>
@@ -2508,6 +2666,17 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>Add a project folder from the Local header</source>
         <translation>从“本地”标题栏添加项目文件夹</translation>
+    </message>
+</context>
+<context>
+    <name>SidebarToggles</name>
+    <message>
+        <source>Toggle project sidebar</source>
+        <translation>切换项目侧栏</translation>
+    </message>
+    <message>
+        <source>Toggle side panel</source>
+        <translation>切换右侧面板</translation>
     </message>
 </context>
 <context>
@@ -3309,6 +3478,10 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <source>Could not start Git to delete the worktree.</source>
         <translation>无法启动 Git 删除工作树。</translation>
     </message>
+    <message>
+        <source>Open a project folder first.</source>
+        <translation>请先打开一个项目文件夹。</translation>
+    </message>
 </context>
 <context>
     <name>span::application::OpenTargetRegistry</name>
@@ -3448,8 +3621,8 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>无法启动 OpenSSH 客户端。</translation>
     </message>
     <message>
-        <source>The OpenSSH client (ssh.exe) was not found.</source>
-        <translation>未找到 OpenSSH 客户端（ssh.exe）。</translation>
+        <source>The OpenSSH client (%1) was not found.</source>
+        <translation>未找到 OpenSSH 客户端（%1）。</translation>
     </message>
     <message>
         <source>The SSH connection closed.</source>
@@ -3477,8 +3650,8 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         </translation>
     </message>
     <message>
-        <source>The OpenSSH client (sftp.exe) was not found.</source>
-        <translation>未找到 OpenSSH 客户端（sftp.exe）。</translation>
+        <source>The OpenSSH client (%1) was not found.</source>
+        <translation>未找到 OpenSSH 客户端（%1）。</translation>
     </message>
     <message>
         <source>The transfer failed.</source>
@@ -3524,6 +3697,22 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>Terminal input backlog is full; input was dropped.</source>
         <translation>终端输入积压已满，输入已被丢弃。</translation>
+    </message>
+    <message>
+        <source>The image is larger than %1 MB and was not pasted.</source>
+        <translation>图片大于 %1 MB，未粘贴。</translation>
+    </message>
+    <message>
+        <source>A remote terminal takes a pasted image only when its program asks for it; copy the image file to the host instead.</source>
+        <translation>远程终端只在其程序主动请求时才接收粘贴的图片；请改为把图片文件拷贝到远程主机。</translation>
+    </message>
+    <message>
+        <source>Could not save the pasted image: %1</source>
+        <translation>无法保存粘贴的图片：%1</translation>
+    </message>
+    <message>
+        <source>Local files cannot be pasted into a remote terminal; copy them to the host first.</source>
+        <translation>本地文件无法粘贴到远程终端；请先把文件拷贝到远程主机。</translation>
     </message>
 </context>
 <context>

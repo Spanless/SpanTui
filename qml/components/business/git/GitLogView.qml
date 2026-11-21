@@ -372,6 +372,12 @@ Item {
             glideHover: true
             keyNavigationEnabled: false
             activeFocusOnTab: true
+            // Claiming the bound chord keeps the menu bar's Copy (macOS) and
+            // window shortcuts from taking it first.
+            Keys.onShortcutOverride: event => {
+                event.accepted = root.selectedHash.length > 0
+                    && Shortcuts.matches("git.copyHash", event.key, event.modifiers)
+            }
             Keys.onPressed: event => root.handleListKey(event)
             onAtYEndChanged: {
                 if (atYEnd && count > 0 && root.gitRepository)

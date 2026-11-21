@@ -1,7 +1,8 @@
 #include "workspace/file_tree_model.h"
 
 #include "core/product_paths.h"
-#include "platform/windows/process_containment.h"
+#include "platform/process_containment.h"
+#include "platform/script_launch.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -188,47 +189,24 @@ int FileTreeModel::rowForPath(const QString &path) const {
 }
 
 bool FileTreeModel::canRunInProjectTerminal(int row) const {
-    if (row < 0 || row >= m_nodes.size()) {
-        return false;
-    }
-
-    const Node &node = m_nodes.at(row);
-    const QFileInfo info(node.path);
-    if (node.isDir || !info.isFile() || !pathIsInsideRoot(node.path)) {
-        return false;
-    }
-
-    const QString suffix = info.suffix().toLower();
-    return suffix == QStringLiteral("bat")
-        || suffix == QStringLiteral("cmd")
-        || suffix == QStringLiteral("ps1");
+    return !projectTerminalCommand(row).isEmpty();
 }
 
 QString FileTreeModel::projectTerminalCommand(int row) const {
-    if (!canRunInProjectTerminal(row)) {
+    if (row < 0 || row >= m_nodes.size()) {
         return {};
     }
-
-    const QFileInfo info(m_nodes.at(row).path);
+    const Node &node = m_nodes.at(row);
+    const QFileInfo info(node.path);
+    if (node.isDir || !info.isFile() || !pathIsInsideRoot(node.path)) {
+        return {};
+    }
     QString path = info.canonicalFilePath();
     if (path.isEmpty()) {
         path = info.absoluteFilePath();
     }
-    path = QDir::toNativeSeparators(path);
-    if (path.contains(QLatin1Char('"'))
-        || path.contains(QLatin1Char('\r'))
-        || path.contains(QLatin1Char('\n'))) {
-        return {};
-    }
-
-    // A single-quoted PowerShell literal keeps spaces and shell metacharacters
-    // in the file name inert. Doubling apostrophes is PowerShell's literal
-    // escape, and -NoExit leaves the project terminal open for inspection.
-    path.replace(QLatin1Char('\''), QStringLiteral("''"));
-    return QStringLiteral(
-               "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass "
-               "-NoExit -Command \"& '%1'\"")
-        .arg(path);
+    // Which files run, and how, is the platform's (platform/script_launch.h).
+    return span::platform::scriptCommandLine(QDir::toNativeSeparators(path));
 }
 
 QStringList FileTreeModel::independentTerminalArguments(int row) const {

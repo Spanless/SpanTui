@@ -157,7 +157,7 @@ Core 在自己的线程上先换网格，再通知 ConPTY（流程见 [ConPTY �
 - OSC 4/10/11/12 设置与查询、104/110/111/112 恢复：原生，回复与查询用同一终止符。
 - OSC 9、`OSC 777;notify;…`（通知）、`OSC 9;4`（进度）、BEL 经 `TerminalHostEvent` 上报，不进帧；BEL 只在窗口不在前台时闪任务栏（去向见 [消息与任务](../application/messages-task-progress.md)）。
 - OSC 133：标记过提示符后帧的 `promptMarks` 为真；`scrollToPrompt(±1)` 经 `DELTA_PROMPT` 移动视口（快捷键见 [输入协议](input-protocols.md#14-视图层约定)）。
-- OSC 52 只支持写入：`CLIPBOARD_WRITE` 回调（上限 8 MiB）→ `clipboardWriteRequested` → `TerminalSession` 写剪贴板。不注册读取，避免子进程读到敏感内容。
+- OSC 52 只支持写入：`CLIPBOARD_WRITE` 回调（上限 8 MiB）→ `clipboardWriteRequested` → `TerminalSession` 写剪贴板。注册的 `CLIPBOARD_READ` 回调只回答用户刚发出的 Kitty 粘贴事件之后的那一次读取（`granted`，见 [输入协议 §2](input-protocols.md#2-粘贴鼠标与写入)），OSC 52 `?` 与其他 5522 读取一律拒绝（OSC 52 收到空剪贴板），避免子进程读到敏感内容。
 - 标题：OSC 0/2 经 `TITLE_CHANGED` 上报，标题栈由 libghostty 维护。标题报告（`CSI 21 t`）关闭：它会把外部可控文本回显为输入。
 
 ### 6.4 XTWINOPS

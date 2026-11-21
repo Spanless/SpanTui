@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QOperatingSystemVersion>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -24,6 +25,19 @@ TerminalSessionSpec spec(const QString &id, const QString &cwd, const QString &c
 QVector<TerminalSessionSpec> listedSession(const QString &id, const QString &cwd, const QString &command)
 {
     return {spec(id, cwd, command)};
+}
+
+// A command line that creates the file `path` and exits, in the platform
+// terminal's command-line syntax.
+QString touchCommand(const QString &path)
+{
+    if (QOperatingSystemVersion::currentType() != QOperatingSystemVersion::Windows)
+        return QStringLiteral("/usr/bin/touch \"%1\"").arg(path);
+    QString literalPath = QDir::toNativeSeparators(path);
+    literalPath.replace(QLatin1Char('\''), QStringLiteral("''"));
+    return QStringLiteral("powershell.exe -NoLogo -NoProfile -Command \"Set-Content "
+                          "-LiteralPath '%1' -Value started\"")
+        .arg(literalPath);
 }
 
 } // namespace
@@ -120,14 +134,8 @@ void TerminalManagerTest::repeatedRoutingDoesNotRestartExitedSession() {
 void TerminalManagerTest::synchronizationForwardsInitialCommand() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString marker = QDir::toNativeSeparators(
-        dir.filePath(QStringLiteral("command-started.txt")));
-    QString literalPath = marker;
-    literalPath.replace(QLatin1Char('\''), QStringLiteral("''"));
-    const QString command = QStringLiteral(
-        "powershell.exe -NoLogo -NoProfile -Command \"Set-Content "
-        "-LiteralPath '%1' -Value started\"")
-        .arg(literalPath);
+    const QString marker = dir.filePath(QStringLiteral("command-started.txt"));
+    const QString command = touchCommand(marker);
 
     TerminalManager manager;
     manager.synchronize({spec(QStringLiteral("command-session"), dir.path(), command)});
@@ -139,13 +147,7 @@ void TerminalManagerTest::synchronizationForwardsInitialCommand() {
 void TerminalManagerTest::restartUsesLatestListedCommand() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const auto markerCommand = [&](const QString &name) {
-        QString path = QDir::toNativeSeparators(dir.filePath(name));
-        path.replace(QLatin1Char('\''), QStringLiteral("''"));
-        return QStringLiteral("powershell.exe -NoLogo -NoProfile -Command \"Set-Content "
-                              "-LiteralPath '%1' -Value started\"")
-            .arg(path);
-    };
+    const auto markerCommand = [&](const QString &name) { return touchCommand(dir.filePath(name)); };
     const QString id = QStringLiteral("remote-session");
     const auto listed = [&](const QString &command) { return listedSession(id, dir.path(), command); };
 

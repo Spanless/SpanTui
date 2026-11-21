@@ -1,17 +1,16 @@
 #include "remote/ssh_askpass.h"
 
+#include "core/external_tool_locations.h"
+#include "platform/local_endpoint.h"
+#include "remote/ssh_askpass_platform.h"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QRandomGenerator>
 
-#include <qt_windows.h>
-#include <shellapi.h>
-#include <tlhelp32.h>
-
 #include <iterator>
-#include <string>
 
 namespace span::remote {
 namespace {
@@ -26,42 +25,6 @@ QString randomHex(int bytes)
     QRandomGenerator::system()->fillRange(
         reinterpret_cast<quint32 *>(raw.data()), bytes / int(sizeof(quint32)));
     return QString::fromLatin1(raw.toHex());
-}
-
-quint32 parentProcessId()
-{
-    const DWORD self = GetCurrentProcessId();
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) {
-        return 0;
-    }
-    PROCESSENTRY32W entry{};
-    entry.dwSize = sizeof(entry);
-    quint32 parent = 0;
-    for (BOOL more = Process32FirstW(snapshot, &entry); more;
-         more = Process32NextW(snapshot, &entry)) {
-        if (entry.th32ProcessID == self) {
-            parent = entry.th32ParentProcessID;
-            break;
-        }
-    }
-    CloseHandle(snapshot);
-    return parent;
-}
-
-bool writeAll(HANDLE handle, const QByteArray &bytes)
-{
-    qsizetype offset = 0;
-    while (offset < bytes.size()) {
-        DWORD written = 0;
-        if (!WriteFile(handle, bytes.constData() + offset,
-                       DWORD(bytes.size() - offset), &written, nullptr)
-            || written == 0) {
-            return false;
-        }
-        offset += written;
-    }
-    return true;
 }
 
 } // namespace
@@ -105,35 +68,18 @@ bool isLaunchedSsh(quint32 sshPid, quint32 ownerPid)
     if (sshPid == 0 || ownerPid == 0) {
         return false;
     }
-    struct Process {
-        quint32 parent = 0;
-        QString exe;
-    };
-    QHash<quint32, Process> processes;
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) {
+    quint32 parent = 0;
+    if (!askpass_platform::processParent(sshPid, &parent, nullptr)) {
         return false;
     }
-    PROCESSENTRY32W entry{};
-    entry.dwSize = sizeof(entry);
-    for (BOOL more = Process32FirstW(snapshot, &entry); more;
-         more = Process32NextW(snapshot, &entry)) {
-        processes.insert(entry.th32ProcessID,
-                         Process{entry.th32ParentProcessID,
-                                 QString::fromWCharArray(entry.szExeFile)});
-    }
-    CloseHandle(snapshot);
-    const auto ssh = processes.constFind(sshPid);
-    if (ssh == processes.cend()) {
-        return false;
-    }
-    if (ssh->parent == ownerPid) {
+    if (parent == ownerPid) {
         return true;
     }
     // sftp runs its own ssh child for each transfer.
-    const auto launcher = processes.constFind(ssh->parent);
-    return launcher != processes.cend() && launcher->parent == ownerPid
-        && launcher->exe.compare(QStringLiteral("sftp.exe"), Qt::CaseInsensitive) == 0;
+    quint32 launcherParent = 0;
+    QString launcher;
+    return askpass_platform::processParent(parent, &launcherParent, &launcher) && launcherParent == ownerPid
+        && launcher.compare(core::executableFileName(core::toolId(core::ExternalTool::Sftp)), Qt::CaseInsensitive) == 0;
 }
 
 bool isAskpassInvocation(int argc)
@@ -146,35 +92,11 @@ bool exchangeAskpassPrompt(const QString &pipeName, const QString &token,
                            quint32 parentProcessId, const QString &prompt,
                            QString *answer)
 {
-    const std::wstring name = pipeName.toStdWString();
-    HANDLE pipe = INVALID_HANDLE_VALUE;
-    for (int attempt = 0; attempt < 20; ++attempt) {
-        pipe = CreateFileW(name.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
-                           nullptr, OPEN_EXISTING, 0, nullptr);
-        if (pipe != INVALID_HANDLE_VALUE || GetLastError() != ERROR_PIPE_BUSY) {
-            break;
-        }
-        WaitNamedPipeW(name.c_str(), 500);
-    }
-    if (pipe == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
     const QByteArray request = QByteArray(kMagic) + '\t' + token.toLatin1() + '\t'
         + QByteArray::number(parentProcessId) + '\t'
         + prompt.toUtf8().toBase64() + '\n';
     QByteArray reply;
-    bool ok = writeAll(pipe, request);
-    while (ok && !reply.contains('\n') && reply.size() < kMaxLine) {
-        char buffer[4096];
-        DWORD read = 0;
-        if (!ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) || read == 0) {
-            ok = false;
-            break;
-        }
-        reply.append(buffer, qsizetype(read));
-    }
-    CloseHandle(pipe);
+    const bool ok = askpass_platform::exchange(pipeName, request, &reply);
     if (!ok || !reply.startsWith("OK\t")) {
         return false;
     }
@@ -185,33 +107,22 @@ bool exchangeAskpassPrompt(const QString &pipeName, const QString &token,
     return true;
 }
 
-int runAskpassClient()
+int runAskpassClient(int argc, char **argv)
 {
-    int count = 0;
-    LPWSTR *arguments = CommandLineToArgvW(GetCommandLineW(), &count);
-    if (!arguments) {
-        return 1;
-    }
-    const QString prompt = count >= 2 ? QString::fromWCharArray(arguments[1]) : QString();
-    LocalFree(arguments);
     QString answer;
-    if (!exchangeAskpassPrompt(qEnvironmentVariable(kAskpassPipeEnv),
-                               qEnvironmentVariable(kAskpassTokenEnv),
-                               parentProcessId(), prompt, &answer)) {
+    if (!exchangeAskpassPrompt(qEnvironmentVariable(kAskpassPipeEnv), qEnvironmentVariable(kAskpassTokenEnv),
+                               askpass_platform::parentProcessId(), askpass_platform::promptArgument(argc, argv),
+                               &answer)) {
         return 1;
     }
-    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (output == nullptr || output == INVALID_HANDLE_VALUE) {
-        return 1;
-    }
-    return writeAll(output, answer.toUtf8() + '\n') ? 0 : 1;
+    return askpass_platform::writeStandardOutput(answer.toUtf8() + '\n') ? 0 : 1;
 }
 
 SshAskpassBroker::SshAskpassBroker(QObject *parent)
     : QObject(parent), m_server(new QLocalServer(this)),
       m_program(QDir::toNativeSeparators(QCoreApplication::applicationFilePath()))
 {
-    // Owner-only DACL: other accounts on the machine cannot open the pipe.
+    // Owner-only: other accounts on the machine cannot open the endpoint.
     m_server->setSocketOptions(QLocalServer::UserAccessOption);
     connect(m_server, &QLocalServer::newConnection, this,
             &SshAskpassBroker::acceptConnection);
@@ -230,7 +141,7 @@ bool SshAskpassBroker::listen(QString *error)
     const QString name = QStringLiteral("SpanTui-askpass-%1-%2")
                              .arg(QCoreApplication::applicationPid())
                              .arg(randomHex(8));
-    if (!m_server->listen(name)) {
+    if (!m_server->listen(span::platform::localEndpointAddress(name))) {
         m_listenError = m_server->errorString();
         if (error) {
             *error = m_listenError;
