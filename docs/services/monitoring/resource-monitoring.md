@@ -5,7 +5,7 @@
 `src/monitoring/resource_monitor.*`：
 
 - **目标来源**：每轮采样前向宿主要一次要测量的会话（`SessionTargetSource`：会话 id、根进程、作业进程、是否在运行）。监控库不依赖终端库；工作区组合根把 `TerminalManager` 经 `src/application/terminal_resource_targets.*` 转成目标。
-- 定时器（`performanceMonitorIntervalSeconds`）把采样投递到后台单线程（`ResourceSampleProvider`），同时最多一个在途，上一次未完成则跳过本次；结果以不可变快照交给 GUI。
+- 定时器（`performanceMonitorIntervalSeconds`）把采样投递到后台单线程（`ResourceSampleProvider`），同时最多一个在途，上一次未完成则跳过本次；结果以不可变快照交给 GUI。采样线程创建后立即分离，监视器析构只发停止信号、不等待在途采样；不在析构里分离——分离会与线程收到停止后的退出并发（Windows CI 上 `resource_monitor_test` 因此偶发段错误）。
 - **按需激活**：显示读数的界面以 `setConsumerVisible(consumer, visible)` 登记（按消费者记集合，不计数）。有可见消费者时 `setActive(true)`，立即采一次并启动定时器；最后一个隐藏或销毁时停表。未激活时读数为 0，不调用 `sessionMetrics`。
 - **空闲退避**：`IdleGovernor`（窗口未激活或 30 秒无输入）使间隔 ×5；恢复活跃且处于激活状态时立即补采。
 - **指标**：`GetProcessMemoryInfo`（私有字节、工作集）、`GetProcessTimes`（CPU，记录上次值，进程树成员变化不产生尖峰）、`GlobalMemoryStatusEx`（物理内存，作内存等级的分母）。GPU 经 PDH 英文计数器 `\GPU Engine(*)\Utilization Percentage`，`gpu_engine_metrics.cpp` 解析实例名中的 `pid_<n>` 汇总会话进程树；不支持或无权限时只缺 GPU 项。macOS 用 `proc_pidinfo`/`task_info`，没有按进程的 GPU 计数器（见 [macOS 平台](../platform/macos.md)）。

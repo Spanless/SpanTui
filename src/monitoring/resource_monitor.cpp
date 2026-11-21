@@ -28,14 +28,6 @@ struct ResourceMonitor::SampleLane {
     qint64 elapsedMs = 0;
     bool hasRequest = false;
     bool stop = false;
-    std::thread worker;
-
-    ~SampleLane()
-    {
-        if (worker.joinable()) {
-            worker.detach();
-        }
-    }
 };
 
 ResourceMonitor::ResourceMonitor(SessionTargetSource targetSource, QObject *parent,
@@ -52,7 +44,10 @@ ResourceMonitor::ResourceMonitor(SessionTargetSource targetSource, QObject *pare
     m_sampleLane->provider = m_sampleProvider;
     m_sampleLane->callbackState = m_callbackState;
     const auto lane = m_sampleLane;
-    m_sampleLane->worker = std::thread([lane]() {
+    // The worker owns the lane, so the monitor never waits on a sample in
+    // flight. It is detached here, while it is certainly alive: detaching in
+    // the destructor raced the thread's exit right after stop.
+    std::thread([lane]() {
         while (true) {
             std::unique_lock<std::mutex> lock(lane->mutex);
             lane->changed.wait(lock, [lane]() {
@@ -83,7 +78,7 @@ ResourceMonitor::ResourceMonitor(SessionTargetSource targetSource, QObject *pare
                 &callbackState->completed, result, std::memory_order_release);
         }
         lane->provider.reset();
-    });
+    }).detach();
     m_timer->setTimerType(Qt::CoarseTimer);
     connect(m_timer, &QTimer::timeout, this, &ResourceMonitor::refresh);
     m_completionTimer->setInterval(kCompletionPollMs);
@@ -106,9 +101,6 @@ ResourceMonitor::~ResourceMonitor() {
         m_sampleLane->stop = true;
     }
     m_sampleLane->changed.notify_one();
-    if (m_sampleLane->worker.joinable()) {
-        m_sampleLane->worker.detach();
-    }
     m_sampleLane.reset();
 }
 

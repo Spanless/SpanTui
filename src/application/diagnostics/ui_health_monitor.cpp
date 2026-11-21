@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <thread>
 
 namespace span::application::diagnostics {
 namespace {
@@ -275,11 +276,6 @@ UiHealthMonitor::~UiHealthMonitor()
     }
     snapshot->stopping.store(true, std::memory_order_release);
     snapshot->wake.notify_one();
-    if (m_watchdog.joinable()) {
-        // Never join a watchdog that may be inside a stall report. The
-        // thread owns Snapshot via shared_ptr, so GUI teardown cannot UAF.
-        m_watchdog.detach();
-    }
 }
 
 void UiHealthMonitor::start()
@@ -291,10 +287,10 @@ void UiHealthMonitor::start()
     pulse();
     m_heartbeatTimer.start();
     const auto snapshot = m_snapshot;
-    m_watchdog = std::thread([snapshot]() {
-        UiHealthMonitor::watchdogLoop(snapshot);
-    });
-
+    // Never joined: it may be inside a stall report. It owns Snapshot via
+    // shared_ptr, so GUI teardown cannot UAF. Detached here, while it is
+    // certainly alive: detaching in the destructor raced its exit after stop.
+    std::thread([snapshot]() { UiHealthMonitor::watchdogLoop(snapshot); }).detach();
 }
 
 void UiHealthMonitor::pulse()
