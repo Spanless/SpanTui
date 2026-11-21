@@ -166,9 +166,12 @@ void TerminalSession::connectCore() {
         if (core != m_core || !token.valid()) return;
         if (QClipboard *clipboard = QGuiApplication::clipboard()) clipboard->setText(text);
     }, Qt::QueuedConnection);
-    connect(core, &TerminalCoreWorker::pasteDeclined, this, [this, core](const QString &message) {
-        if (core == m_core) emit errorOccurred(message);
-    }, Qt::QueuedConnection);
+    connect(
+        core, &TerminalCoreWorker::pasteDeclined, this,
+        [this, core](const QString &message) {
+            if (core == m_core) emit errorOccurred(message);
+        },
+        Qt::QueuedConnection);
     connect(core, &TerminalCoreWorker::hostEventRequested, this,
             [this, core](const TerminalHostEvent &event, const TerminalInputToken &token) {
         if (core == m_core && token.valid()) handleHostEvent(event);
@@ -676,7 +679,8 @@ void TerminalSession::paste(const QString &text) {
     m_input.paste(text);
 }
 
-void TerminalSession::pasteClipboard(const QString &text, const QByteArray &png) {
+void TerminalSession::pasteClipboard(const QString &text, const QByteArray &png)
+{
     if (!m_running || (text.isEmpty() && png.isEmpty())) {
         return;
     }
@@ -686,8 +690,8 @@ void TerminalSession::pasteClipboard(const QString &text, const QByteArray &png)
         return;
     }
     if (png.size() > kPasteImageMaxBytes) {
-        emit errorOccurred(tr("The image is larger than %1 MB and was not pasted.")
-                               .arg(kPasteImageMaxBytes / (1024 * 1024)));
+        emit errorOccurred(
+            tr("The image is larger than %1 MB and was not pasted.").arg(kPasteImageMaxBytes / (1024 * 1024)));
         return;
     }
     markActivity();
@@ -702,8 +706,7 @@ void TerminalSession::pasteClipboard(const QString &text, const QByteArray &png)
                                    "copy the image file to the host instead.");
     } else {
         QString error;
-        const QString path =
-            stagePastedImage(png, pasteStagingDirectory(), QDateTime::currentDateTime(), &error);
+        const QString path = stagePastedImage(png, pasteStagingDirectory(), QDateTime::currentDateTime(), &error);
         if (path.isEmpty()) {
             offer.declinedMessage = tr("Could not save the pasted image: %1").arg(error);
         } else {
@@ -713,7 +716,8 @@ void TerminalSession::pasteClipboard(const QString &text, const QByteArray &png)
     m_input.paste(fallback, offer);
 }
 
-void TerminalSession::pasteFiles(const QStringList &paths) {
+void TerminalSession::pasteFiles(const QStringList &paths)
+{
     if (!m_running || paths.isEmpty()) {
         return;
     }
@@ -730,7 +734,8 @@ void TerminalSession::pasteFiles(const QStringList &paths) {
     paste(pastePaths(staged, quoting));
 }
 
-PathQuoting TerminalSession::pathQuoting() const {
+PathQuoting TerminalSession::pathQuoting() const
+{
     if (!m_commandLine.trimmed().isEmpty()) {
         return pathQuotingForCommandLine(m_commandLine);
     }

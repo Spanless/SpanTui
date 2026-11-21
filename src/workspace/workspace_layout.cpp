@@ -237,14 +237,12 @@ bool WorkspaceLayout::closeTile(const QString &id)
 
 bool WorkspaceLayout::setLeftWidth(int px, int windowInnerWidth)
 {
-    return setSideWidth(px, windowInnerWidth, m_leftWidthStored, m_leftCollapsed,
-                        kMinLeftWidth, rightWidth());
+    return setSideWidth(px, windowInnerWidth, m_leftWidthStored, m_leftCollapsed, kMinLeftWidth, rightWidth());
 }
 
 bool WorkspaceLayout::setRightWidth(int px, int windowInnerWidth)
 {
-    return setSideWidth(px, windowInnerWidth, m_rightWidthStored, m_rightCollapsed,
-                        kMinRightWidth, leftWidth());
+    return setSideWidth(px, windowInnerWidth, m_rightWidthStored, m_rightCollapsed, kMinRightWidth, leftWidth());
 }
 
 int WorkspaceLayout::clampedSideWidth(const QString &zone, int px, int windowInnerWidth) const
@@ -888,9 +886,8 @@ bool WorkspaceLayout::updateFloating()
 
 int WorkspaceLayout::sideState() const
 {
-    return (m_leftFloating ? 1 : 0) | (m_rightFloating ? 2 : 0)
-         | (m_leftOverlayOpen ? 4 : 0) | (m_rightOverlayOpen ? 8 : 0)
-         | (leftShown() ? 16 : 0) | (rightShown() ? 32 : 0);
+    return (m_leftFloating ? 1 : 0) | (m_rightFloating ? 2 : 0) | (m_leftOverlayOpen ? 4 : 0)
+        | (m_rightOverlayOpen ? 8 : 0) | (leftShown() ? 16 : 0) | (rightShown() ? 32 : 0);
 }
 
 void WorkspaceLayout::syncSides()

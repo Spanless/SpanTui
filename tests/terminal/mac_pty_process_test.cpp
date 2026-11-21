@@ -254,8 +254,8 @@ void MacPtyProcessTest::stopEndsAForegroundJobThatIgnoresTheHangup()
     QString error;
     // With job control the shell runs the job in a process group of its own
     // and hands it the terminal, as an interactive shell does.
-    QVERIFY2(process.start(command(QStringLiteral("/bin/sh -c \"set -m; %1; echo done\"").arg(job)), events.outputCallback(),
-                           events.exitCallback(), &error),
+    QVERIFY2(process.start(command(QStringLiteral("/bin/sh -c \"set -m; %1; echo done\"").arg(job)),
+                           events.outputCallback(), events.exitCallback(), &error),
              qPrintable(error));
     QVERIFY2(events.waitForOutput(" ready"), events.received().constData());
     const QRegularExpressionMatch match =

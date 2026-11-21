@@ -11,11 +11,11 @@ namespace span::terminal {
 // How a local path is written so the session's shell reads it back as one
 // argument.
 enum class PathQuoting {
-    Posix,      // sh, bash, zsh, fish, Git Bash: single quotes
+    Posix, // sh, bash, zsh, fish, Git Bash: single quotes
     PowerShell, // pwsh, Windows PowerShell: single quotes, ' doubled
-    Cmd,        // cmd.exe: double quotes
-    Wsl,        // wsl.exe: the Linux path of a Windows drive, then Posix
-    Remote,     // ssh: a local path means nothing on the other host
+    Cmd, // cmd.exe: double quotes
+    Wsl, // wsl.exe: the Linux path of a Windows drive, then Posix
+    Remote, // ssh: a local path means nothing on the other host
 };
 
 // The quoting for the program a session's command line starts: its first
@@ -46,8 +46,7 @@ struct StagedFile {
 
 // Files to delete: older than `maxAgeSeconds`, or beyond the newest
 // `maxFiles`.
-QStringList expiredStagedFiles(QVector<StagedFile> files, const QDateTime &now, qint64 maxAgeSeconds,
-                               int maxFiles);
+QStringList expiredStagedFiles(QVector<StagedFile> files, const QDateTime &now, qint64 maxAgeSeconds, int maxFiles);
 
 // True when `path` lives in the system temporary directory, where the
 // system removes it soon (the macOS screenshot thumbnail, a file dragged out

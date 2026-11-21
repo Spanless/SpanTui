@@ -656,7 +656,8 @@ void TerminalCoreWorker::sendText(const QString &text) {
         m_engine->sendText(text);
     }
 }
-void TerminalCoreWorker::beginPaste(const TerminalPasteOffer &offer, bool hasText) {
+void TerminalCoreWorker::beginPaste(const TerminalPasteOffer &offer, bool hasText)
+{
     if (!ensureInitialized() || m_pasteActive) return;
     m_pasteActive = true;
     m_pasteBracketed = false;

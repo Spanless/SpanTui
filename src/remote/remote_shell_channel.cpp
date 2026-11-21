@@ -162,8 +162,8 @@ void RemoteShellChannel::terminate(const QString &message, State state)
 void RemoteShellChannel::start()
 {
     if (m_program.isEmpty()) {
-        m_errorMessage = tr("The OpenSSH client (%1) was not found.")
-                             .arg(span::core::executableFileName(QStringLiteral("ssh")));
+        m_errorMessage =
+            tr("The OpenSSH client (%1) was not found.").arg(span::core::executableFileName(QStringLiteral("ssh")));
         setState(State::Failed);
         return;
     }

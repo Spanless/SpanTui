@@ -402,32 +402,30 @@ void TerminalInputRoutingTest::plainCtrlCIgnoresOtherChords()
 // key (Command on macOS, Windows key on Windows).
 void TerminalInputRoutingTest::leavesUnboundSuperChordsToTheSystem()
 {
-    const QHash<int, QStringList> table = TerminalInputRouting::shortcutTable(
-        {{QStringLiteral("copy"), QStringLiteral("Meta+C")}});
+    const QHash<int, QStringList> table =
+        TerminalInputRouting::shortcutTable({{QStringLiteral("copy"), QStringLiteral("Meta+C")}});
 
     QVERIFY(!TerminalInputRouting::claimsShortcutOverride(
         keyEvent({Qt::Key_Q, Qt::MetaModifier, QStringLiteral("q")}).get(), table));
     QVERIFY(!TerminalInputRouting::claimsShortcutOverride(
         keyEvent({Qt::Key_H, Qt::MetaModifier | Qt::AltModifier}).get(), table));
-    QVERIFY(TerminalInputRouting::claimsShortcutOverride(
-        keyEvent({Qt::Key_C, Qt::MetaModifier}).get(), table));
-    QVERIFY(TerminalInputRouting::claimsShortcutOverride(
-        keyEvent({Qt::Key_Q, Qt::ControlModifier}).get(), table));
+    QVERIFY(TerminalInputRouting::claimsShortcutOverride(keyEvent({Qt::Key_C, Qt::MetaModifier}).get(), table));
+    QVERIFY(TerminalInputRouting::claimsShortcutOverride(keyEvent({Qt::Key_Q, Qt::ControlModifier}).get(), table));
     QVERIFY(TerminalInputRouting::claimsShortcutOverride(
         keyEvent({Qt::Key_Q, Qt::NoModifier, QStringLiteral("q")}).get(), table));
     QVERIFY(!TerminalInputRouting::claimsShortcutOverride(nullptr, table));
 
     // The window's own commands keep their chords; a terminal action bound
     // to the same chord wins.
-    const QHash<int, QStringList> application = TerminalInputRouting::shortcutTable(
-        {{QStringLiteral("app.closeTile"), QStringLiteral("Ctrl+Shift+W")},
-         {QStringLiteral("app.copyClash"), QStringLiteral("Meta+C")}});
+    const QHash<int, QStringList> application =
+        TerminalInputRouting::shortcutTable({{QStringLiteral("app.closeTile"), QStringLiteral("Ctrl+Shift+W")},
+                                             {QStringLiteral("app.copyClash"), QStringLiteral("Meta+C")}});
     QVERIFY(!TerminalInputRouting::claimsShortcutOverride(
         keyEvent({Qt::Key_W, Qt::ControlModifier | Qt::ShiftModifier}).get(), table, application));
-    QVERIFY(TerminalInputRouting::claimsShortcutOverride(
-        keyEvent({Qt::Key_W, Qt::ControlModifier}).get(), table, application));
-    QVERIFY(TerminalInputRouting::claimsShortcutOverride(
-        keyEvent({Qt::Key_C, Qt::MetaModifier}).get(), table, application));
+    QVERIFY(TerminalInputRouting::claimsShortcutOverride(keyEvent({Qt::Key_W, Qt::ControlModifier}).get(), table,
+                                                         application));
+    QVERIFY(TerminalInputRouting::claimsShortcutOverride(keyEvent({Qt::Key_C, Qt::MetaModifier}).get(), table,
+                                                         application));
 }
 
 void TerminalInputRoutingTest::mouseStaysLocalUnlessProgramTracksIt()

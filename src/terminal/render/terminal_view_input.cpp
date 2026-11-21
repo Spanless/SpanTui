@@ -197,17 +197,10 @@ void TerminalView::pasteClipboard()
     const QStringList files = localFiles(mime);
     const QString text = mime->text();
     switch (classifyClipboard(!files.isEmpty(), !text.isEmpty(), mime->hasImage())) {
-    case ClipboardPasteKind::Files:
-        m_session->pasteFiles(files);
-        break;
-    case ClipboardPasteKind::Text:
-        m_session->pasteClipboard(text, {});
-        break;
-    case ClipboardPasteKind::Image:
-        m_session->pasteClipboard({}, clipboardPng(mime));
-        break;
-    case ClipboardPasteKind::Nothing:
-        return;
+    case ClipboardPasteKind::Files: m_session->pasteFiles(files); break;
+    case ClipboardPasteKind::Text: m_session->pasteClipboard(text, {}); break;
+    case ClipboardPasteKind::Image: m_session->pasteClipboard({}, clipboardPng(mime)); break;
+    case ClipboardPasteKind::Nothing: return;
     }
     noteCursorHoldRestart();
 }

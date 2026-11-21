@@ -192,7 +192,8 @@ bool FileTreeModel::canRunInProjectTerminal(int row) const {
     return !projectTerminalCommand(row).isEmpty();
 }
 
-QString FileTreeModel::projectTerminalCommand(int row) const {
+QString FileTreeModel::projectTerminalCommand(int row) const
+{
     if (row < 0 || row >= m_nodes.size()) {
         return {};
     }

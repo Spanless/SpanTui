@@ -117,8 +117,7 @@ void pruneStagingDirectory(const QString &directory, const QDateTime &now)
         it.next();
         files.push_back({it.filePath(), it.fileInfo().lastModified()});
     }
-    for (const QString &path :
-         expiredStagedFiles(files, now, kPasteStagingMaxAgeSeconds, kPasteStagingMaxFiles)) {
+    for (const QString &path : expiredStagedFiles(files, now, kPasteStagingMaxAgeSeconds, kPasteStagingMaxFiles)) {
         QFile::remove(path);
     }
 }
@@ -149,18 +148,15 @@ PathQuoting pathQuotingForCommandLine(const QString &commandLine)
 QString quotePath(const QString &path, PathQuoting quoting)
 {
     switch (quoting) {
-    case PathQuoting::Posix:
-        return posixQuote(path);
-    case PathQuoting::Wsl:
-        return posixQuote(wslPath(path));
+    case PathQuoting::Posix: return posixQuote(path);
+    case PathQuoting::Wsl: return posixQuote(wslPath(path));
     case PathQuoting::PowerShell:
     case PathQuoting::Cmd: {
         const QString native = QDir::toNativeSeparators(path);
         if (!native.isEmpty() && std::all_of(native.cbegin(), native.cend(), windowsShellSafe)) return native;
         return quoting == PathQuoting::PowerShell ? powerShellQuote(native) : cmdQuote(native);
     }
-    case PathQuoting::Remote:
-        break;
+    case PathQuoting::Remote: break;
     }
     return {};
 }

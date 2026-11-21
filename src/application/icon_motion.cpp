@@ -597,8 +597,8 @@ private:
     QElapsedTimer m_wall;
 };
 
-IconMotion::IconMotion(QObject *parent)
-    : QObject(parent), m_hoverDelay(new QTimer(this)), m_clock(new Clock(this)) {
+IconMotion::IconMotion(QObject *parent) : QObject(parent), m_hoverDelay(new QTimer(this)), m_clock(new Clock(this))
+{
     m_hoverDelay->setSingleShot(true);
     m_hoverDelay->setInterval(span::application::kIconHoverIntentMs);
     connect(m_hoverDelay, &QTimer::timeout, this, &IconMotion::applyHover);
@@ -671,11 +671,13 @@ void IconMotion::setHovered(bool hovered) {
     }
 }
 
-bool IconMotion::hoverIntent() const {
+bool IconMotion::hoverIntent() const
+{
     return m_hoverIntent;
 }
 
-void IconMotion::setHoverIntent(bool intent) {
+void IconMotion::setHoverIntent(bool intent)
+{
     if (m_hoverIntent == intent) {
         return;
     }
@@ -687,7 +689,8 @@ void IconMotion::setHoverIntent(bool intent) {
     }
 }
 
-void IconMotion::applyHover() {
+void IconMotion::applyHover()
+{
     if (!m_hovered || m_hoverApplied || !m_complete || !m_spec) {
         return;
     }

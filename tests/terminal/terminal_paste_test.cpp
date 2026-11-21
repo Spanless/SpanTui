@@ -51,14 +51,17 @@ void TerminalPasteTest::quotingFollowsTheSessionProgram_data()
     QTest::addColumn<QString>("commandLine");
     QTest::addColumn<int>("quoting");
     QTest::newRow("zsh") << QStringLiteral("/bin/zsh -l") << int(PathQuoting::Posix);
-    QTest::newRow("git bash") << QStringLiteral(R"("C:\Program Files\Git\bin\bash.exe" --login)") << int(PathQuoting::Posix);
-    QTest::newRow("pwsh") << QStringLiteral(R"("C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo)") << int(PathQuoting::PowerShell);
+    QTest::newRow("git bash") << QStringLiteral(R"("C:\Program Files\Git\bin\bash.exe" --login)")
+                              << int(PathQuoting::Posix);
+    QTest::newRow("pwsh") << QStringLiteral(R"("C:\Program Files\PowerShell\7\pwsh.exe" -NoLogo)")
+                          << int(PathQuoting::PowerShell);
     QTest::newRow("powershell") << QStringLiteral(R"(C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe)")
                                 << int(PathQuoting::PowerShell);
     QTest::newRow("cmd") << QStringLiteral(R"(C:\Windows\System32\cmd.exe)") << int(PathQuoting::Cmd);
     QTest::newRow("wsl") << QStringLiteral("wsl.exe -d Ubuntu") << int(PathQuoting::Wsl);
     QTest::newRow("ssh") << QStringLiteral("/usr/bin/ssh -t dev@example") << int(PathQuoting::Remote);
-    QTest::newRow("ssh.exe") << QStringLiteral(R"("C:\Windows\System32\OpenSSH\ssh.exe" host)") << int(PathQuoting::Remote);
+    QTest::newRow("ssh.exe") << QStringLiteral(R"("C:\Windows\System32\OpenSSH\ssh.exe" host)")
+                             << int(PathQuoting::Remote);
 }
 
 void TerminalPasteTest::quotingFollowsTheSessionProgram()
@@ -73,26 +76,36 @@ void TerminalPasteTest::quotesPathsForEachShell_data()
     QTest::addColumn<QString>("path");
     QTest::addColumn<int>("quoting");
     QTest::addColumn<QString>("expected");
-    QTest::newRow("posix plain") << QStringLiteral("/tmp/a-1.txt") << int(PathQuoting::Posix) << QStringLiteral("/tmp/a-1.txt");
-    QTest::newRow("posix space") << QStringLiteral("/tmp/My File.png") << int(PathQuoting::Posix) << QStringLiteral("'/tmp/My File.png'");
-    QTest::newRow("posix quote") << QStringLiteral("/tmp/it's") << int(PathQuoting::Posix) << QStringLiteral(R"('/tmp/it'\''s')");
-    QTest::newRow("posix expansion") << QStringLiteral("/tmp/$HOME*") << int(PathQuoting::Posix) << QStringLiteral("'/tmp/$HOME*'");
+    QTest::newRow("posix plain") << QStringLiteral("/tmp/a-1.txt") << int(PathQuoting::Posix)
+                                 << QStringLiteral("/tmp/a-1.txt");
+    QTest::newRow("posix space") << QStringLiteral("/tmp/My File.png") << int(PathQuoting::Posix)
+                                 << QStringLiteral("'/tmp/My File.png'");
+    QTest::newRow("posix quote") << QStringLiteral("/tmp/it's") << int(PathQuoting::Posix)
+                                 << QStringLiteral(R"('/tmp/it'\''s')");
+    QTest::newRow("posix expansion") << QStringLiteral("/tmp/$HOME*") << int(PathQuoting::Posix)
+                                     << QStringLiteral("'/tmp/$HOME*'");
     QTest::newRow("posix unicode") << QStringLiteral("/tmp/截图 1.png") << int(PathQuoting::Posix)
                                    << QStringLiteral("'/tmp/截图 1.png'");
-    QTest::newRow("powershell plain") << QStringLiteral(R"(C:\x\y.txt)") << int(PathQuoting::PowerShell) << QStringLiteral(R"(C:\x\y.txt)");
+    QTest::newRow("powershell plain") << QStringLiteral(R"(C:\x\y.txt)") << int(PathQuoting::PowerShell)
+                                      << QStringLiteral(R"(C:\x\y.txt)");
     QTest::newRow("powershell quote") << QStringLiteral(R"(C:\a b\it's.png)") << int(PathQuoting::PowerShell)
                                       << QStringLiteral(R"('C:\a b\it''s.png')");
     QTest::newRow("powershell comma") << QStringLiteral(R"(C:\a,b.txt)") << int(PathQuoting::PowerShell)
                                       << QStringLiteral(R"('C:\a,b.txt')");
     QTest::newRow("powershell typographic quote") << QStringLiteral("C:\\it\u2019s.png") << int(PathQuoting::PowerShell)
                                                   << QStringLiteral("'C:\\it\u2019\u2019s.png'");
-    QTest::newRow("cmd plain") << QStringLiteral(R"(C:\x\y.txt)") << int(PathQuoting::Cmd) << QStringLiteral(R"(C:\x\y.txt)");
-    QTest::newRow("cmd space") << QStringLiteral(R"(C:\a b\x&y.png)") << int(PathQuoting::Cmd) << QStringLiteral(R"("C:\a b\x&y.png")");
+    QTest::newRow("cmd plain") << QStringLiteral(R"(C:\x\y.txt)") << int(PathQuoting::Cmd)
+                               << QStringLiteral(R"(C:\x\y.txt)");
+    QTest::newRow("cmd space") << QStringLiteral(R"(C:\a b\x&y.png)") << int(PathQuoting::Cmd)
+                               << QStringLiteral(R"("C:\a b\x&y.png")");
     QTest::newRow("cmd percent") << QStringLiteral(R"(C:\a%PATH%b.txt)") << int(PathQuoting::Cmd)
                                  << QStringLiteral(R"("C:\a"^%"PATH"^%"b.txt")");
-    QTest::newRow("wsl drive") << QStringLiteral(R"(C:\Users\a b\x.png)") << int(PathQuoting::Wsl) << QStringLiteral("'/mnt/c/Users/a b/x.png'");
-    QTest::newRow("wsl share") << QStringLiteral(R"(\\wsl$\Ubuntu\home\a\x.png)") << int(PathQuoting::Wsl) << QStringLiteral("/home/a/x.png");
-    QTest::newRow("wsl localhost") << QStringLiteral(R"(\\wsl.localhost\Ubuntu\srv)") << int(PathQuoting::Wsl) << QStringLiteral("/srv");
+    QTest::newRow("wsl drive") << QStringLiteral(R"(C:\Users\a b\x.png)") << int(PathQuoting::Wsl)
+                               << QStringLiteral("'/mnt/c/Users/a b/x.png'");
+    QTest::newRow("wsl share") << QStringLiteral(R"(\\wsl$\Ubuntu\home\a\x.png)") << int(PathQuoting::Wsl)
+                               << QStringLiteral("/home/a/x.png");
+    QTest::newRow("wsl localhost") << QStringLiteral(R"(\\wsl.localhost\Ubuntu\srv)") << int(PathQuoting::Wsl)
+                                   << QStringLiteral("/srv");
 }
 
 void TerminalPasteTest::quotesPathsForEachShell()

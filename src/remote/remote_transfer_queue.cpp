@@ -92,8 +92,9 @@ void RemoteTransferQueue::startNext()
     emit progressStarted(title);
     const Launch &launch = m_current.launch;
     if (launch.program.isEmpty()) {
-        finishCurrent(false, tr("The OpenSSH client (%1) was not found.")
-                                 .arg(span::core::executableFileName(QStringLiteral("sftp"))));
+        finishCurrent(
+            false,
+            tr("The OpenSSH client (%1) was not found.").arg(span::core::executableFileName(QStringLiteral("sftp"))));
         return;
     }
 

@@ -428,8 +428,9 @@ void GhosttyEngine::clipboardReadCallback(GhosttyTerminal, void *user, const Gho
             for (size_t index = 0; index < read->mimes_len; ++index) {
                 const QByteArrayView wanted(read->mimes[index].ptr, qsizetype(read->mimes[index].len));
                 if (wanted != representation.first) continue;
-                contents.push_back({mime, {reinterpret_cast<const uint8_t *>(representation.second.constData()),
-                                           size_t(representation.second.size())}});
+                contents.push_back({mime,
+                                    {reinterpret_cast<const uint8_t *>(representation.second.constData()),
+                                     size_t(representation.second.size())}});
                 break;
             }
         }
@@ -753,8 +754,8 @@ bool GhosttyEngine::pasteEvent(const QVector<PasteRepresentation> &representatio
     if (!m_ready || representations.isEmpty() || !modeEnabled(GHOSTTY_MODE_PASTE_EVENTS)) return false;
     QVector<GhosttyString> mimes;
     for (const PasteRepresentation &representation : representations) {
-        mimes.push_back({reinterpret_cast<const uint8_t *>(representation.first.constData()),
-                         size_t(representation.first.size())});
+        mimes.push_back(
+            {reinterpret_cast<const uint8_t *>(representation.first.constData()), size_t(representation.first.size())});
     }
     GhosttyPaste paste = GHOSTTY_INIT_SIZED(GhosttyPaste);
     paste.location = GHOSTTY_CLIPBOARD_LOCATION_STANDARD;

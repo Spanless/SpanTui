@@ -128,7 +128,8 @@ void ShortcutRegistryTest::defaultsFollowHostConvention()
 
     // A custom binding outlives the convention's default.
     QVERIFY(registry.setBinding(QStringLiteral("app.closeTile"), QStringLiteral("Alt+F4"))
-                .value(QStringLiteral("ok")).toBool());
+                .value(QStringLiteral("ok"))
+                .toBool());
     QCOMPARE(registry.applicationBindings().value(QStringLiteral("app.closeTile")).toString(),
              QStringLiteral("Alt+F4"));
 }
@@ -143,7 +144,7 @@ void ShortcutRegistryTest::matchesKeyEvents()
 
     QVERIFY(registry.matches(QStringLiteral("terminal.previousPrompt"), Qt::Key_Up,
                              int(span::platform::hasCommandKey() ? Qt::KeyboardModifiers(Qt::ControlModifier)
-                                                                  : Qt::ControlModifier | Qt::ShiftModifier)));
+                                                                 : Qt::ControlModifier | Qt::ShiftModifier)));
     QVERIFY(!registry.matches(QStringLiteral("terminal.previousPrompt"), Qt::Key_Up, int(Qt::AltModifier)));
     // Keypad state is not part of a chord.
     QVERIFY(registry.matches(QStringLiteral("editor.find"), Qt::Key_F,

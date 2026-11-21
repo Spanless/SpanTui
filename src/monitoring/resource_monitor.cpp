@@ -75,8 +75,7 @@ ResourceMonitor::ResourceMonitor(SessionTargetSource targetSource, QObject *pare
                 sampled = provider->sample(
                     targets, previousSessions, elapsedMs);
             } catch (...) {
-                sampled.gpuCounterStatus =
-                    ResourceSampleProvider::GpuCounterStatus::ProviderFailed;
+                sampled.gpuCounterStatus = ResourceSampleProvider::GpuCounterStatus::ProviderFailed;
             }
             const auto result = std::make_shared<
                 const ResourceSampleProvider::Result>(std::move(sampled));

@@ -23,18 +23,14 @@ bool applicationJobContainsProcess(quint32 processId);
 // Starts a process that belongs to this application: on Windows it keeps this
 // process as parent and joins the application job before it runs. Returns the
 // process id, 0 on failure with the reason in `errorMessage`.
-quint32 startOwnedProcess(const QString &executable,
-                          const QStringList &arguments,
-                          const QString &workingDirectory,
+quint32 startOwnedProcess(const QString &executable, const QStringList &arguments, const QString &workingDirectory,
                           QString *errorMessage = nullptr);
 
 // Starts a process that survives this one: on Windows it breaks away from the
 // application job. Use only for programs the user keeps after SpanTui exits:
 // the update installer and external editors opened on a project. In-app
 // terminals and tools stay on startOwnedProcess.
-quint32 startUnaffiliatedProcess(const QString &executable,
-                                 const QStringList &arguments,
-                                 const QString &workingDirectory,
-                                 QString *errorMessage = nullptr);
+quint32 startUnaffiliatedProcess(const QString &executable, const QStringList &arguments,
+                                 const QString &workingDirectory, QString *errorMessage = nullptr);
 
 } // namespace span::platform::process

@@ -342,9 +342,8 @@ void UiHealthMonitor::pulse()
     snapshot->resourceSampleDepth.store(
         m_resources && m_resources->samplingInProgress() ? 1 : 0,
         std::memory_order_relaxed);
-    snapshot->resourceGpuCounterStatus.store(
-        m_resources ? m_resources->gpuCounterStatus() : 0,
-        std::memory_order_relaxed);
+    snapshot->resourceGpuCounterStatus.store(m_resources ? m_resources->gpuCounterStatus() : 0,
+                                             std::memory_order_relaxed);
     snapshot->persistenceQueueDepth.store(m_settings ? m_settings->persistenceQueueDepth() : 0,
                                           std::memory_order_relaxed);
     recordRing(snapshot, 1, static_cast<quint16>(snapshot->transitionPhase.load(

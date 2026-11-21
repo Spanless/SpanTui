@@ -130,21 +130,20 @@ void TerminalSessionInput::drainPaste()
     }
     const PendingPaste &paste = m_pastes.front();
     if (!m_pasteOpen) {
-        m_sink.postCore([offer = paste.offer, hasText = !paste.text.isEmpty()](TerminalCoreWorker *core) {
-            core->beginPaste(offer, hasText);
-        }, TerminalInputKind::PasteBegin);
+        m_sink.postCore([offer = paste.offer, hasText = !paste.text.isEmpty()](
+                            TerminalCoreWorker *core) { core->beginPaste(offer, hasText); },
+                        TerminalInputKind::PasteBegin);
         m_pasteOpen = true;
     }
     const int remaining = int(paste.text.size()) - m_pasteOffset;
     if (remaining > 0) {
         int count = std::min(kPasteUtf16UnitsPerSlice, remaining);
-        if (count < remaining && paste.text.at(m_pasteOffset + count - 1).isHighSurrogate() &&
-            paste.text.at(m_pasteOffset + count).isLowSurrogate()) {
+        if (count < remaining && paste.text.at(m_pasteOffset + count - 1).isHighSurrogate()
+            && paste.text.at(m_pasteOffset + count).isLowSurrogate()) {
             --count;
         }
         const QString chunk = paste.text.mid(m_pasteOffset, count);
-        m_sink.postCore([chunk](TerminalCoreWorker *core) { core->sendPasteBody(chunk); },
-                        TerminalInputKind::User);
+        m_sink.postCore([chunk](TerminalCoreWorker *core) { core->sendPasteBody(chunk); }, TerminalInputKind::User);
         m_pasteOffset += count;
     }
     // The last slice closes the bracket in the same turn, so a paste that

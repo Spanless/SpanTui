@@ -408,8 +408,8 @@ void GhosttyEngineTest::offersPasteEventsOnlyWhenTheChildAsks()
 
     const QByteArray mime = QByteArrayLiteral("image/png").toBase64();
     // libghostty consults grants only for a read that names its program.
-    const QByteArray read = "\x1b]5522;type=read:pw=" + password.captured(1).toLatin1() + ":name="
-        + QByteArrayLiteral("test").toBase64() + ";" + mime + "\x1b\\";
+    const QByteArray read = "\x1b]5522;type=read:pw=" + password.captured(1).toLatin1()
+        + ":name=" + QByteArrayLiteral("test").toBase64() + ";" + mime + "\x1b\\";
     const QByteArray reply = terminal.feed(read);
     QVERIFY2(reply.contains(encoded), reply.constData());
     // One read per paste; a read without the event's password gets nothing.
