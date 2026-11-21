@@ -8,7 +8,6 @@
 #include "workspace/session_model.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QOperatingSystemVersion>
 #include <QStandardPaths>
@@ -20,6 +19,7 @@
 using span::application::ShellProfileRegistry;
 using span::remote::RemoteHostRegistry;
 using span::terminal::TerminalManager;
+using span::terminal::TerminalSession;
 
 namespace {
 
@@ -83,7 +83,7 @@ class WorkspaceSessionRoutingTest final : public QObject {
 private slots:
     void initTestCase();
     void activationDrivesTerminalManager();
-    void commandSessionCommandIsConsumedOnce();
+    void commandSessionKeepsItsProcessAcrossCatalogChanges();
     void removingCatalogSessionDropsItsLiveProcess();
     void remoteSessionOfUnknownHostIsNotLaunched();
     void shellProfileReachesOnlyNewTerminals();
@@ -126,29 +126,30 @@ void WorkspaceSessionRoutingTest::activationDrivesTerminalManager()
     QVERIFY(manager.session(idB)->running());
 }
 
-void WorkspaceSessionRoutingTest::commandSessionCommandIsConsumedOnce()
+void WorkspaceSessionRoutingTest::commandSessionKeepsItsProcessAcrossCatalogChanges()
 {
+    // A catalog change that restarted the terminal would run the user's
+    // command a second time.
+    if (markerShell().isEmpty()) QSKIP("cmd.exe is not available");
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString project = projectPath(dir, QStringLiteral("run"));
-    const QString marker = dir.filePath(QStringLiteral("command-started.txt"));
-    const QString command = QStringLiteral("\"%1\" %2").arg(markerShell(), writeMarkerArguments(marker));
 
     Workspace workspace(dir);
     QVERIFY(workspace.initialized);
     SessionModel &sessions = workspace.sessions;
-    sessions.addCommandSession(QStringLiteral("run"), project, project, command);
-    const QString commandId = sessions.activeSessionId();
-    QVERIFY(!commandId.isEmpty());
-    QCOMPARE(sessions.takeInitialCommandLine(commandId), QString());
-    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(marker), 10000);
-    QVERIFY(QFile::remove(marker));
+    const QString id = sessions.addCommandSession(QStringLiteral("run"), project, project, markerShell());
+    QVERIFY(!id.isEmpty());
+    QTRY_VERIFY(workspace.terminals.session(id));
+    TerminalSession *terminal = workspace.terminals.session(id);
+    QVERIFY(terminal->hasCommandLine());
+    QTRY_VERIFY(terminal->processId() != 0);
+    const quint32 processId = terminal->processId();
 
-    const int row = sessions.indexForSessionId(commandId);
-    QVERIFY(row >= 0);
-    sessions.renameSession(row, QStringLiteral("renamed run"));
-    QVERIFY(!QFileInfo::exists(marker));
-    QVERIFY(sessions.takeInitialCommandLine(commandId).isEmpty());
+    sessions.renameSession(sessions.indexForSessionId(id), QStringLiteral("renamed run"));
+
+    QCOMPARE(workspace.terminals.session(id), terminal);
+    QCOMPARE(terminal->processId(), processId);
 }
 
 void WorkspaceSessionRoutingTest::removingCatalogSessionDropsItsLiveProcess()
