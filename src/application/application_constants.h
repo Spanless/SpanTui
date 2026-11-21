@@ -67,5 +67,8 @@ inline constexpr QLatin1StringView kOpenWithProbeExtensions[]{
 
 // Time for an icon motion to return to rest once its trigger ends.
 inline constexpr double kIconMotionSettleMs = 280;
+// Pointer dwell before a hover motion starts: a pointer sweeping across rows
+// or a toolbar never engages the icons it only passes over.
+inline constexpr int kIconHoverIntentMs = 120;
 
 } // namespace span::application

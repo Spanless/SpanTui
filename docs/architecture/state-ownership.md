@@ -42,6 +42,7 @@
 | `TerminalSession` | `src/terminal/api/terminal_session.*` | 进程与 Core 生命周期、输出队列与帧存储、最新视口与 viewport epoch、OSC 9;4 进度 |
 | `TerminalSessionInput` | `src/terminal/api/terminal_session_input.*` | 粘贴与输入积压、分片定时器、括号粘贴状态 |
 | `WinConPtyProcess` | `src/terminal/platform/windows/win_conpty_process.*` | ConPTY 句柄、线程池 I/O、未交付写入队列、最新待提交 resize |
+| `MacPtyProcess` | `src/terminal/platform/macos/mac_pty_process.*` | pty 主端、子进程 pid、I/O 与等待线程、未交付写入队列 |
 | `TerminalCoreWorker` | `src/terminal/core/terminal_core_worker.*` | 独占 `GhosttyEngine`；输出消费、同步更新合并、发布时机、查找推进、transport epoch；网格变化后通知进程 resize |
 | `GhosttyEngine` | `src/terminal/core/ghostty_engine.*` | libghostty 实例：屏幕、历史、视口、选区、查找结果、Kitty 图像、标题栈、提示符标记、协议模式；只在 Core 线程访问 |
 | `TerminalView` | `src/terminal/render/terminal_view.*` | 键鼠与 IME 输入、Scene Graph 渲染；经 `TerminalScrollModel` 持有带小数的滚动位置；选区与查找只发请求 |
@@ -53,7 +54,7 @@
 |---|---|---|
 | `MessageCenter` | `src/application/message_center.*` | 持久消息、已读、Toast 栈、未处理异常拦截；独立终端只读 |
 | `TaskProgressService` | `src/application/task_progress.*` | 长任务进度、160ms 延迟显示、1600ms 驻留 |
-| `span::platform::process` | `src/platform/windows/process_containment.*` | 全局 Job Object、更新安装程序的脱离启动 |
+| `span::platform::process` | `src/platform/process_containment.h`（实现在 `windows/`、`macos/`） | 全局 Job Object（仅 Windows）、更新安装程序的脱离启动 |
 | `UpdateService` | `src/update/update_service.*` | 更新源与 `[update]` 设置、镜像形态、检查结果、安装程序暂存与校验（[应用更新](../services/update/updater.md)） |
 | `ProductPaths` | `src/core/product_paths.*` | 数据根、数据库、崩溃日志、临时路径 |
 | `IdleGovernor` | `src/application/idle_governor.*` | "用户空闲"：窗口激活态与 30 秒输入超时，传播给 `ResourceMonitor` 与 `GitRepositoryService` |

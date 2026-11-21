@@ -1,6 +1,6 @@
 # 进程包含
 
-`src/platform/windows/process_containment.*`：
+头 `src/platform/process_containment.h`，Windows 实现 `src/platform/windows/process_containment.cpp`（macOS 没有 Job，见 [macOS 平台](../macos.md)）：
 
 | 函数 | 作用 |
 |---|---|

@@ -70,6 +70,8 @@ SnapshotDecision acceptSnapshot(const TerminalFrameSnapshot &snapshot, quint64 l
 TerminalView::TerminalView(QQuickItem *parent) : QQuickItem(parent) {
     setFlag(ItemHasContents, true);
     setFlag(ItemAcceptsInputMethod, true);
+    // Files dropped from Finder or Explorer paste their paths.
+    setFlag(ItemAcceptsDrops, true);
     setActiveFocusOnTab(true);
     setAcceptedMouseButtons(Qt::AllButtons);
     setAcceptHoverEvents(true);

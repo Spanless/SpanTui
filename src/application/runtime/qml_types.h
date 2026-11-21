@@ -31,7 +31,7 @@
 #include "documents/markdown_document_renderer.h"
 #include "git/git_repository_service.h"
 #include "monitoring/resource_monitor.h"
-#include "platform/windows/window_chrome.h"
+#include "platform/window_chrome.h"
 #include "remote/remote_file_model.h"
 #include "remote/remote_host_context.h"
 #include "remote/remote_host_registry.h"

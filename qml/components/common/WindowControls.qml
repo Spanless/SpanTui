@@ -7,7 +7,8 @@ import SpanTui
 // All three stay Qt-interactive (HTCLIENT) — no HTMAXBUTTON, so Win11 Snap
 // Layouts flyout does not steal maximize.
 // Uses the WindowChrome singleton: only the workspace window (Main.qml),
-// which provides it, shows these controls.
+// which provides it, shows these controls, and only where the system does
+// not draw its own (WindowChrome.systemCaptionButtons).
 Row {
     id: root
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)

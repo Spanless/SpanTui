@@ -7,6 +7,7 @@
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QOperatingSystemVersion>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -763,6 +764,8 @@ void UpdateServiceTest::localApplyRefusesDigestMismatch()
 
 void UpdateServiceTest::localApplyStartsTheInstaller()
 {
+    if (QOperatingSystemVersion::currentType() != QOperatingSystemVersion::Windows)
+        QSKIP("The installer is a Windows Setup.exe; argv_echo_child stands in for it on Windows only.");
     QTemporaryDir image;
     QTemporaryDir source;
     QVERIFY(image.isValid() && source.isValid());
@@ -819,6 +822,8 @@ void UpdateServiceTest::localApplyStartsTheInstaller()
 
 void UpdateServiceTest::remoteApplyStartsTheDownloadedInstaller()
 {
+    if (QOperatingSystemVersion::currentType() != QOperatingSystemVersion::Windows)
+        QSKIP("The installer is a Windows Setup.exe; argv_echo_child stands in for it on Windows only.");
     QTemporaryDir image;
     QTemporaryDir feed;
     QVERIFY(image.isValid() && feed.isValid());

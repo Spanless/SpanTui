@@ -25,7 +25,9 @@ private slots:
 
 void LaunchOptionsTest::parsesProjectAndTerminalModes()
 {
-    QTemporaryDir temporary(QStringLiteral("SpanTui 参数 空格-XXXXXX"));
+    // A bare template is relative to the working directory, and --project
+    // takes absolute paths only.
+    QTemporaryDir temporary(QDir::current().absoluteFilePath(QStringLiteral("SpanTui 参数 空格-XXXXXX")));
     QVERIFY(temporary.isValid());
     const QString directory = QDir::cleanPath(temporary.path());
 

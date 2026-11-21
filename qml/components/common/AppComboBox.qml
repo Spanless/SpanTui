@@ -132,11 +132,13 @@ Item {
                           : (faceMouse.pressed ? Theme.raisedFillPressed
                              : faceMouse.containsMouse ? Theme.raisedFillHover
                              : Theme.raisedFillTop)
+            Behavior on fillTopColor { ColorAnimation { duration: Theme.durHover } }
             fillMiddleColor: root.editable
                              ? fillTopColor
                              : (faceMouse.pressed ? Theme.raisedFillPressed
                                 : faceMouse.containsMouse ? Theme.raisedFillHover
                                 : Theme.raisedFill)
+            Behavior on fillMiddleColor { ColorAnimation { duration: Theme.durHover } }
             strokeEnabled: focusRing || root.warning || !root.editable
             strokeWidthPx: root.warning ? 1.5 : 1
             strokeColor: root.warning ? Theme.warning

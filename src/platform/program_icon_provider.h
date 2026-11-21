@@ -2,9 +2,9 @@
 
 #include <QQuickImageProvider>
 
-// Icons embedded in programs and .ico files, for QML under
-// kProgramIconProviderId. The first icon of the file at the requested size;
-// a null image when it has none.
+// The icon the system shows for a program (an .exe or .ico file on Windows,
+// an .app bundle on macOS), for QML under kProgramIconProviderId, at the
+// requested size; a null image when the file has none.
 class ProgramIconProvider final : public QQuickImageProvider {
 public:
     ProgramIconProvider();

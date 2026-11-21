@@ -13,7 +13,7 @@
 | 表面 | `surfaceBase` / `surfaceRaised` / `surfaceInset` / `overlaySurface` | 窗口 / 面板 / 输入与轨道 / 浮层；全部不透明 |
 | 文本 | `text` / `muted` | 经 `readable()` 对面板色保底 4.5:1 |
 | 线 | `border` / `separator` | 接缝与 `PixelLine` |
-| 强调 | `accent`、`accentTop`、`accentSoft`、`accentText`、`textSelection` | 实心填充、焦点环、右键目标描边、拖动接缝、指示图标、选区；标签文字不用 accent；accent 填充上的文字用 `accentText` |
+| 强调 | `accent`、`accentTop`、`accentSoft`、`accentOnOverlay`(`Pressed`)、`accentText`、`textSelection` | 实心填充、焦点环、右键目标描边、拖动接缝、指示图标、选区；标签文字不用 accent；accent 填充上的文字用 `accentText` |
 | 状态 | `success` / `warning` / `danger` 及 `*Soft`/`*Text` | 由 ANSI 派生 |
 | 徽标填充 | `statusSuccess` / `statusError` / `statusWarning` / `statusInfo` | 只给 `StatusIcon`；固定色，不随配色，不作文字色 |
 | 终端 | `terminalBackdrop`、`terminalForeground`、`terminalCursor`、`terminalSelection`、`terminalAnsi`、`terminalSearchMatch`/`terminalSearchCurrent` | 默认单元格不画底色，透出平面 |
@@ -38,7 +38,7 @@
 | 浮起按钮、下拉面 | `raisedFillTop`→`raisedFill` | `raisedFillHover` | `raisedFillPressed` | — | 焦点环 |
 | 实心填充 | 色相本身 | `solidFill(…,"hover")` | `solidFill(…,"pressed")` | — | 焦点环 |
 | 下沉轨道内 | `surfaceInset`/`switchTrackOff`，`muted` | 字形加深（开关关态叠 `hover`） | `pressedOnInset` | 浮起滑块 + `emphasis` | 焦点环 |
-| 浮层列表 | 透明 | 实心 accent 滑块 + `accentText`（危险项 `danger`） | `accentPressed`/`dangerPressed` | 当前值行首 `check` | 键盘高亮同悬停 |
+| 浮层列表 | 透明 | 淡色滑块 `accentOnOverlay`（危险项 `dangerOnOverlay`），文字保持原色、灰色图标提到文字色——实心 accent 加反色文字在快速划过时晃眼 | `accentOnOverlayPressed`/`dangerOnOverlayPressed` | 当前值行首 `check` | 键盘高亮同悬停 |
 | 输入 | `surfaceInset` | — | — | 选区 `textSelection` | `raisedFill` + 焦点环；`invalid`/`warning` 描边 |
 | 接缝 | `separator` | `muted` 加粗 | `accent` | — | — |
 | 右键目标 | — | — | — | 菜单打开期间 accent 细描边，不改选中 | — |
@@ -52,8 +52,8 @@
 
 ## 3. 动效与透明度
 
-- 状态颜色瞬时切换；按下反馈只动几何（`ChromeButton` 缩到 `Theme.pressScale`）。
-- 时长只取 `durFast`（淡入淡出）/ `durMid`（位移、对话框）/ `durSlow`（强调进入）；`durTheme` 专用于换色。装饰性循环写成命名属性。
+- 悬停与按下的色调（填充、文字、图标）用 `durHover` 过渡，快速划过时不闪（`ListItem` 的行填充除外：列表悬停由 `GlideHighlight` 承担）；选中等其余状态颜色瞬时切换；按下的几何反馈是 `ChromeButton` 缩到 `Theme.pressScale`。多个颜色跟同一悬停状态时，宿主用一个 0→1 的权重属性做动画、颜色用 `Theme.mix` 跟随（`ActionList`、`ComboOptionRow`），不在每个文字上挂 `Behavior`；淡入淡出的静止端用 `Theme.withAlpha(色, 0)`，不用 `"transparent"`（透明黑，过渡会经过暗色）。悬停反馈不得落后于快速移动的指针：`GlideHighlight` 进入时就地出现，换行用跟随衰减（时间常数 `durFast / 8`，中途换目标从当前绘制位置继续），不用会被反复重启的定长动画，离开容器时短淡出（`durHover`），淡出期间重新进入也就地出现；图标悬浮动效要指针停留 `kIconHoverIntentMs` 才开始。
+- 时长只取 `durHover`（悬停色调，`durFast / 2`）/ `durFast`（淡入淡出）/ `durMid`（位移、对话框）/ `durSlow`（强调进入）；`durTheme` 专用于换色。装饰性循环写成命名属性。
 - "抵达"类动画用 `Theme.easeEmphasized`（`Easing.BezierSpline`）；淡入淡出用 `OutCubic`/`InCubic`；成组入场按 `durStagger` 错峰并设上限。
 - `opacity` 只取 `fadeSm`/`fadeMd`/`fadeLg`，禁用用 `opacityDisabled`。填充一律实色；半透明只用于发丝线与高程轮廓、`scrim`、高程投影、焦点环。
 - tooltip 时序只取 `tipDelay`/`tipDelayQuick`/`tipTimeout`。

@@ -11,7 +11,6 @@
 #include "core/product_paths.h"
 #include "platform/diagnostics/graphics_startup.h"
 #include "terminal/api/terminal_manager.h"
-#include "terminal/terminal_constants.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -21,7 +20,6 @@
 #include <QLockFile>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
-#include <QStandardPaths>
 #include <QTimer>
 #include <QUuid>
 #include <QVariantMap>
@@ -194,15 +192,9 @@ void createVisualHarnessTerminals(
         return;
     }
 
-    QString commandPrompt = QStandardPaths::findExecutable(QStringLiteral("cmd.exe"));
-    if (commandPrompt.isEmpty()) {
-        commandPrompt = QStringLiteral("cmd.exe");
-    }
-    const QString command = QStringLiteral("\"%1\" /Q /K")
-                                .arg(QDir::toNativeSeparators(commandPrompt));
-
+    // No command line: each platform's terminal starts its default shell.
     for (const SessionRecord &session : sessionModel.records()) {
-        terminalManager.createSession(session.id, session.cwd, {{terminal::kSessionCommandLineKey, command}});
+        terminalManager.createSession(session.id, session.cwd, {});
     }
 }
 

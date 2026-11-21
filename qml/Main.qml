@@ -13,6 +13,9 @@ ApplicationWindow {
     minimumWidth: 980  // style-ok: window default geometry
     minimumHeight: 640  // style-ok: window default geometry
     flags: Qt.Window | Qt.FramelessWindowHint
+    // The title band is drawn under the system title bar (macOS traffic
+    // lights), so the content is not inset by its safe area.
+    topPadding: 0
     visible: false
     title: Qt.application.displayName || qsTr("SpanTui")
     // Solid workspace paper. Panels and panes sit flush on it and carry the
@@ -129,6 +132,25 @@ ApplicationWindow {
     }
 
 
+    // The window's commands: the system menu bar runs them where there is one
+    // (macOS), window shortcuts elsewhere — never both, so a chord runs once.
+    AppCommands {
+        id: appCommands
+        window: window
+    }
+    Loader {
+        active: Shortcuts.nativeMenuBar
+        sourceComponent: MacMenuBar {
+            commands: appCommands
+        }
+    }
+    Loader {
+        active: !Shortcuts.nativeMenuBar
+        sourceComponent: AppShortcuts {
+            commands: appCommands
+        }
+    }
+
     FolderDialog {
         id: projectFolderDialog
         title: qsTr("Choose a project folder")
@@ -157,8 +179,7 @@ ApplicationWindow {
         syncTheme()
         syncAnimationPolicy()
         WindowChrome.setTitleBarHeight(titleBar.height)
-        WindowChrome.addInteractiveItem(leftSidebarButton)
-        WindowChrome.addInteractiveItem(rightSidebarButton)
+        WindowChrome.addInteractiveItem(sideToggles)
     }
 
     Item {
@@ -167,40 +188,30 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: PixelGrid.snapSize(Theme.titlebarH, window.renderDpr)
+        // Where the system draws the caption buttons (macOS traffic lights)
+        // the band is as tall as their native title bar, so they sit on its
+        // centre line; full screen keeps the windowed height but frees the
+        // leading edge.
+        readonly property rect captionRect: WindowChrome.captionButtonsRect
+        readonly property bool hasSystemCaption: captionRect.width > 0
+        readonly property bool captionShown: hasSystemCaption && window.visibility !== Window.FullScreen
+        height: PixelGrid.snapSize(hasSystemCaption ? 2 * (captionRect.y + captionRect.height / 2)
+                                                    : Theme.titlebarH, window.renderDpr)
 
         onHeightChanged: WindowChrome.setTitleBarHeight(height)
 
-
-        Row {
+        SidebarToggles {
             id: sideToggles
             anchors.left: parent.left
-            anchors.leftMargin: Theme.spaceMd
+            anchors.leftMargin: titleBar.captionShown ? titleBar.captionRect.x + titleBar.captionRect.width + Theme.spaceMd
+                                                      : Theme.spaceMd
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.spaceSm
-            height: Theme.sizeMd
-
-            ChromeButton {
-                id: leftSidebarButton
-                size: "md"
-                kind: WorkspaceLayout.leftCollapsed ? "ghost" : "selected"
-                iconName: "panel-left"
-                tip: qsTr("Toggle project sidebar")
-                onClicked: WorkspaceController.toggleProjectSidebar()
-            }
-            ChromeButton {
-                id: rightSidebarButton
-                size: "md"
-                kind: WorkspaceLayout.rightCollapsed ? "ghost" : "selected"
-                iconName: "panel-right"
-                tip: qsTr("Toggle side panel")
-                onClicked: WorkspaceLayout.setSideCollapsed(
-                    "right", !WorkspaceLayout.rightCollapsed)
-            }
+            size: titleBar.height >= Theme.sizeMd ? "md" : "sm"
         }
 
         WindowControls {
             id: windowControls
+            visible: !WindowChrome.systemCaptionButtons
             anchors.right: parent.right
             anchors.rightMargin: Theme.spaceMd
             anchors.verticalCenter: parent.verticalCenter

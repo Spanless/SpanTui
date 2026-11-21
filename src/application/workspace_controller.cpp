@@ -73,16 +73,19 @@ QStringList WorkspaceController::foregroundProjectPaths() const
 QString WorkspaceController::showProjectManager()
 {
     const QString tileId = m_layout->showProjectsTile();
-    m_layout->setSideCollapsed(QStringLiteral("left"), false);
+    m_layout->setSideShown(QStringLiteral("left"), true);
     return tileId;
 }
 
-bool WorkspaceController::toggleProjectSidebar()
+bool WorkspaceController::toggleSidePanel(const QString &zone)
 {
-    if (!m_layout->leftCollapsed()) {
-        return m_layout->setSideCollapsed(QStringLiteral("left"), true);
+    if (m_layout->sideShown(zone)) {
+        return m_layout->setSideShown(zone, false);
     }
-    return !showProjectManager().isEmpty();
+    if (zone == QLatin1String("left")) {
+        return !showProjectManager().isEmpty();
+    }
+    return m_layout->setSideShown(zone, true);
 }
 
 QString WorkspaceController::createProjectTile(const QString &kind,
@@ -473,6 +476,22 @@ QString WorkspaceController::createRemoteSession(const QString &hostId)
         return {};
     }
     return showSession(sessionId);
+}
+
+QString WorkspaceController::createSessionInBoundScope()
+{
+    if (m_boundScope.isRemoteHost()) {
+        return createRemoteSession(m_boundScope.hostId());
+    }
+    if (!m_boundScope.projectPath().isEmpty()) {
+        return createSession(m_boundScope.projectPath());
+    }
+    const QStringList projects = m_projects->projectPaths();
+    if (projects.isEmpty()) {
+        emit errorOccurred(tr("Open a project folder first."));
+        return {};
+    }
+    return createSession(projects.constFirst());
 }
 
 bool WorkspaceController::removeRemoteHost(const QString &hostId)

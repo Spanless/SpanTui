@@ -33,7 +33,7 @@ AppComboBox {
         RenderText {
             anchors.fill: parent
             text: qsTr("Aa")
-            color: fontRow.onFill ? Theme.accentText : Theme.muted
+            color: Theme.mix(Theme.muted, Theme.text, fontRow.fillMix)
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             maximumLineCount: 1

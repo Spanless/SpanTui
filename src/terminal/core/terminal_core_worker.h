@@ -81,6 +81,9 @@ public slots:
     // A new engine: nothing of the previous child carries over.
     void beginTransportEpoch();
     void drainOutput();
+    // Parses all output queued so far, ignoring the drain budget, so the
+    // host events it carries are emitted before anything posted after it.
+    void settleOutput();
     void setRenderConsumer(bool active, int maximumFramesPerSecond);
     void setDefaultColors(const QColor &foreground, const QColor &background);
     void setAnsiPalette(const QVector<QColor> &palette);
@@ -92,7 +95,10 @@ public slots:
     void clearDisplay();
     void sendKeyStroke(const TerminalKeyStroke &stroke);
     void sendText(const QString &text);
-    void beginPaste();
+    // Opens a paste: the offer goes to a child that takes paste events, else
+    // `hasText` opens the bracket its body and endPaste() fill and close. A
+    // taken offer swallows the body.
+    void beginPaste(const span::terminal::TerminalPasteOffer &offer = {}, bool hasText = true);
     void endPaste();
     void sendPasteBody(const QString &text);
     void sendMouseMove(int row, int column, int modifiers);
@@ -122,12 +128,17 @@ signals:
     void outputActivity(const TerminalInputToken &token);
     void titleChanged(const QString &title, const TerminalInputToken &token);
     void clipboardWriteRequested(const QString &text, const TerminalInputToken &token);
+    // A text-less offer the child did not take, with its declinedMessage.
+    void pasteDeclined(const QString &message);
     void hostEventRequested(const span::terminal::TerminalHostEvent &event,
                             const TerminalInputToken &token);
 
 private:
     void createEngine();
     void processOutput(const QByteArray &bytes);
+    // Bytes of the slice parsed; 0 once the queue is empty.
+    qsizetype consumeOutputSlice();
+    void finishConsumingOutput(qsizetype processed);
     void handleBoundary(SynchronizedUpdateBoundary boundary);
     qint64 nowMs() const { return m_clock.elapsed(); }
     void markDirty() { m_scheduler.markDirty(nowMs()); }
@@ -191,6 +202,8 @@ private:
     quint64 m_forcedCuts = 0;
     bool m_pendingForcedCut = false;
     bool m_pasteActive = false;
+    // The open paste's bracket; false while a taken offer swallows the body.
+    bool m_pasteBracketed = false;
     TerminalInputToken m_inputToken;
 };
 

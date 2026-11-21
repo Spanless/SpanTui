@@ -30,7 +30,10 @@ public:
     explicit TerminalSessionInput(Sink sink, QObject *parent = nullptr);
 
     void cancelQueued(bool includeProtocol = true);
-    void paste(const QString &text);
+    // Queues one paste behind earlier ones, each in its own bracket. Text
+    // that fits one slice is posted at once, ahead of anything typed after
+    // it; a longer paste continues on a timer as the process takes it.
+    void paste(const QString &text, const TerminalPasteOffer &offer = {});
     void writeFromEngine(const QByteArray &bytes, const TerminalInputToken &token);
 
 private slots:
@@ -47,8 +50,16 @@ private:
     };
     std::deque<PendingWrite> m_pendingEngineWrites;
     qsizetype m_pendingEngineWriteBytes = 0;
-    QString m_pendingPaste;
-    int m_pendingPasteOffset = 0;
+    struct PendingPaste {
+        QString text;
+        TerminalPasteOffer offer;
+    };
+    std::deque<PendingPaste> m_pastes;
+    // UTF-16 units of every queued paste, the front one whole.
+    qsizetype m_pendingPasteUnits = 0;
+    // Sent units of the front paste.
+    int m_pasteOffset = 0;
+    // The front paste's begin was posted.
     bool m_pasteOpen = false;
 };
 

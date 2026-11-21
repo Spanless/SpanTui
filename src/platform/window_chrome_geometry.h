@@ -27,13 +27,8 @@ enum class HitRegion {
 
 // All inputs share one coordinate space (client-area physical pixels).
 // resizeBand is ignored while maximized — a maximized window has no resize edges.
-HitRegion hitTest(const QPoint &pos,
-                  const QSize &clientSize,
-                  int resizeBand,
-                  int titleBarHeight,
-                  const QRect &maxButtonRect,
-                  const QVector<QRect> &interactiveRects,
-                  bool maximized);
+HitRegion hitTest(const QPoint &pos, const QSize &clientSize, int resizeBand, int titleBarHeight,
+                  const QRect &maxButtonRect, const QVector<QRect> &interactiveRects, bool maximized);
 
 // Fits a restored-window rect onto the virtual desktop so a geometry saved on
 // a monitor that no longer exists cannot come back off-screen. An invalid

@@ -1,17 +1,13 @@
 #include "application/appearance_settings.h"
 
 #include "application/settings_store.h"
+#include "platform/accessibility_preferences.h"
 #include "terminal/render/terminal_font_set.h"
 
 #include <QFontDatabase>
 
 #include <algorithm>
 #include <limits>
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
 
 namespace span::application {
 
@@ -238,13 +234,7 @@ bool AppearanceSettings::effectiveDark() const
 
 void AppearanceSettings::refreshSystemReduceMotion()
 {
-    bool reduce = false;
-    // SPI_GETCLIENTAREAANIMATION: FALSE means the user turned off window
-    // animations (Accessibility → Visual effects → Animation effects).
-    BOOL clientAreaAnimation = TRUE;
-    if (SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &clientAreaAnimation, 0) && !clientAreaAnimation) {
-        reduce = true;
-    }
+    const bool reduce = span::platform::reduceMotionRequested();
     if (m_reduceMotion == reduce) {
         return;
     }

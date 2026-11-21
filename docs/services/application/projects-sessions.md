@@ -45,6 +45,6 @@
 
 ## 3. 代码与测试
 
-- `src/application/{project_workspace_registry, project_context, workspace_controller, session_terminal_routing, open_target_registry}.cpp`、`src/workspace/session_model.cpp`、`src/git/git_worktree_{layout, commands}.cpp`、`src/platform/windows/open_with_handlers.cpp`
+- `src/application/{project_workspace_registry, project_context, workspace_controller, session_terminal_routing, open_target_registry}.cpp`、`src/workspace/session_model.cpp`、`src/git/git_worktree_{layout, commands}.cpp`、`src/platform/{windows, macos}/open_with_handlers.*`
 - C++ 之间用结构体交换目录：`SessionModel::records()`/`load()` 收发 `SessionRecord`，`TerminalManager::synchronize()` 接收 `TerminalSessionSpec`；`QVariantMap` 只出现在给 QML 的接口上。
 - 测试：`project_workspace_registry_test`（含文件夹缺失、工作树挂载与收养，用手写的工作树布局文件）、`workspace_controller_test`（含移除缺失项目丢弃其工作、工作树路径规则）、`git_worktree_test`、`workspace_session_routing_test`、`session_model_test`

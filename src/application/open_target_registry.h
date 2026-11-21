@@ -5,8 +5,8 @@
 
 namespace span::application {
 
-// Sole owner of the "Open in" targets of a project folder: File Explorer,
-// then the desktop programs Windows recommends for source files
+// Sole owner of the "Open in" targets of a project folder: the system file
+// manager, then the desktop programs the system recommends for source files
 // (platform::recommendedOpenWithHandlers over kOpenWithProbeExtensions) —
 // no list of editors is kept here. Detection runs on a worker thread at
 // startup and on refresh(); the menu shows the last result.
@@ -26,9 +26,8 @@ public:
 
     // Detects again in the background; a scan already running absorbs it.
     Q_INVOKABLE void refresh();
-    // Starts a detected program on `folder`. The program outlives SpanTui
-    // (it is the user's editor, not a helper), so it leaves the application
-    // job. Unknown executables are refused.
+    // Starts a detected program on `folder` (platform::openFolderWith).
+    // Unknown executables are refused.
     Q_INVOKABLE bool openFolderWith(const QString &executable, const QString &folder);
     Q_INVOKABLE bool showInFileExplorer(const QString &folder);
 

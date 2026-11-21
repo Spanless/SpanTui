@@ -25,6 +25,8 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+class QMimeData;
+
 namespace span::terminal {
 
 class TerminalSession;
@@ -65,6 +67,10 @@ class TerminalView : public QQuickItem {
     // here; other ids emit shortcutActivated.
     Q_PROPERTY(QVariantMap shortcutBindings READ shortcutBindings WRITE setShortcutBindings NOTIFY
                    shortcutBindingsChanged FINAL)
+    // Action id -> portable key sequence of the window's own commands: the
+    // focused terminal leaves these chords to them.
+    Q_PROPERTY(QVariantMap applicationBindings READ applicationBindings WRITE setApplicationBindings NOTIFY
+                   applicationBindingsChanged FINAL)
     // searchCurrentIndex is 1-based, 0 when no match is selected.
     Q_PROPERTY(bool searchActive READ searchActive NOTIFY searchChanged FINAL)
     Q_PROPERTY(int searchMatchCount READ searchMatchCount NOTIFY searchChanged FINAL)
@@ -115,6 +121,8 @@ public:
     void setCursorAnimationEnabled(bool enabled);
     QVariantMap shortcutBindings() const { return m_shortcutBindings; }
     void setShortcutBindings(const QVariantMap &bindings);
+    QVariantMap applicationBindings() const { return m_applicationBindings; }
+    void setApplicationBindings(const QVariantMap &bindings);
 
     Q_INVOKABLE void copySelection();
     Q_INVOKABLE QString selectedText() const;
@@ -150,6 +158,7 @@ signals:
     void cursorAnimationEnabledChanged();
     void smoothScrollingChanged();
     void shortcutBindingsChanged();
+    void applicationBindingsChanged();
     void shortcutActivated(const QString &id);
     void searchChanged();
 
@@ -161,6 +170,9 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void keyReleaseEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -217,6 +229,7 @@ private:
     void resetViewportForLiveSession();
     void syncRenderConsumer();
     bool ownsRenderConsumer() const;
+    bool acceptsDrop(const QMimeData *mime) const;
     void refreshViewportMetrics();
     TerminalCursorResolution resolveCursor() const;
     std::optional<Cursor> inputMethodCursor() const;
@@ -307,6 +320,8 @@ private:
     QColor m_searchCurrentColor = QColor(255, 140, 0, 170);
     QString m_searchNeedle;
     QHash<int, QStringList> m_shortcutTable;
+    QVariantMap m_applicationBindings;
+    QHash<int, QStringList> m_applicationTable;
     QString m_pressedLink;
     QPointF m_linkPressPosition;
     // Owned by the physical right-Alt lifecycle. Never infer AltGr merely

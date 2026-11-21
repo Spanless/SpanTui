@@ -33,6 +33,8 @@ Item {
         size: root.iconSize
         color: root.hovered ? Theme.text : Theme.muted
         opacity: root.hovered ? 1 : Theme.fadeMd
+        Behavior on color { ColorAnimation { duration: Theme.durHover } }
+        Behavior on opacity { NumberAnimation { duration: Theme.durHover } }
     }
 
     MouseArea {

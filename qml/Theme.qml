@@ -101,6 +101,10 @@ QtObject {
     readonly property int durMid: 260
     readonly property int durTheme: 320
     readonly property int durSlow: 420
+    // Hover tone changes: long enough that a pointer sweeping across rows
+    // does not strobe, short enough to read as immediate. Matches the shared
+    // hover pill's settle (GlideHighlight).
+    readonly property int durHover: durFast / 2
     readonly property int colorAnimMs: animateColors ? durTheme : 0
     readonly property int durStagger: 28
     readonly property var easeEmphasized: [0.23, 1, 0.32, 1, 1, 1]
@@ -244,6 +248,13 @@ QtObject {
     readonly property color pressed: stateFill(plate, "pressed")
     readonly property color pressedOnInset: stateFill(surfaceInset, "pressed")
     readonly property color accentSoft: mix(plate, accent, dark ? 0.26 : 0.20)
+    // Menu and dropdown highlights: a tint over the popup surface, so labels
+    // keep their own colour and a pointer sweeping the rows does not strobe
+    // a bright block with inverting text.
+    readonly property color accentOnOverlay: mix(overlaySurface, accent, dark ? 0.26 : 0.20)
+    readonly property color accentOnOverlayPressed: mix(overlaySurface, accent, dark ? 0.38 : 0.30)
+    readonly property color dangerOnOverlay: mix(overlaySurface, danger, dark ? 0.26 : 0.20)
+    readonly property color dangerOnOverlayPressed: mix(overlaySurface, danger, dark ? 0.38 : 0.30)
     readonly property color textSelection: accentSoft
     readonly property color accentText: (0.2126 * accent.r + 0.7152 * accent.g + 0.0722 * accent.b) > 0.55
                                         ? "#10131a" : "#ffffff"

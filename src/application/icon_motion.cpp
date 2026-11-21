@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QRegularExpression>
+#include <QTimer>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -596,7 +597,12 @@ private:
     QElapsedTimer m_wall;
 };
 
-IconMotion::IconMotion(QObject *parent) : QObject(parent), m_clock(new Clock(this)) {}
+IconMotion::IconMotion(QObject *parent) : QObject(parent), m_hoverDelay(new QTimer(this)), m_clock(new Clock(this))
+{
+    m_hoverDelay->setSingleShot(true);
+    m_hoverDelay->setInterval(span::application::kIconHoverIntentMs);
+    connect(m_hoverDelay, &QTimer::timeout, this, &IconMotion::applyHover);
+}
 
 IconMotion::~IconMotion() = default;
 
@@ -647,10 +653,50 @@ void IconMotion::setHovered(bool hovered) {
     }
     m_hovered = hovered;
     emit hoveredChanged();
-    if (m_complete && m_spec) {
-        m_player.setHovered(hovered, m_time);
-        refresh();
+    if (hovered) {
+        if (m_hoverIntent && !m_reduce) {
+            m_hoverDelay->start();
+        } else {
+            applyHover();
+        }
+        return;
     }
+    m_hoverDelay->stop();
+    if (m_hoverApplied) {
+        m_hoverApplied = false;
+        if (m_complete && m_spec) {
+            m_player.setHovered(false, m_time);
+            refresh();
+        }
+    }
+}
+
+bool IconMotion::hoverIntent() const
+{
+    return m_hoverIntent;
+}
+
+void IconMotion::setHoverIntent(bool intent)
+{
+    if (m_hoverIntent == intent) {
+        return;
+    }
+    m_hoverIntent = intent;
+    emit hoverIntentChanged();
+    if (!intent && m_hoverDelay->isActive()) {
+        m_hoverDelay->stop();
+        applyHover();
+    }
+}
+
+void IconMotion::applyHover()
+{
+    if (!m_hovered || m_hoverApplied || !m_complete || !m_spec) {
+        return;
+    }
+    m_hoverApplied = true;
+    m_player.setHovered(true, m_time);
+    refresh();
 }
 
 bool IconMotion::active() const {
@@ -680,6 +726,12 @@ void IconMotion::setReduceMotion(bool reduce) {
     m_reduce = reduce;
     emit reduceMotionChanged();
     m_player.setReducedMotion(reduce);
+    if (reduce) {
+        // The player dropped its hover layer; a pending dwell must not
+        // start one either.
+        m_hoverDelay->stop();
+        m_hoverApplied = false;
+    }
     if (m_complete) {
         refresh();
     }
@@ -712,6 +764,7 @@ void IconMotion::reload() {
     m_clock->stop();
     m_spec = m_catalog ? m_catalog->motion(m_name) : nullptr;
     m_player = IconMotionPlayer(m_spec);
+    m_hoverApplied = false;
     m_player.setReducedMotion(m_reduce);
     // A fresh icon shows the state it was created in; only later changes move.
     m_player.setActive(m_active, m_time, true);

@@ -1,5 +1,7 @@
 #include "win_conpty_process.h"
 
+#include "terminal/api/platform_terminal.h"
+
 #include "core/core_constants.h"
 #include "terminal/api/shell_catalog.h"
 
@@ -1195,6 +1197,20 @@ QList<quint32> WinConPtyProcess::jobProcessIds() const {
         return {};
     }
     return impl->childJob->processIds();
+}
+
+} // namespace span::terminal
+
+namespace span::terminal {
+
+std::unique_ptr<TerminalProcess> createPlatformTerminalProcess()
+{
+    return std::make_unique<WinConPtyProcess>();
+}
+
+void setPreferSystemConsoleHost(bool prefer)
+{
+    WinConPtyProcess::setPreferSystemConPty(prefer);
 }
 
 } // namespace span::terminal

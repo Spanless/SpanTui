@@ -1,4 +1,4 @@
-#include "platform/windows/native_dialog.h"
+#include "platform/native_dialog.h"
 
 #include <QDir>
 

@@ -29,5 +29,5 @@ SpanTui.exe --terminal --cwd "C:\projects\app" [--command "npm run dev"]
 
 ## 5. 视觉夹具与诊断
 
-- `WorkspaceVisualHarness`（`src/application/runtime/workspace_visual_harness.cpp`）：`isolateVisualHarnessPersistence()` 在 `<数据根>\isolated\run-<uuid>` 建沙箱（`.lock` 记录所属进程，退出时删除，残留由下次隔离运行清理）；按参数打开项目、文件、右栏页，可选创建 `cmd.exe /Q /K` 终端。
+- `WorkspaceVisualHarness`（`src/application/runtime/workspace_visual_harness.cpp`）：`isolateVisualHarnessPersistence()` 在 `<数据根>\isolated\run-<uuid>` 建沙箱（`.lock` 记录所属进程，退出时删除，残留由下次隔离运行清理）；按参数打开项目、文件、右栏页，可选创建终端（不给命令行，由平台终端启动默认 shell）。
 - 内部参数（`src/application/runtime/internal_launch_options.cpp`）：`--isolated-workspace`（`dev.bat run --smoke` 附加它并只检查进程存活）、`--workspace-shot-*`、`--resource-report <path>`（JSONL 指标），清单见 [启动参数](../reference/launch-options.md)。

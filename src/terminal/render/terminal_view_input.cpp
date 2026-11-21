@@ -9,9 +9,14 @@
 #include "terminal/render/terminal_scene_graph.h"
 
 #include "terminal/api/terminal_session.h"
+#include "terminal/shared/terminal_paste.h"
 #include "terminal/terminal_constants.h"
 
+#include <QBuffer>
 #include <QClipboard>
+#include <QDropEvent>
+#include <QImage>
+#include <QMimeData>
 #include <QFocusEvent>
 #include <QGuiApplication>
 #include <QHoverEvent>
@@ -98,6 +103,16 @@ void TerminalView::setShortcutBindings(const QVariantMap &bindings)
     emit shortcutBindingsChanged();
 }
 
+void TerminalView::setApplicationBindings(const QVariantMap &bindings)
+{
+    if (m_applicationBindings == bindings) {
+        return;
+    }
+    m_applicationBindings = bindings;
+    m_applicationTable = TerminalInputRouting::shortcutTable(bindings);
+    emit applicationBindingsChanged();
+}
+
 bool TerminalView::handleShortcut(QKeyEvent *event)
 {
     // Every bound action whose condition holds runs (copy needs a selection,
@@ -148,18 +163,95 @@ void TerminalView::copyText(const QString &text)
     if (!text.isEmpty()) QGuiApplication::clipboard()->setText(text);
 }
 
+namespace {
+
+QStringList localFiles(const QMimeData *mime)
+{
+    QStringList files;
+    if (!mime || !mime->hasUrls()) return files;
+    for (const QUrl &url : mime->urls()) {
+        if (url.isLocalFile()) files.append(url.toLocalFile());
+    }
+    return files;
+}
+
+// The clipboard's own PNG when it has one, else its image encoded as PNG.
+QByteArray clipboardPng(const QMimeData *mime)
+{
+    const QString png = QString(span::terminal::kPasteMimePng);
+    if (mime->hasFormat(png)) return mime->data(png);
+    const QImage image = qvariant_cast<QImage>(mime->imageData());
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    if (image.isNull() || !buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) return {};
+    return bytes;
+}
+
+} // namespace
+
 void TerminalView::pasteClipboard()
 {
-    if (ownsRenderConsumer() && m_session->running()) {
-        m_session->paste(QGuiApplication::clipboard()->text());
-        noteCursorHoldRestart();
+    if (!ownsRenderConsumer() || !m_session->running()) return;
+    const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
+    if (!mime) return;
+    const QStringList files = localFiles(mime);
+    const QString text = mime->text();
+    switch (classifyClipboard(!files.isEmpty(), !text.isEmpty(), mime->hasImage())) {
+    case ClipboardPasteKind::Files: m_session->pasteFiles(files); break;
+    case ClipboardPasteKind::Text: m_session->pasteClipboard(text, {}); break;
+    case ClipboardPasteKind::Image: m_session->pasteClipboard({}, clipboardPng(mime)); break;
+    case ClipboardPasteKind::Nothing: return;
     }
+    noteCursorHoldRestart();
+}
+
+// A drop is typed text, never a paste event (as in Ghostty and kitty):
+// files become quoted paths, anything else its text.
+bool TerminalView::acceptsDrop(const QMimeData *mime) const
+{
+    return ownsRenderConsumer() && m_session->running() && mime
+        && (!localFiles(mime).isEmpty() || !mime->text().isEmpty());
+}
+
+void TerminalView::dragEnterEvent(QDragEnterEvent *event)
+{
+    dragMoveEvent(event);
+}
+
+void TerminalView::dragMoveEvent(QDragMoveEvent *event)
+{
+    if (!acceptsDrop(event->mimeData())) {
+        event->ignore();
+        return;
+    }
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+}
+
+void TerminalView::dropEvent(QDropEvent *event)
+{
+    const QMimeData *mime = event->mimeData();
+    if (!acceptsDrop(mime)) {
+        event->ignore();
+        return;
+    }
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+    const QStringList files = localFiles(mime);
+    if (!files.isEmpty())
+        m_session->pasteFiles(files);
+    else
+        m_session->paste(mime->text());
+    forceActiveFocus(Qt::OtherFocusReason);
+    noteCursorHoldRestart();
 }
 
 bool TerminalView::event(QEvent *event)
 {
     if (event && event->type() == QEvent::ShortcutOverride && hasActiveFocus() && ownsRenderConsumer()
-        && m_session->running()) {
+        && m_session->running()
+        && TerminalInputRouting::claimsShortcutOverride(static_cast<QKeyEvent *>(event), m_shortcutTable,
+                                                        m_applicationTable)) {
         event->accept();
         return true;
     }

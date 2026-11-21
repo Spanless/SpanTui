@@ -6,6 +6,8 @@ import SpanTui
 // dragging.
 ResizeHandle {
     visualMode: ResizeHandle.GutterCenter
-    restColor: "transparent"
+    // Clear hover tone, not "transparent" (clear black): the hover fade
+    // then never passes through a dark tone.
+    restColor: Theme.withAlpha(hoverColor, 0)
     railVisible: true
 }

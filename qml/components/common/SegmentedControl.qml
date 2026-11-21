@@ -109,8 +109,9 @@ Item {
                 readonly property bool on: root.multiSelect
                                            ? root.isChecked(entry.key)
                                            : root.current === entry.key
-                readonly property color labelColor:
+                property color labelColor:
                     on || segmentMouse.containsMouse ? Theme.text : Theme.muted
+                Behavior on labelColor { ColorAnimation { duration: Theme.durHover } }
 
                 // Icon-only segments stay square; text segments share the
                 // width evenly. implicitWidth feeds the control's natural

@@ -1,4 +1,4 @@
-#include "platform/windows/crash_handler.h"
+#include "platform/crash_handler.h"
 #include "core/product_paths.h"
 
 #include <QCoreApplication>

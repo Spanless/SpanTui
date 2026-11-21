@@ -17,10 +17,17 @@ SettingsSection {
         Shortcuts.revision
         return Shortcuts.catalog()
     }
-    readonly property var groups: ["terminal", "editor", "git"]
+    readonly property var groups: ["app", "terminal", "editor", "git"]
 
     function actionTitle(id) {
         switch (id) {
+        case "app.newTerminal": return qsTr("New terminal")
+        case "app.openFolder": return qsTr("Open folder")
+        case "app.closeTile": return qsTr("Close tile")
+        case "app.settings": return qsTr("Settings")
+        case "app.toggleSidebar": return qsTr("Show or hide the project sidebar")
+        case "app.toggleSidePanel": return qsTr("Show or hide the side panel")
+        case "app.fullScreen": return qsTr("Full screen")
         case "terminal.find": return qsTr("Find in terminal")
         case "terminal.copy": return qsTr("Copy selection")
         case "terminal.paste": return qsTr("Paste")
@@ -36,9 +43,16 @@ SettingsSection {
 
     function actionDescription(id) {
         switch (id) {
+        case "app.newTerminal": return qsTr("Open a terminal in the project of the focused terminal.")
+        case "app.openFolder": return qsTr("Choose a folder to add as a project.")
+        case "app.closeTile": return qsTr("Close the focused tile.")
+        case "app.settings": return qsTr("Open Settings.")
+        case "app.toggleSidebar": return qsTr("In a narrow window the sidebar slides in over the workspace.")
+        case "app.toggleSidePanel": return qsTr("In a narrow window the panel slides in over the workspace.")
+        case "app.fullScreen": return qsTr("Enter or leave full screen.")
         case "terminal.find": return qsTr("Open the find bar over the terminal history and screen.")
         case "terminal.copy": return qsTr("Copy the terminal selection. Without a selection the key goes to the terminal.")
-        case "terminal.paste": return qsTr("Paste the clipboard into the terminal as one bracketed paste.")
+        case "terminal.paste": return qsTr("Paste the clipboard into the terminal: text as one bracketed paste, copied files as their paths, an image as the path of a saved copy.")
         case "terminal.previousPrompt": return qsTr("Scroll to the previous shell prompt. Needs shell integration (OSC 133); otherwise the key goes to the terminal.")
         case "terminal.nextPrompt": return qsTr("Scroll to the next shell prompt. Needs shell integration (OSC 133); otherwise the key goes to the terminal.")
         case "editor.find": return qsTr("Open the find bar in the file viewer.")
@@ -51,6 +65,7 @@ SettingsSection {
 
     function groupTitle(group) {
         switch (group) {
+        case "app": return qsTr("Window")
         case "terminal": return qsTr("Terminal")
         case "editor": return qsTr("File viewer")
         case "git": return qsTr("Git history")
@@ -80,7 +95,9 @@ SettingsSection {
         if (result.ok) {
             root.setError(id, "")
         } else {
-            root.setError(id, qsTr("Use Ctrl or Alt with a key, or a function key."))
+            root.setError(id, Shortcuts.nativeMenuBar
+                          ? qsTr("Use Command or Option with a key, or a function key.")
+                          : qsTr("Use Ctrl or Alt with a key, or a function key."))
         }
     }
 
@@ -168,7 +185,8 @@ SettingsSection {
 
     Repeater {
         model: [
-            { keys: "Ctrl+C", title: qsTr("Terminal: copy or interrupt"),
+            // The physical Control key on every keyboard.
+            { keys: Shortcuts.nativeMenuBar ? "⌃C" : "Ctrl+C", title: qsTr("Terminal: copy or interrupt"),
               description: qsTr("Copies when text is selected; otherwise sends an interrupt to the running program.") },
             { keys: "Enter / Shift+Enter", title: qsTr("Find bar: next / previous match"),
               description: qsTr("Moves between matches while the find field has focus.") },

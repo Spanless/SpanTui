@@ -70,24 +70,33 @@ Button {
                 return Theme.dangerPressed
             if (hovered)
                 return Theme.danger
-            return "transparent"
+            // Clear danger, not "transparent" (clear black): the hover fade
+            // then never passes through a dark tone.
+            return Theme.withAlpha(Theme.danger, 0)
         }
         // ghost
         if (down)
             return Theme.pressed
         if (hovered)
             return Theme.hover
-        return "transparent"
+        return Theme.withAlpha(Theme.hover, 0)
     }
+    // Hover and press tones ease in over durHover; a toolbar swept by the
+    // pointer otherwise strobes.
+    Behavior on surfaceColor { ColorAnimation { duration: Theme.durHover } }
     // Raised kinds light the top edge at rest; hover and press are flat tones.
-    readonly property color surfaceTopColor: engaged ? surfaceColor
-                                             : kind === "primary" ? Theme.accentTop
-                                             : kind === "secondary" || kind === "danger"
-                                               ? Theme.raisedFillTop
-                                             : surfaceColor
+    // The sheen fades with its own weight: surfaceColor already eases, and a
+    // second color Behavior chasing it would lag behind.
+    property real engagedMix: engaged ? 1 : 0
+    Behavior on engagedMix { NumberAnimation { duration: Theme.durHover } }
+    readonly property color restTopColor: kind === "primary" ? Theme.accentTop
+                                          : kind === "secondary" || kind === "danger"
+                                            ? Theme.raisedFillTop
+                                          : surfaceColor
+    readonly property color surfaceTopColor: Theme.mix(restTopColor, surfaceColor, engagedMix)
     readonly property bool surfaceFillEnabled: surfaceColor.a > 0
 
-    readonly property color fg: {
+    property color fg: {
         if (kind === "primary")
             return Theme.accentText
         if (kind === "danger")
@@ -98,6 +107,7 @@ Button {
             return Theme.text
         return engaged ? Theme.text : Theme.muted
     }
+    Behavior on fg { ColorAnimation { duration: Theme.durHover } }
 
     implicitHeight: controlSize
     // Labeled buttons breathe wider than the row padding; compact ones keep
@@ -138,8 +148,8 @@ Button {
     Behavior on opacity { NumberAnimation { duration: Theme.durFast; easing.type: Easing.OutCubic } }
 
     // Tactile press: the whole face sinks while held and springs back on
-    // release. Fill and label tones still switch instantly — only geometry
-    // moves. Window-chrome close stays put (it sits flush in the title bar).
+    // release. Fill and label tones ease over durHover like hover; only
+    // geometry springs. Window-chrome close stays put (it sits flush in the title bar).
     scale: down && kind !== "close" ? Theme.pressScale : 1
     Behavior on scale {
         enabled: !Appearance.reduceMotion

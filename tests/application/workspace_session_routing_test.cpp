@@ -8,8 +8,8 @@
 #include "workspace/session_model.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
+#include <QOperatingSystemVersion>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -19,6 +19,7 @@
 using span::application::ShellProfileRegistry;
 using span::remote::RemoteHostRegistry;
 using span::terminal::TerminalManager;
+using span::terminal::TerminalSession;
 
 namespace {
 
@@ -29,15 +30,24 @@ QString projectPath(const QTemporaryDir &dir, const QString &name)
     return QFileInfo(path).canonicalFilePath();
 }
 
-QString cmd()
+bool onWindows()
 {
-    return QStandardPaths::findExecutable(QStringLiteral("cmd.exe"));
+    return QOperatingSystemVersion::currentType() == QOperatingSystemVersion::Windows;
 }
 
-// cmd.exe arguments that write `marker` and exit; it starts in a fraction of
-// PowerShell's time.
+// A shell that starts fast: cmd.exe (a fraction of PowerShell's time), or
+// /bin/sh outside Windows. cmd.exe reads the '/' of a forward-slash path to
+// itself as switches, so its path is native.
+QString markerShell()
+{
+    if (!onWindows()) return QStringLiteral("/bin/sh");
+    return QDir::toNativeSeparators(QStandardPaths::findExecutable(QStringLiteral("cmd.exe")));
+}
+
+// markerShell() arguments that write `marker` and exit.
 QString writeMarkerArguments(const QString &marker)
 {
+    if (!onWindows()) return QStringLiteral("-c \"echo started > '%1'\"").arg(marker);
     return QStringLiteral("/d /c echo started>\"%1\"").arg(QDir::toNativeSeparators(marker));
 }
 
@@ -73,7 +83,7 @@ class WorkspaceSessionRoutingTest final : public QObject {
 private slots:
     void initTestCase();
     void activationDrivesTerminalManager();
-    void commandSessionCommandIsConsumedOnce();
+    void commandSessionKeepsItsProcessAcrossCatalogChanges();
     void removingCatalogSessionDropsItsLiveProcess();
     void remoteSessionOfUnknownHostIsNotLaunched();
     void shellProfileReachesOnlyNewTerminals();
@@ -116,29 +126,30 @@ void WorkspaceSessionRoutingTest::activationDrivesTerminalManager()
     QVERIFY(manager.session(idB)->running());
 }
 
-void WorkspaceSessionRoutingTest::commandSessionCommandIsConsumedOnce()
+void WorkspaceSessionRoutingTest::commandSessionKeepsItsProcessAcrossCatalogChanges()
 {
+    // A catalog change that restarted the terminal would run the user's
+    // command a second time.
+    if (markerShell().isEmpty()) QSKIP("cmd.exe is not available");
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString project = projectPath(dir, QStringLiteral("run"));
-    const QString marker = dir.filePath(QStringLiteral("command-started.txt"));
-    const QString command = QStringLiteral("cmd.exe ") + writeMarkerArguments(marker);
 
     Workspace workspace(dir);
     QVERIFY(workspace.initialized);
     SessionModel &sessions = workspace.sessions;
-    sessions.addCommandSession(QStringLiteral("run"), project, project, command);
-    const QString commandId = sessions.activeSessionId();
-    QVERIFY(!commandId.isEmpty());
-    QCOMPARE(sessions.takeInitialCommandLine(commandId), QString());
-    QTRY_VERIFY_WITH_TIMEOUT(QFileInfo::exists(marker), 10000);
-    QVERIFY(QFile::remove(marker));
+    const QString id = sessions.addCommandSession(QStringLiteral("run"), project, project, markerShell());
+    QVERIFY(!id.isEmpty());
+    QTRY_VERIFY(workspace.terminals.session(id));
+    TerminalSession *terminal = workspace.terminals.session(id);
+    QVERIFY(terminal->hasCommandLine());
+    QTRY_VERIFY(terminal->processId() != 0);
+    const quint32 processId = terminal->processId();
 
-    const int row = sessions.indexForSessionId(commandId);
-    QVERIFY(row >= 0);
-    sessions.renameSession(row, QStringLiteral("renamed run"));
-    QVERIFY(!QFileInfo::exists(marker));
-    QVERIFY(sessions.takeInitialCommandLine(commandId).isEmpty());
+    sessions.renameSession(sessions.indexForSessionId(id), QStringLiteral("renamed run"));
+
+    QCOMPARE(workspace.terminals.session(id), terminal);
+    QCOMPARE(terminal->processId(), processId);
 }
 
 void WorkspaceSessionRoutingTest::removingCatalogSessionDropsItsLiveProcess()
@@ -183,7 +194,7 @@ void WorkspaceSessionRoutingTest::remoteSessionOfUnknownHostIsNotLaunched()
 
 void WorkspaceSessionRoutingTest::shellProfileReachesOnlyNewTerminals()
 {
-    if (cmd().isEmpty()) QSKIP("cmd.exe is not available");
+    if (markerShell().isEmpty()) QSKIP("cmd.exe is not available");
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString project = projectPath(dir, QStringLiteral("profiles"));
@@ -193,7 +204,7 @@ void WorkspaceSessionRoutingTest::shellProfileReachesOnlyNewTerminals()
     Workspace workspace(dir);
     QVERIFY(workspace.initialized);
     ShellProfileRegistry &shells = *workspace.shells;
-    const QString profile = shells.addCustomProfile(cmd());
+    const QString profile = shells.addCustomProfile(markerShell());
     QVERIFY(!profile.isEmpty());
     shells.setArguments(profile, writeMarkerArguments(first));
 
@@ -206,7 +217,7 @@ void WorkspaceSessionRoutingTest::shellProfileReachesOnlyNewTerminals()
     shells.setArguments(profile, writeMarkerArguments(edited));
     sessions.renameSession(sessions.indexForSessionId(id), QStringLiteral("renamed"));
     QVERIFY(workspace.terminals.session(id));
-    // A restarted cmd.exe would write the marker within this window.
+    // A restarted shell would write the marker within this window.
     QTest::qWait(250);
     QVERIFY(!QFileInfo::exists(edited));
 

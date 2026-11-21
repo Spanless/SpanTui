@@ -3,6 +3,7 @@
 #include "core/external_tools.h"
 
 #include <QDir>
+#include <QOperatingSystemVersion>
 #include <QFileInfo>
 #include <QScopeGuard>
 #include <QSignalSpy>
@@ -112,10 +113,12 @@ void ToolRegistryTest::invalidOverrideDisablesToolWithoutFallback()
 
 void ToolRegistryTest::unrunnableExecutableIsReportedBroken()
 {
-    // argv_echo_child runs and exits 0 but prints no Git version. It records
-    // its arguments in the probe's working directory (the test TEMP).
-    const QString child =
-        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("argv_echo_child.exe"));
+    // Runs and exits 0 but prints no Git version. On Windows argv_echo_child
+    // also records its arguments in the probe's working directory (the test
+    // TEMP).
+    const QString child = QOperatingSystemVersion::currentType() == QOperatingSystemVersion::Windows
+        ? QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("argv_echo_child.exe"))
+        : QStringLiteral("/usr/bin/true");
     QVERIFY(QFileInfo::exists(child));
     const auto removeRecord = qScopeGuard(
         []() { QFile::remove(QDir::temp().filePath(QStringLiteral("argv.txt"))); });

@@ -2,8 +2,8 @@
 #include "core/core_constants.h"
 #include "core/product_paths.h"
 
-#include "platform/windows/crash_handler.h"
-#include "platform/windows/native_dialog.h"
+#include "platform/crash_handler.h"
+#include "platform/native_dialog.h"
 
 #include <QCoreApplication>
 #include <QDir>

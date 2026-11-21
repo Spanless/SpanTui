@@ -50,7 +50,10 @@ public:
     QStringList foregroundProjectPaths() const;
 
     QString showProjectManager();
-    Q_INVOKABLE bool toggleProjectSidebar();
+    // The title-bar toggles: shows or hides a side ("left" | "right") as it
+    // lives now, docked or floating; showing the left side recreates the
+    // project manager when it was closed.
+    Q_INVOKABLE bool toggleSidePanel(const QString &zone);
     Q_INVOKABLE QString createProjectTile(const QString &kind,
                                           const QString &projectPath);
     // `shellProfile` "" follows the default shell profile.
@@ -105,6 +108,10 @@ public:
     Q_INVOKABLE QString openProjectFolder(const QString &path, bool newTerminal = false);
     // Opens a new ssh terminal for a saved host.
     Q_INVOKABLE QString createRemoteSession(const QString &hostId);
+    // A new terminal where the user works (the New Terminal command): the
+    // scope of the focused terminal, a project or a remote host, else the
+    // first project. Empty, with errorOccurred, when there is no project.
+    Q_INVOKABLE QString createSessionInBoundScope();
     // Ends every session of the host, then deletes the saved host.
     Q_INVOKABLE bool removeRemoteHost(const QString &hostId);
     Q_INVOKABLE span::remote::RemoteHostContext *remoteContext(const QString &hostId) const;

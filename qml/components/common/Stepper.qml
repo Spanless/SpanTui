@@ -149,6 +149,7 @@ Item {
             name: cell.iconName
             size: Theme.iconSm
             color: cell.engaged ? Theme.text : Theme.muted
+            Behavior on color { ColorAnimation { duration: Theme.durHover } }
         }
 
         MouseArea {

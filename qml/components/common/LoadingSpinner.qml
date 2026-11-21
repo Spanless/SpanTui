@@ -25,5 +25,6 @@ Item {
         size: root.size
         color: Theme.muted
         hovered: root.spinning
+        hoverIntent: false
     }
 }

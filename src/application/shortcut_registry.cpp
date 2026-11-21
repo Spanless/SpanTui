@@ -1,6 +1,7 @@
 #include "application/shortcut_registry.h"
 
 #include "application/workspace_settings.h"
+#include "platform/keyboard_conventions.h"
 #include "terminal/terminal_constants.h"
 
 #include <QStringList>
@@ -44,16 +45,26 @@ ShortcutRegistry::ShortcutRegistry(WorkspaceSettings *state, QObject *parent) : 
 
 const QVector<ShortcutRegistry::Action> &ShortcutRegistry::actions()
 {
+    // Command defaults follow the macOS conventions (⌘T, ⌘W, ⌘,, ⌃⌘F;
+    // Terminal's ⌘↑/⌘↓ marks); Ctrl defaults keep plain Ctrl chords for
+    // the shell, as Windows Terminal does.
     static const QVector<Action> list{
-        {"terminal.find", "terminal", Scope::Terminal, "Ctrl+Shift+F"},
-        {span::terminal::kActionCopy.data(), "terminal", Scope::Terminal, "Ctrl+Shift+C"},
-        {span::terminal::kActionPaste.data(), "terminal", Scope::Terminal, "Ctrl+Shift+V"},
-        {span::terminal::kActionPreviousPrompt.data(), "terminal", Scope::Terminal, "Ctrl+Shift+Up"},
-        {span::terminal::kActionNextPrompt.data(), "terminal", Scope::Terminal, "Ctrl+Shift+Down"},
-        {"editor.find", "editor", Scope::Editor, "Ctrl+F"},
-        {"editor.goToLine", "editor", Scope::Editor, "Ctrl+G"},
-        {"editor.copyLine", "editor", Scope::Editor, "Ctrl+C"},
-        {"git.copyHash", "git", Scope::GitLog, "Ctrl+C"},
+        {"app.newTerminal", "app", Scope::Global, "Ctrl+Shift+T", "Ctrl+T"},
+        {"app.openFolder", "app", Scope::Global, "Ctrl+Shift+O", "Ctrl+O"},
+        {"app.closeTile", "app", Scope::Global, "Ctrl+Shift+W", "Ctrl+W"},
+        {"app.settings", "app", Scope::Global, "Ctrl+,", "Ctrl+,"},
+        {"app.toggleSidebar", "app", Scope::Global, "Ctrl+Shift+B", "Ctrl+B"},
+        {"app.toggleSidePanel", "app", Scope::Global, "Ctrl+Shift+E", "Ctrl+Alt+B"},
+        {"app.fullScreen", "app", Scope::Global, "F11", "Meta+Ctrl+F"},
+        {"terminal.find", "terminal", Scope::Terminal, "Ctrl+Shift+F", "Ctrl+F"},
+        {span::terminal::kActionCopy.data(), "terminal", Scope::Terminal, "Ctrl+Shift+C", "Ctrl+C"},
+        {span::terminal::kActionPaste.data(), "terminal", Scope::Terminal, "Ctrl+Shift+V", "Ctrl+V"},
+        {span::terminal::kActionPreviousPrompt.data(), "terminal", Scope::Terminal, "Ctrl+Shift+Up", "Ctrl+Up"},
+        {span::terminal::kActionNextPrompt.data(), "terminal", Scope::Terminal, "Ctrl+Shift+Down", "Ctrl+Down"},
+        {"editor.find", "editor", Scope::Editor, "Ctrl+F", "Ctrl+F"},
+        {"editor.goToLine", "editor", Scope::Editor, "Ctrl+G", "Ctrl+G"},
+        {"editor.copyLine", "editor", Scope::Editor, "Ctrl+C", "Ctrl+C"},
+        {"git.copyHash", "git", Scope::GitLog, "Ctrl+C", "Ctrl+C"},
     };
     return list;
 }
@@ -66,6 +77,18 @@ const ShortcutRegistry::Action *ShortcutRegistry::find(const QString &id)
         }
     }
     return nullptr;
+}
+
+QKeySequence ShortcutRegistry::defaultOf(const Action &action)
+{
+    return QKeySequence::fromString(
+        QString::fromLatin1(span::platform::hasCommandKey() ? action.commandDefault : action.ctrlDefault),
+        QKeySequence::PortableText);
+}
+
+bool ShortcutRegistry::nativeMenuBar() const
+{
+    return span::platform::hasCommandKey();
 }
 
 bool ShortcutRegistry::isAcceptable(const QKeySequence &sequence)
@@ -106,8 +129,7 @@ QKeySequence ShortcutRegistry::effective(const Action &action) const
             }
         }
     }
-    return QKeySequence::fromString(QString::fromLatin1(action.defaultSequence),
-                                    QKeySequence::PortableText);
+    return defaultOf(action);
 }
 
 QString ShortcutRegistry::sequence(const QString &id) const
@@ -125,7 +147,7 @@ QString ShortcutRegistry::nativeText(const QString &id) const
 QString ShortcutRegistry::defaultSequence(const QString &id) const
 {
     const Action *action = find(id);
-    return action ? QString::fromLatin1(action->defaultSequence) : QString();
+    return action ? defaultOf(*action).toString(QKeySequence::PortableText) : QString();
 }
 
 QVariantList ShortcutRegistry::catalog() const
@@ -140,8 +162,7 @@ QVariantList ShortcutRegistry::catalog() const
                 sharedWith.append(QString::fromLatin1(other.id));
             }
         }
-        const QKeySequence fallback = QKeySequence::fromString(
-            QString::fromLatin1(action.defaultSequence), QKeySequence::PortableText);
+        const QKeySequence fallback = defaultOf(action);
         result.push_back(QVariantMap{
             {QStringLiteral("id"), QString::fromLatin1(action.id)},
             {QStringLiteral("group"), QString::fromLatin1(action.group)},
@@ -174,8 +195,7 @@ QVariantMap ShortcutRegistry::setBinding(const QString &id, const QString &seque
         return {{QStringLiteral("ok"), false}, {QStringLiteral("error"), QStringLiteral("invalid")}};
     }
     QVariantMap overrides = m_state->shortcutOverrides();
-    const QKeySequence fallback = QKeySequence::fromString(
-        QString::fromLatin1(action->defaultSequence), QKeySequence::PortableText);
+    const QKeySequence fallback = defaultOf(*action);
     if (requested == fallback) {
         overrides.remove(id);
     } else {
@@ -228,9 +248,19 @@ bool ShortcutRegistry::matches(const QString &id, int key, int modifiers) const
 
 QVariantMap ShortcutRegistry::terminalBindings() const
 {
+    return bindingsIn(Scope::Terminal);
+}
+
+QVariantMap ShortcutRegistry::applicationBindings() const
+{
+    return bindingsIn(Scope::Global);
+}
+
+QVariantMap ShortcutRegistry::bindingsIn(Scope scope) const
+{
     QVariantMap result;
     for (const Action &action : actions()) {
-        if (action.scope == Scope::Terminal) {
+        if (action.scope == scope) {
             result.insert(QString::fromLatin1(action.id),
                           effective(action).toString(QKeySequence::PortableText));
         }

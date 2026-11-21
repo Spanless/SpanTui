@@ -2,6 +2,7 @@
 
 #include "core/product_identity.h"
 #include "core/product_paths.h"
+#include "platform/local_endpoint.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -22,11 +23,6 @@
 #include <memory>
 #include <mutex>
 #include <utility>
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
 
 namespace span::application {
 namespace {
@@ -92,6 +88,9 @@ public:
 
     void startListening()
     {
+        // The caller holds the instance lock: an endpoint left here belongs
+        // to a primary that is gone.
+        QLocalServer::removeServer(m_endpoint);
         if (m_server->listen(m_endpoint)) {
             m_ownsEndpoint = true;
             m_result->listening.store(true, std::memory_order_release);
@@ -236,9 +235,7 @@ QString SingleInstanceRouter::endpointName() const
 void SingleInstanceRouter::stopPrimary()
 {
     m_primaryListening.store(false, std::memory_order_release);
-    if (m_primaryLock) {
-        CloseHandle(std::exchange(m_primaryLock, nullptr));
-    }
+    m_primaryLock.release();
     if (!m_acceptThread) {
         return;
     }
@@ -262,29 +259,23 @@ bool SingleInstanceRouter::becomePrimary(QString *errorMessage)
         return m_primaryListening.load(std::memory_order_acquire);
     }
 
-    // QLocalServer creates its pipe instances without FILE_FLAG_FIRST_PIPE_INSTANCE,
-    // so listen() also succeeds while another process serves the endpoint. A
-    // named mutex makes the primary role exclusive; the kernel drops it with
-    // the owning process, so a crashed primary never blocks the next start.
-    const std::wstring lockName =
-        (QStringLiteral("Local\\") + m_endpointName).toStdWString();
-    HANDLE lock = CreateMutexW(nullptr, FALSE, lockName.c_str());
-    if (!lock || GetLastError() == ERROR_ALREADY_EXISTS) {
-        if (lock) {
-            CloseHandle(lock);
-        }
+    // On Windows QLocalServer creates its pipe instances without
+    // FILE_FLAG_FIRST_PIPE_INSTANCE, so listen() also succeeds while another
+    // process serves the endpoint; elsewhere a crashed primary leaves its
+    // socket file behind. The instance lock makes the primary role exclusive
+    // and lets the holder clear a stale endpoint.
+    if (!m_primaryLock.tryAcquire(m_endpointName)) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("Another instance owns the single-instance endpoint.");
         }
         return false;
     }
-    m_primaryLock = lock;
 
     // Own the server on a dedicated thread so activations are accepted during
     // the listen-before-exec cold-start window on the main thread.
     const auto result = std::make_shared<ListenResult>();
     m_acceptThread = new QThread(this);
-    m_acceptWorker = new SingleInstanceAcceptWorker(m_endpointName, result);
+    m_acceptWorker = new SingleInstanceAcceptWorker(span::platform::localEndpointAddress(m_endpointName), result);
     m_acceptWorker->moveToThread(m_acceptThread);
     connect(m_acceptThread, &QThread::started, m_acceptWorker,
             &SingleInstanceAcceptWorker::startListening);
@@ -327,7 +318,7 @@ SingleInstanceRouter::ForwardOutcome SingleInstanceRouter::forward(
     retryWindow.start();
     do {
         socket.abort();
-        socket.connectToServer(m_endpointName, QIODevice::ReadWrite);
+        socket.connectToServer(span::platform::localEndpointAddress(m_endpointName), QIODevice::ReadWrite);
         const int remaining = qMax(1, retryWindowMs - int(retryWindow.elapsed()));
         if (socket.waitForConnected(qMin(kConnectAttemptMs, remaining))) {
             break;

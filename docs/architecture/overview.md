@@ -1,6 +1,6 @@
 # 架构总览
 
-Qt 6（C++17 / QML）Windows 开发工作区与终端。
+Qt 6（C++17 / QML）开发工作区与终端，运行于 Windows 与 macOS（Apple Silicon）。
 
 ## 1. 分层
 
@@ -14,8 +14,8 @@ Qt 6（C++17 / QML）Windows 开发工作区与终端。
                          IdleGovernor、WindowTransitionCoordinator、diagnostics/
 4  领域服务              workspace、documents（含编辑器）、git、update、monitoring、remote
 3  终端核心              src/terminal/：TerminalSession、CoreWorker、GhosttyEngine、FrameStore、
-                         WinConPtyProcess、矢量网格渲染
-2  平台适配              src/platform/：WindowChrome、ProcessContainment、CrashHandler、LaunchLogging、DirectoryChangeWatcher
+                         平台终端进程（WinConPtyProcess / MacPtyProcess）、矢量网格渲染
+2  平台适配              src/platform/：WindowChrome、ProcessContainment、CrashHandler、LaunchLogging、DirectoryChangeWatcher、InstanceLock
 1  基础设施              src/core/：ProductPaths、ProductIdentity、OperationOutcome、工作区数据库迁移
 ```
 
@@ -36,6 +36,12 @@ Qt 6（C++17 / QML）Windows 开发工作区与终端。
 - 工作区与独立终端一律 `QQuickWindow::QtTextRendering`。
 - 子进程经 Job Object 与 UI 进程绑定，随主程序退出回收（见 [进程生命周期](process-lifecycle.md)）。
 
+### 平台实现
+
+- 每项平台能力是一个中立头文件加每个平台一份实现：头在模块目录（如 `src/platform/window_chrome.h`、`src/terminal/api/platform_terminal.h`、`src/core/platform_folders.h`），实现在同模块的 `windows/` 与 `macos/` 子目录，由该模块的 `CMakeLists.txt` 以 `if(WIN32)` 选择源文件与系统库。
+- 共享代码不写 `#ifdef Q_OS_*`/`_WIN32`，不包含 `windows.h` 或 AppKit 头；平台状态藏在实现文件的 pimpl（`Native`/`Impl`）里。
+- 中立头的注释写明各平台的实现方式；两平台行为不同之处写在平台文档（[macOS 平台](../services/platform/macos.md)、`services/platform/windows/`）。
+
 ### 常量
 
 - **契约常量**收敛到所属模块唯一的常量头 `src/<模块>/<模块>_constants.h`，各处引用名称，不重复字面量。契约常量包括：两个以上文件共用的值，以及持久化、协议或模块间约定的值（设置键与枚举值、数据库连接参数、任务操作名、会话选项键、工具 id）。
@@ -51,6 +57,11 @@ Qt 6（C++17 / QML）Windows 开发工作区与终端。
 - [ ] 有 `src/<域>/CMakeLists.txt`，只链接更下层；第 1–4 层不链接 `SpanApplication`。
 - [ ] 本文 §1、[静态库分层](../workflow/build.md#静态库分层)、`docs/ownership.json` 已同步。
 - [ ] 测试用 `spantui_add_library_test` 链接该库。
+
+### 新增或修改平台能力
+- [ ] 中立头 + `windows/`、`macos/` 两份实现，模块 `CMakeLists.txt` 按平台选择；共享代码无平台宏。
+- [ ] macOS 上构建并运行受影响测试；Windows 实现由 CI 编译。
+- [ ] [macOS 平台](../services/platform/macos.md) 或对应 Windows 平台文档已同步。
 
 ### 跨层移动类或改变依赖方向
 - [ ] 调用方全部迁移，旧文件已删。

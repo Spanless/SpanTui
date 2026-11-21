@@ -27,7 +27,7 @@ enum class SshPromptKind {
 
 SshPromptKind classifySshPrompt(const QString &prompt);
 // True when the asking ssh (the askpass helper's parent) was started by
-// `ownerPid` itself, or by an sftp.exe that `ownerPid` started. A ProxyJump
+// `ownerPid` itself, or by an sftp that `ownerPid` started. A ProxyJump
 // or ProxyCommand hop inherits the askpass environment but is started by
 // that ssh, a level further down. Prompt text cannot tell them apart: it
 // names user@host without the port.
@@ -35,17 +35,18 @@ bool isLaunchedSsh(quint32 sshPid, quint32 ownerPid);
 
 // True when this process was started by ssh as its askpass helper.
 bool isAskpassInvocation(int argc);
-// Askpass helper entry: reads the prompt from the UTF-16 command line, asks
-// the broker named in the environment and writes the answer to stdout.
-// Returns the process exit code (non-zero = refused).
-int runAskpassClient();
-// One request/response exchange with a broker pipe. Blocking; used by the
+// Askpass helper entry: reads the prompt from the command line, asks the
+// broker named in the environment and writes the answer to stdout. Returns
+// the process exit code (non-zero = refused).
+int runAskpassClient(int argc, char **argv);
+// One request/response exchange with a broker endpoint. Blocking; used by the
 // helper entry and by tests. Returns false when the broker refused or failed.
 bool exchangeAskpassPrompt(const QString &pipeName, const QString &token,
                            quint32 parentProcessId, const QString &prompt,
                            QString *answer);
 
-// Owner-only pipe. Each ssh launch carries a token naming its host; unknown
+// Owner-only local endpoint (a named pipe on Windows, a Unix domain socket
+// on macOS). Each ssh launch carries a token naming its host; unknown
 // tokens are refused. Answers come from the application via respond().
 class SshAskpassBroker final : public QObject {
     Q_OBJECT
@@ -57,7 +58,7 @@ public:
     bool listen(QString *error = nullptr);
     // Why the last listen() failed; empty once listening.
     QString listenError() const;
-    // \\.\pipe\... path the helper opens.
+    // Full endpoint path the helper opens (QLocalServer::fullServerName).
     QString pipeName() const;
     // Defaults to this executable.
     void setAskpassProgram(const QString &program);

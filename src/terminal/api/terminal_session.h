@@ -2,6 +2,7 @@
 
 #include "terminal/api/terminal_types.h"
 #include "terminal/api/terminal_session_input.h"
+#include "terminal/shared/terminal_paste.h"
 #include "terminal/terminal_constants.h"
 
 #include <QObject>
@@ -132,6 +133,16 @@ public:
     void setRetryIntervalForTesting(int milliseconds) { m_retryTimer.setInterval(milliseconds); }
     Q_INVOKABLE void sendText(const QString &text);
     Q_INVOKABLE void paste(const QString &text);
+    // A clipboard paste (shortcut, menu, middle click). A child that enabled
+    // Kitty paste events (mode 5522) gets an event and reads what it wants;
+    // otherwise the text is pasted, or else the path of the PNG saved under
+    // the cache. A remote session pastes no local path.
+    void pasteClipboard(const QString &text, const QByteArray &png);
+    // Local files (a drop, or file URLs on the clipboard) as quoted paths;
+    // files in the system temp folder are copied to the cache first.
+    void pasteFiles(const QStringList &paths);
+    // How the session's shell reads a pasted path.
+    PathQuoting pathQuoting() const;
     Q_INVOKABLE void interrupt();
     // Only a snapshot carrying the returned generation may replace the view's
     // frame.
@@ -174,6 +185,7 @@ private:
     void postInput(const std::function<void(TerminalCoreWorker *)> &operation,
                    TerminalInputKind kind = TerminalInputKind::User);
     void handleExit(quint32 exitCode, quint64 generation);
+    void completeExit(quint32 exitCode, quint64 generation);
     void handleProcessStarted(const std::shared_ptr<TerminalProcess> &process, bool success, const QString &error,
                               quint64 generation, QSize size);
     void handleFrameAvailable();

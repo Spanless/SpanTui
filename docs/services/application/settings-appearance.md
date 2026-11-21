@@ -77,21 +77,29 @@
 
 ### 快捷键
 
-`ShortcutRegistry` 目录按「终端 / 文件查看器 / Git 历史」分组，另有只读的「固定按键」（终端 Ctrl+C、查找栏 Enter/Shift+Enter/Esc）。
+`ShortcutRegistry` 目录按「窗口 / 终端 / 文件查看器 / Git 历史」分组，另有只读的「固定按键」（终端 Ctrl+C，macOS 为 ⌃C；查找栏 Enter/Shift+Enter/Esc）。默认绑定按平台惯例生成（`span::platform::hasCommandKey()`，`platform/keyboard_conventions.h`）：有 ⌘ 键的平台（macOS）用 ⌘ 组合，其余用 Ctrl+Shift 组合。只有与默认不同的绑定才写入覆盖表，所以没改过的绑定随平台默认变化；改过的原样保留。表中 macOS 列按 Qt 可移植文本书写，`Ctrl` 即 ⌘、`Meta` 即 ⌃、`Alt` 即 ⌥。
 
-| 动作 id | 默认 | 适用条件 |
-|---|---|---|
-| `terminal.find` | Ctrl+Shift+F | |
-| `terminal.copy` | Ctrl+Shift+C | 有选区 |
-| `terminal.paste` | Ctrl+Shift+V | |
-| `terminal.previousPrompt` / `nextPrompt` | Ctrl+Shift+Up / Down | 有 OSC 133 标记 |
-| `editor.find` | Ctrl+F | |
-| `editor.goToLine` | Ctrl+G | |
-| `editor.copyLine` | Ctrl+C | |
-| `git.copyHash` | Ctrl+C | |
+| 动作 id | 默认（Windows） | 默认（macOS） | 作用域 / 适用条件 |
+|---|---|---|---|
+| `app.newTerminal` | Ctrl+Shift+T | Ctrl+T（⌘T） | global；在绑定的项目或远程主机里新建终端，未绑定时取第一个项目 |
+| `app.openFolder` | Ctrl+Shift+O | Ctrl+O（⌘O） | global |
+| `app.closeTile` | Ctrl+Shift+W | Ctrl+W（⌘W） | global；关闭聚焦的 Tile |
+| `app.settings` | Ctrl+, | Ctrl+,（⌘,） | global |
+| `app.toggleSidebar` | Ctrl+Shift+B | Ctrl+B（⌘B） | global；窄窗口下滑出浮层 |
+| `app.toggleSidePanel` | Ctrl+Shift+E | Ctrl+Alt+B（⌥⌘B） | global；同上 |
+| `app.fullScreen` | F11 | Meta+Ctrl+F（⌃⌘F） | global |
+| `terminal.find` | Ctrl+Shift+F | Ctrl+F（⌘F） | |
+| `terminal.copy` | Ctrl+Shift+C | Ctrl+C（⌘C） | 有选区 |
+| `terminal.paste` | Ctrl+Shift+V | Ctrl+V（⌘V） | 见 [输入协议 §2](../terminal/input-protocols.md#2-粘贴鼠标与写入) |
+| `terminal.previousPrompt` / `nextPrompt` | Ctrl+Shift+Up / Down | Ctrl+Up / Down（⌘↑ / ⌘↓） | 有 OSC 133 标记 |
+| `editor.find` | Ctrl+F | Ctrl+F（⌘F） | |
+| `editor.goToLine` | Ctrl+G | Ctrl+G（⌘G） | |
+| `editor.copyLine` | Ctrl+C | Ctrl+C（⌘C） | |
+| `git.copyHash` | Ctrl+C | Ctrl+C（⌘C） | |
 
+- **执行 `app.*`**：`AppCommands.qml` 是唯一的动作入口（`run(id)`；编辑命令 `edit()` 沿焦点链找 `copySelection`/`pasteClipboard`/`selectAll` 等方法）。`Shortcuts.nativeMenuBar`（= `hasCommandKey()`）为真时 `Main.qml` 只加载 `MacMenuBar.qml`（`Qt.labs.platform` 原生菜单栏，菜单项快捷键取自当前绑定），否则只加载 `AppShortcuts.qml`（每个动作一个窗口级 `Shortcut`）——两者不同时存在，一个组合只执行一次。终端经 `applicationBindings` 让出这些组合；文件查看器与 Git 历史经 `Keys.onShortcutOverride` 认领自己作用域的组合，先于窗口快捷键。
 - **录制**：`ShortcutRecorder` 获焦即录制，经 `Keys.onShortcutOverride` 认领全部按键；Esc 取消、Backspace/Delete 解绑、无修饰 Tab 保留焦点移动。
-- **校验**：`setBinding` 只接受单个组合，须带 Ctrl/Alt 或为 F1–F24（裸字母会抢走 shell 输入）。同一组合可绑多个动作，`catalog()` 的 `sharedWith` 列出作用域相同（或任一为 global）的共用者；按下时执行全部适用的动作，都不适用才按普通按键处理。
+- **校验**：`setBinding` 只接受单个组合，须带 Ctrl/Alt（macOS 为 ⌘/⌥）或为 F1–F24（裸字母会抢走 shell 输入）。同一组合可绑多个动作，`catalog()` 的 `sharedWith` 列出作用域相同（或任一为 global）的共用者；按下时执行全部适用的动作，都不适用才按普通按键处理。
 - **消费**：QML 用 `Shortcuts.matches(id, key, modifiers)`；终端经 `TerminalView.shortcutBindings`（见 [输入协议 §1.4](../terminal/input-protocols.md#14-视图层约定)）。标题与说明文案在 QML，C++ 只返回 id 与错误码。
 
 ### 环境页
@@ -145,5 +153,5 @@
 
 - 设置界面：`qml/Settings.qml`、`qml/components/business/settings/`
 - `src/application/{preferences, settings_store, appearance_settings, terminal_settings, workspace_settings, clipboard}.*`
-- `src/application/{shortcut_registry, tool_registry, graphics_mode_service, shell_profile_registry}.*`、`src/core/external_tools.*`、`src/remote/tailscale_devices.*`、`src/terminal/platform/windows/win_shell_catalog.cpp`
+- `src/application/{shortcut_registry, tool_registry, graphics_mode_service, shell_profile_registry}.*`、`src/core/external_tools.*`、`src/remote/tailscale_devices.*`、`src/terminal/platform/{windows/win_shell_catalog, macos/mac_shell_catalog}.cpp`
 - 测试：`settings_test`、`shortcut_registry_test`、`shell_profile_registry_test`

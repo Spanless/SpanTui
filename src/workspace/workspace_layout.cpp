@@ -33,6 +33,9 @@ QVariantList toVariantList(const QVector<T> &values)
 WorkspaceLayout::WorkspaceLayout(QObject *parent)
     : QAbstractListModel(parent)
 {
+    // Every geometry change may have moved a side between docked and
+    // floating; sidesChanged follows it once the geometry is consistent.
+    connect(this, &WorkspaceLayout::geometryChanged, this, &WorkspaceLayout::syncSides);
     resetToDefault();
 }
 
@@ -88,7 +91,22 @@ QHash<int, QByteArray> WorkspaceLayout::roleNames() const
 
 int WorkspaceLayout::leftWidth() const
 {
-    return !hasProjectsTile() || m_leftCollapsed ? 0 : m_leftWidthStored;
+    return sideWidths(m_tiles, int(m_columnWidths.size()), m_leftFloating, m_rightFloating).left;
+}
+
+int WorkspaceLayout::rightWidth() const
+{
+    return sideWidths(m_tiles, int(m_columnWidths.size()), m_leftFloating, m_rightFloating).right;
+}
+
+bool WorkspaceLayout::leftShown() const
+{
+    return m_leftFloating ? m_leftOverlayOpen : leftWidth() > 0;
+}
+
+bool WorkspaceLayout::rightShown() const
+{
+    return m_rightFloating ? m_rightOverlayOpen : !m_rightCollapsed;
 }
 
 QVariantList WorkspaceLayout::centerRowRatios() const
@@ -154,6 +172,8 @@ bool WorkspaceLayout::insertCenterTile(const QString &id, int column, int slot)
     m_columnWidths = widths;
     m_rowRatios = ratios;
     ensureRowRatioCount();
+    // A new column raises the center's minimum, which may float a side.
+    fillCenterColumns();
     notifyAllTilesChanged();
     emit geometryChanged();
     setFocused(id);
@@ -167,6 +187,13 @@ QVariantMap WorkspaceLayout::previewCenterInsert(const QString &id, int column, 
     QVector<qreal> ratios = m_rowRatios;
     if (!tile_grid::moveTile(tiles, widths, ratios, id, column, slot, centerPixelWidth())) {
         return {};
+    }
+    // What insertCenterTile's fill does after the move: the moved tile may
+    // float a side, or dock one back.
+    const SidePlan sides = planSides(tiles, int(widths.size()));
+    const int center = std::max(0, m_windowInnerWidth - sides.left - sides.right);
+    if (!widths.isEmpty()) {
+        widths = tile_grid::distributeWidths(widths, tiles, center);
     }
     const auto found = std::find_if(tiles.cbegin(), tiles.cend(),
                                     [&id](const Tile &tile) { return tile.id == id; });
@@ -210,14 +237,30 @@ bool WorkspaceLayout::closeTile(const QString &id)
 
 bool WorkspaceLayout::setLeftWidth(int px, int windowInnerWidth)
 {
-    return setSideWidth(px, windowInnerWidth, m_leftWidthStored, m_leftCollapsed,
-                        kMinLeftWidth, m_rightCollapsed ? 0 : m_rightWidthStored);
+    return setSideWidth(px, windowInnerWidth, m_leftWidthStored, m_leftCollapsed, kMinLeftWidth, rightWidth());
 }
 
 bool WorkspaceLayout::setRightWidth(int px, int windowInnerWidth)
 {
-    return setSideWidth(px, windowInnerWidth, m_rightWidthStored, m_rightCollapsed,
-                        kMinRightWidth, m_leftCollapsed ? 0 : m_leftWidthStored);
+    return setSideWidth(px, windowInnerWidth, m_rightWidthStored, m_rightCollapsed, kMinRightWidth, leftWidth());
+}
+
+int WorkspaceLayout::clampedSideWidth(const QString &zone, int px, int windowInnerWidth) const
+{
+    const bool left = zone == kZoneLeft;
+    if (!left && zone != kZoneRight) {
+        return 0;
+    }
+    const int window = windowInnerWidth > 0 ? windowInnerWidth : m_windowInnerWidth;
+    const int minWidth = left ? kMinLeftWidth : kMinRightWidth;
+    const int other = left ? rightWidth() : leftWidth();
+    const int maxWidth = std::max(minWidth, window - other - centerMinWidth());
+    return std::clamp(px, kSideCollapseWidth, maxWidth);
+}
+
+int WorkspaceLayout::sideMaxWidth(int otherWidth) const
+{
+    return m_windowInnerWidth - otherWidth - centerMinWidth();
 }
 
 bool WorkspaceLayout::setSideWidth(int px, int windowInnerWidth, int &stored, bool &collapsed,
@@ -228,13 +271,15 @@ bool WorkspaceLayout::setSideWidth(int px, int windowInnerWidth, int &stored, bo
         m_windowInnerWidth = windowInnerWidth;
         changed = true;
     }
-    if (px < 120) {
+    if (px < kSideCollapseWidth) {
         if (!collapsed) {
             collapsed = true;
             changed = true;
         }
     } else {
-        const int maxWidth = std::max(minWidth, m_windowInnerWidth - otherWidth - kMinCenterWidth);
+        // Up to what leaves the center its column minimums: a seam drag
+        // never pushes the other side into floating.
+        const int maxWidth = std::max(minWidth, sideMaxWidth(otherWidth));
         const int clamped = std::clamp(px, minWidth, maxWidth);
         if (stored != clamped || collapsed) {
             stored = clamped;
@@ -243,7 +288,7 @@ bool WorkspaceLayout::setSideWidth(int px, int windowInnerWidth, int &stored, bo
         }
     }
     changed = fillCenterColumns() || changed;
-    if (changed) {
+    if (changed || sideState() != m_announcedSides) {
         emit geometryChanged();
         commitOrDeferGeometry();
     }
@@ -266,6 +311,42 @@ bool WorkspaceLayout::setSideCollapsed(const QString &zone, bool collapsed)
     emit geometryChanged();
     commitOrDeferGeometry();
     return true;
+}
+
+bool WorkspaceLayout::sideShown(const QString &zone) const
+{
+    return zone == kZoneLeft ? leftShown() : zone == kZoneRight && rightShown();
+}
+
+bool WorkspaceLayout::setSideShown(const QString &zone, bool shown)
+{
+    const bool left = zone == kZoneLeft;
+    if (!left && zone != kZoneRight) {
+        return false;
+    }
+    const bool &floating = left ? m_leftFloating : m_rightFloating;
+    if (!floating) {
+        setSideCollapsed(zone, !shown);
+    }
+    // Docking it may have floated it at once (the window is too narrow):
+    // then the overlay shows what the user asked for.
+    if (floating) {
+        bool &overlay = left ? m_leftOverlayOpen : m_rightOverlayOpen;
+        bool &other = left ? m_rightOverlayOpen : m_leftOverlayOpen;
+        overlay = shown;
+        if (shown) {
+            other = false;
+        }
+        syncSides();
+    }
+    return true;
+}
+
+void WorkspaceLayout::closeOverlays()
+{
+    m_leftOverlayOpen = false;
+    m_rightOverlayOpen = false;
+    syncSides();
 }
 
 bool WorkspaceLayout::setRightPage(const QString &page)
@@ -391,7 +472,7 @@ bool WorkspaceLayout::previewViewport(int width, int height)
         changed = true;
     }
     const bool durableGeometryChanged = fillCenterColumns();
-    changed = durableGeometryChanged || changed;
+    changed = durableGeometryChanged || changed || sideState() != m_announcedSides;
     m_viewportCommitPending = m_viewportCommitPending || durableGeometryChanged;
     if (changed) {
         emit geometryChanged();
@@ -445,6 +526,7 @@ bool WorkspaceLayout::restoreFromJson(const QString &json)
         m_focusedTileId = m_tiles.isEmpty() ? QString() : m_tiles.constFirst().id;
     m_viewportTransactionActive = false;
     m_viewportCommitPending = false;
+    updateFloating();
     captureCommittedGeometry();
     endResetModel();
     ++m_tilesRevision;
@@ -535,6 +617,7 @@ bool WorkspaceLayout::reconcileReferences(const QStringList &scopes, const QHash
         changed = true;
     }
     if (changed) {
+        fillCenterColumns();
         if (indexOfId(m_focusedTileId) < 0) {
             setFocused(m_tiles.isEmpty() ? QString() : m_tiles.constFirst().id);
         }
@@ -679,6 +762,7 @@ void WorkspaceLayout::growColumnCount(int count)
 
 bool WorkspaceLayout::fillCenterColumns()
 {
+    updateFloating();
     if (m_columnWidths.isEmpty()) {
         return false;
     }
@@ -715,6 +799,107 @@ int WorkspaceLayout::centerPixelWidth() const
     return std::max(0, m_windowInnerWidth - leftWidth() - rightWidth());
 }
 
+namespace {
+
+int columnMinimumsSum(const QVector<Tile> &tiles, int columns)
+{
+    int sum = 0;
+    for (int column = 0; column < columns; ++column) {
+        sum += tile_grid::columnMinWidth(tiles, column);
+    }
+    return std::max(kMinCenterWidth, sum);
+}
+
+bool hasLeftZoneTile(const QVector<Tile> &tiles)
+{
+    return std::any_of(tiles.cbegin(), tiles.cend(), [](const Tile &tile) { return !tile.inCenter(); });
+}
+
+} // namespace
+
+int WorkspaceLayout::centerMinWidth() const
+{
+    return columnMinimumsSum(m_tiles, int(m_columnWidths.size()));
+}
+
+WorkspaceLayout::SidePlan WorkspaceLayout::planSides(const QVector<Tile> &tiles, int columns) const
+{
+    // The narrowest each side docks at; a side that wants none never floats.
+    const int left = hasLeftZoneTile(tiles) && !m_leftCollapsed ? std::min(m_leftWidthStored, kMinLeftWidth) : 0;
+    const int right = m_rightCollapsed ? 0 : std::min(m_rightWidthStored, kMinRightWidth);
+    const int need = columnMinimumsSum(tiles, columns);
+    const auto centerFor = [&](bool leftFloats, bool rightFloats) {
+        return m_windowInnerWidth - (leftFloats ? 0 : left) - (rightFloats ? 0 : right);
+    };
+    bool leftFloats = m_leftFloating && left > 0;
+    bool rightFloats = m_rightFloating && right > 0;
+    // Narrowing floats the right side first, then the left; widening docks
+    // them back in the reverse order, each once the center keeps its
+    // minimums plus the hysteresis with the sides at their minimums.
+    if (!rightFloats && right > 0 && centerFor(leftFloats, rightFloats) < need) {
+        rightFloats = true;
+    }
+    if (!leftFloats && left > 0 && centerFor(leftFloats, rightFloats) < need) {
+        leftFloats = true;
+    }
+    if (leftFloats && centerFor(false, rightFloats) >= need + kSideDockHysteresis) {
+        leftFloats = false;
+    }
+    if (rightFloats && centerFor(leftFloats, false) >= need + kSideDockHysteresis) {
+        rightFloats = false;
+    }
+    return sideWidths(tiles, columns, leftFloats, rightFloats);
+}
+
+WorkspaceLayout::SidePlan WorkspaceLayout::sideWidths(const QVector<Tile> &tiles, int columns, bool leftFloats,
+                                                      bool rightFloats) const
+{
+    SidePlan plan{leftFloats, rightFloats, 0, 0};
+    plan.left = hasLeftZoneTile(tiles) && !m_leftCollapsed && !leftFloats ? m_leftWidthStored : 0;
+    plan.right = !m_rightCollapsed && !rightFloats ? m_rightWidthStored : 0;
+    // What the center's minimums leave; the right side gives way first.
+    int excess = plan.left + plan.right - (m_windowInnerWidth - columnMinimumsSum(tiles, columns));
+    const auto giveWay = [&excess](int &width, int minimum) {
+        const int give = std::clamp(excess, 0, std::max(0, width - minimum));
+        width -= give;
+        excess -= give;
+    };
+    if (plan.right > 0) {
+        giveWay(plan.right, kMinRightWidth);
+    }
+    if (plan.left > 0) {
+        giveWay(plan.left, kMinLeftWidth);
+    }
+    return plan;
+}
+
+bool WorkspaceLayout::updateFloating()
+{
+    const SidePlan sides = planSides(m_tiles, int(m_columnWidths.size()));
+    const bool changed = sides.leftFloats != m_leftFloating || sides.rightFloats != m_rightFloating;
+    m_leftFloating = sides.leftFloats;
+    m_rightFloating = sides.rightFloats;
+    m_leftOverlayOpen = m_leftOverlayOpen && sides.leftFloats;
+    m_rightOverlayOpen = m_rightOverlayOpen && sides.rightFloats;
+    return changed;
+}
+
+int WorkspaceLayout::sideState() const
+{
+    return (m_leftFloating ? 1 : 0) | (m_rightFloating ? 2 : 0) | (m_leftOverlayOpen ? 4 : 0)
+        | (m_rightOverlayOpen ? 8 : 0) | (leftShown() ? 16 : 0) | (rightShown() ? 32 : 0);
+}
+
+void WorkspaceLayout::syncSides()
+{
+    const int state = sideState();
+    if (state == m_announcedSides) {
+        return;
+    }
+    m_announcedSides = state;
+    emit sidesChanged();
+}
+
 qreal WorkspaceLayout::clampedRowRatio(qreal ratio) const
 {
     return tile_grid::clampedRowRatio(ratio, m_centerHeight);
@@ -745,6 +930,7 @@ void WorkspaceLayout::resetToDefault()
     m_rightPage = QStringLiteral("files");
     m_viewportTransactionActive = false;
     m_viewportCommitPending = false;
+    updateFloating();
     captureCommittedGeometry();
     m_focusedTileId = projects.id;
     endResetModel();

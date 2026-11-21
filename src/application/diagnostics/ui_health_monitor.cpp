@@ -7,8 +7,10 @@
 #include "terminal/api/terminal_manager.h"
 #include "terminal/api/terminal_session.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QQuickWindow>
+#include <QThread>
 
 #include <algorithm>
 #include <array>
@@ -16,12 +18,9 @@
 #include <condition_variable>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
 
 namespace span::application::diagnostics {
 namespace {
@@ -35,25 +34,25 @@ constexpr int kMinimizedBackoff = 5;
 
 quint64 monotonicMilliseconds()
 {
-    return GetTickCount64();
+    return quint64(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+            .count());
 }
 
-template <size_t N>
-void storePath(const QString &path, std::array<wchar_t, N> *destination)
+quint64 currentThreadId()
 {
-    destination->fill(L'\0');
-    const std::wstring native = QDir::toNativeSeparators(path).toStdWString();
-    const size_t count = std::min(native.size(), N - 1);
-    std::copy_n(native.data(), count, destination->data());
+    return quint64(quintptr(QThread::currentThreadId()));
 }
 
-void writeAll(HANDLE file, const char *text, size_t length)
+// The watchdog writes while the GUI thread may hold Qt's locks: standard
+// streams only.
+void writeAll(const std::filesystem::path &path, std::ios::openmode mode, const char *text, size_t length)
 {
-    if (file == INVALID_HANDLE_VALUE || !text || length == 0) {
-        return;
+    std::ofstream log(path, std::ios::binary | mode);
+    if (log && text && length > 0) {
+        log.write(text, std::streamsize(length));
+        log.flush();
     }
-    DWORD written = 0;
-    WriteFile(file, text, static_cast<DWORD>(length), &written, nullptr);
 }
 
 } // namespace
@@ -65,7 +64,7 @@ struct UiHealthMonitor::Snapshot {
     std::atomic<quint64> lastHeartbeatMs{0};
     std::atomic<quint64> heartbeatSerial{0};
     std::atomic<int> heartbeatSlackMs{0};
-    std::atomic<quint32> guiThreadId{0};
+    std::atomic<quint64> guiThreadId{0};
     std::atomic<quint64> transitionEpoch{0};
     std::atomic<quint64> visualCommitRevision{0};
     std::atomic<int> transitionPhase{0};
@@ -76,11 +75,12 @@ struct UiHealthMonitor::Snapshot {
     std::atomic<qint64> pendingInputBytes{0};
     std::atomic<qint64> pendingOutputBytes{0};
     std::atomic<int> resourceSampleDepth{0};
-    std::atomic<int> resourcePdhStatus{0};
+    std::atomic<int> resourceGpuCounterStatus{0};
     std::atomic<int> persistenceQueueDepth{0};
     std::atomic<unsigned> ringWrite{0};
     std::array<std::atomic<quint64>, 32> ring{};
-    std::array<wchar_t, 1024> logPath{};
+    // Set before the watchdog starts; read-only afterwards.
+    std::filesystem::path logPath;
     int stallThresholdMs = 2000;
 };
 
@@ -103,26 +103,23 @@ void UiHealthMonitor::recordRing(Snapshot *snapshot,
 void UiHealthMonitor::writeStallReport(const Snapshot &snapshot,
                                        quint64 stallEpoch, quint64 lagMs)
 {
-    HANDLE log = CreateFileW(snapshot.logPath.data(), GENERIC_WRITE,
-                             FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL, nullptr);
     char report[8192] = {};
     int used = std::snprintf(
         report, sizeof(report),
         "===== SpanTui UI stall =====\r\n"
-        "stallEpoch=%llu lagMs=%llu pid=%lu guiTid=%lu watchdogTid=%lu\r\n"
+        "stallEpoch=%llu lagMs=%llu pid=%lld guiTid=%llu watchdogTid=%llu\r\n"
         "transition.phase=%d transition.epoch=%llu visualCommit=%llu\r\n"
         "window.state=%d window.size=%dx%d\r\n"
         "terminal.sessions=%d "
         "input.bytes=%lld output.bytes=%lld\r\n"
-        "monitor.queueDepth=%d monitor.pdhStatus=%d "
+        "monitor.queueDepth=%d monitor.gpuCounters=%d "
         "persist.queueDepth=%d\r\n"
         "gui.currentSystemCall=unavailable-without-suspending-gui\r\n"
         "dump=skipped-in-process\r\n",
         static_cast<unsigned long long>(stallEpoch), static_cast<unsigned long long>(lagMs),
-        static_cast<unsigned long>(GetCurrentProcessId()),
-        static_cast<unsigned long>(snapshot.guiThreadId.load(std::memory_order_relaxed)),
-        static_cast<unsigned long>(GetCurrentThreadId()), snapshot.transitionPhase.load(std::memory_order_relaxed),
+        static_cast<long long>(QCoreApplication::applicationPid()),
+        static_cast<unsigned long long>(snapshot.guiThreadId.load(std::memory_order_relaxed)),
+        static_cast<unsigned long long>(currentThreadId()), snapshot.transitionPhase.load(std::memory_order_relaxed),
         static_cast<unsigned long long>(snapshot.transitionEpoch.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(snapshot.visualCommitRevision.load(std::memory_order_relaxed)),
         snapshot.windowState.load(std::memory_order_relaxed), snapshot.windowWidth.load(std::memory_order_relaxed),
@@ -130,7 +127,7 @@ void UiHealthMonitor::writeStallReport(const Snapshot &snapshot,
         static_cast<long long>(snapshot.pendingInputBytes.load(std::memory_order_relaxed)),
         static_cast<long long>(snapshot.pendingOutputBytes.load(std::memory_order_relaxed)),
         snapshot.resourceSampleDepth.load(std::memory_order_relaxed),
-        snapshot.resourcePdhStatus.load(std::memory_order_relaxed),
+        snapshot.resourceGpuCounterStatus.load(std::memory_order_relaxed),
         snapshot.persistenceQueueDepth.load(std::memory_order_relaxed));
     if (used > 0 && static_cast<size_t>(used) < sizeof(report)) {
         const int appended = std::snprintf(
@@ -162,23 +159,12 @@ void UiHealthMonitor::writeStallReport(const Snapshot &snapshot,
         used += std::min<int>(appended,
             static_cast<int>(sizeof(report) - static_cast<size_t>(used) - 1));
     }
-    if (log != INVALID_HANDLE_VALUE) {
-        writeAll(log, report, std::strlen(report));
-        FlushFileBuffers(log);
-        CloseHandle(log);
-    }
+    writeAll(snapshot.logPath, std::ios::trunc, report, std::strlen(report));
 }
 
 void UiHealthMonitor::writeRecoveredRecord(const Snapshot &snapshot,
                                            quint64 stallEpoch, quint64 lagMs)
 {
-    HANDLE log = CreateFileW(snapshot.logPath.data(), FILE_APPEND_DATA,
-                             FILE_SHARE_READ, nullptr, OPEN_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (log == INVALID_HANDLE_VALUE) {
-        return;
-    }
-    SetFilePointer(log, 0, nullptr, FILE_END);
     char record[256] = {};
     const int length = std::snprintf(
         record, sizeof(record),
@@ -187,12 +173,9 @@ void UiHealthMonitor::writeRecoveredRecord(const Snapshot &snapshot,
         static_cast<unsigned long long>(lagMs),
         static_cast<unsigned long long>(monotonicMilliseconds()));
     if (length > 0) {
-        writeAll(log, record,
-                 static_cast<size_t>(std::min<int>(length,
-                     static_cast<int>(sizeof(record) - 1))));
+        writeAll(snapshot.logPath, std::ios::app, record,
+                 static_cast<size_t>(std::min<int>(length, static_cast<int>(sizeof(record) - 1))));
     }
-    FlushFileBuffers(log);
-    CloseHandle(log);
 }
 
 void UiHealthMonitor::watchdogLoop(const std::shared_ptr<Snapshot> &snapshot)
@@ -250,8 +233,7 @@ UiHealthMonitor::UiHealthMonitor(span::application::WindowTransitionCoordinator 
         ? span::core::ProductPaths::hangDiagnosticDirectory()
         : diagnosticDirectory;
     QDir().mkpath(directory);
-    storePath(QDir(directory).filePath(QStringLiteral("hang-latest.log")),
-              &m_snapshot->logPath);
+    m_snapshot->logPath = QDir(directory).filePath(QStringLiteral("hang-latest.log")).toStdU16String();
     m_heartbeatTimer.setInterval(kHeartbeatMs);
     m_heartbeatTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_heartbeatTimer, &QTimer::timeout,
@@ -321,8 +303,7 @@ void UiHealthMonitor::pulse()
     if (!snapshot) {
         return;
     }
-    snapshot->guiThreadId.store(GetCurrentThreadId(),
-                                std::memory_order_relaxed);
+    snapshot->guiThreadId.store(currentThreadId(), std::memory_order_relaxed);
     if (m_transition) {
         snapshot->transitionPhase.store(static_cast<int>(m_transition->phase()),
                                         std::memory_order_relaxed);
@@ -361,9 +342,8 @@ void UiHealthMonitor::pulse()
     snapshot->resourceSampleDepth.store(
         m_resources && m_resources->samplingInProgress() ? 1 : 0,
         std::memory_order_relaxed);
-    snapshot->resourcePdhStatus.store(
-        m_resources ? m_resources->pdhStatus() : 0,
-        std::memory_order_relaxed);
+    snapshot->resourceGpuCounterStatus.store(m_resources ? m_resources->gpuCounterStatus() : 0,
+                                             std::memory_order_relaxed);
     snapshot->persistenceQueueDepth.store(m_settings ? m_settings->persistenceQueueDepth() : 0,
                                           std::memory_order_relaxed);
     recordRing(snapshot, 1, static_cast<quint16>(snapshot->transitionPhase.load(

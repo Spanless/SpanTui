@@ -154,6 +154,12 @@ Item {
                     editorController.goToLine(linesView.currentLine))
             }
         }
+        // Claiming the bound chords keeps the menu bar's Copy (macOS) and
+        // window shortcuts from taking them first.
+        Keys.onShortcutOverride: event => {
+            event.accepted = ["editor.copyLine", "editor.goToLine", "editor.find"]
+                .some(id => Shortcuts.matches(id, event.key, event.modifiers))
+        }
         Keys.onPressed: event => {
             // A chord may carry several actions; each bound one runs.
             let handled = false

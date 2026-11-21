@@ -37,6 +37,16 @@ CI 与发版的 Qt、MinGW、clang-format 版本（以及 CI 的 sccache 版本�
 
 配置时不打印两条无信息量的告警：私有模块告警（`QT_NO_PRIVATE_MODULE_WARNING`，有意使用 `GuiPrivate`/`QuickPrivate` 且 Qt 版本固定）与 Qt Gui 可选依赖 `WrapVulkanHeaders` 的查找（`CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders`，本项目不用 Vulkan）。
 
+### macOS（Apple Silicon）
+
+只做本机构建：不签名、不公证、无 CI，`dev.bat` 与 `tools/*.ps1` 不在 macOS 上使用（驱动脚本是维护者本机的，不入库）。产品侧的构建约定：
+
+- Qt 6.12（Homebrew）、AppleClang、CMake + Ninja；根 `CMakeLists.txt` 在 Apple 上启用 `OBJCXX`（`.mm` 以 `-fobjc-arc` 编译），其他非 Windows 平台配置即失败。
+- 必须传 `-DSPANTUI_LIBGHOSTTY_VT_LIBRARY=<aarch64-macos 的 libghostty-vt.a>`（来源见 [libghostty-vt](../legal/libghostty-vt.md)）。
+- 产物是应用包 `<输出名>.app`（`MACOSX_BUNDLE`，标识 `local.spantui.<输出名>`，Info.plist 用 Qt 模板）；Windows 资源、清单、品牌 ICO 与 Shell 扩展只在 Windows 构建。
+- 测试按平台注册（见 [测试注册](testing.md#3-测试注册)）。
+- 安装用的 Release 包同样由维护者本机脚本生成：产品名 `SpanTui`，`macdeployqt` 拷入 Qt 后按 `qmlimportscanner` 的结果裁掉未用的 QML 模块与插件，与 Windows 包一样不含 Qt Virtual Keyboard（见 [第三方声明](../legal/third-party-notices.md)）；包内带 `offscreen` 平台插件供无头冒烟；ad-hoc 签名。安装版数据在 `~/Library/Application Support/SpanTui`。
+
 ## 1. dev.bat 命令
 
 `dev.bat` 只启动 `tools/devtool/dev.ps1`，后者在当前控制台调用对应 worker。同一检出的命令按检出路径的互斥量串行；不同工作树可并行（见 [并行开发](overview.md#3-并行开发多工作树)）。

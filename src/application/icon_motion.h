@@ -16,6 +16,7 @@
 #include <array>
 
 class QJsonObject;
+class QTimer;
 class UiIconCatalog;
 
 // Motion of one animated icon: its parts and three keyframe layers, loaded
@@ -128,7 +129,9 @@ private:
 // QML face of IconMotionPlayer, ticked by the animation timer and timed by
 // the wall clock, so motion speed does not depend on the frame rate. Idle
 // icons do not tick: the clock runs only while some layer still moves. The
-// state an instance is created with applies without animation.
+// state an instance is created with applies without animation. With
+// hoverIntent, hover starts only after the pointer dwells
+// kIconHoverIntentMs; leaving cancels it or settles at once.
 class IconMotion : public QObject, public QQmlParserStatus {
     Q_OBJECT
     Q_INTERFACES(QQmlParserStatus)
@@ -137,6 +140,8 @@ class IconMotion : public QObject, public QQmlParserStatus {
     Q_PROPERTY(UiIconCatalog *catalog READ catalog WRITE setCatalog NOTIFY catalogChanged FINAL)
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged FINAL)
     Q_PROPERTY(bool hovered READ hovered WRITE setHovered NOTIFY hoveredChanged FINAL)
+    // Off when `hovered` is a state rather than the pointer (a spinner).
+    Q_PROPERTY(bool hoverIntent READ hoverIntent WRITE setHoverIntent NOTIFY hoverIntentChanged FINAL)
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged FINAL)
     Q_PROPERTY(bool reduceMotion READ reduceMotion WRITE setReduceMotion NOTIFY reduceMotionChanged FINAL)
     Q_PROPERTY(bool engaged READ engaged NOTIFY engagedChanged FINAL)
@@ -153,6 +158,8 @@ public:
     void setName(const QString &name);
     bool hovered() const;
     void setHovered(bool hovered);
+    bool hoverIntent() const;
+    void setHoverIntent(bool intent);
     bool active() const;
     void setActive(bool active);
     bool reduceMotion() const;
@@ -175,6 +182,7 @@ signals:
     void catalogChanged();
     void nameChanged();
     void hoveredChanged();
+    void hoverIntentChanged();
     void activeChanged();
     void reduceMotionChanged();
     void engagedChanged();
@@ -188,12 +196,17 @@ private:
     void reload();
     void tick(double now);
     void refresh();
+    void applyHover();
 
     QPointer<UiIconCatalog> m_catalog;
     bool m_complete = true;
     bool m_refreshing = false;
     QString m_name;
     bool m_hovered = false;
+    bool m_hoverIntent = true;
+    // Whether the player's hover layer is on (the dwell has elapsed).
+    bool m_hoverApplied = false;
+    QTimer *m_hoverDelay = nullptr;
     bool m_active = false;
     bool m_reduce = false;
     bool m_engaged = false;

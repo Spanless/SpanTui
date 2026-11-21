@@ -46,10 +46,8 @@ QtObject {
     }
 
     function updateLeftPreview(delta) {
-        const raw = Math.round(seamStartValue + delta)
-        const otherRight = WorkspaceLayout.rightCollapsed ? 0 : WorkspaceLayout.rightWidth
-        const maxLeft = Math.max(250, Math.round(canvas.width - otherRight - 440))
-        previewLeftWidth = Math.min(maxLeft, Math.max(120, raw))
+        previewLeftWidth = WorkspaceLayout.clampedSideWidth(
+                    "left", Math.round(seamStartValue + delta), Math.round(canvas.width))
         previewLineX = previewLeftWidth
         previewLineY = canvas.islandY + 6
         previewLineLength = Math.max(0, canvas.islandH - 12)
@@ -69,10 +67,8 @@ QtObject {
     }
 
     function updateRightPreview(delta) {
-        const raw = Math.round(seamStartValue - delta)
-        const otherLeft = WorkspaceLayout.leftCollapsed ? 0 : WorkspaceLayout.leftWidth
-        const maxRight = Math.max(240, Math.round(canvas.width - otherLeft - 440))
-        previewRightWidth = Math.min(maxRight, Math.max(120, raw))
+        previewRightWidth = WorkspaceLayout.clampedSideWidth(
+                    "right", Math.round(seamStartValue - delta), Math.round(canvas.width))
         previewLineX = canvas.width - previewRightWidth
         previewLineY = canvas.islandY + 6
         previewLineLength = Math.max(0, canvas.islandH - 12)
