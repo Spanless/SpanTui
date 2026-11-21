@@ -36,10 +36,12 @@ bool onWindows()
 }
 
 // A shell that starts fast: cmd.exe (a fraction of PowerShell's time), or
-// /bin/sh outside Windows.
+// /bin/sh outside Windows. cmd.exe reads the '/' of a forward-slash path to
+// itself as switches, so its path is native.
 QString markerShell()
 {
-    return onWindows() ? QStandardPaths::findExecutable(QStringLiteral("cmd.exe")) : QStringLiteral("/bin/sh");
+    if (!onWindows()) return QStringLiteral("/bin/sh");
+    return QDir::toNativeSeparators(QStandardPaths::findExecutable(QStringLiteral("cmd.exe")));
 }
 
 // markerShell() arguments that write `marker` and exit.
