@@ -328,16 +328,9 @@ Item {
         lineColor: Theme.accent
     }
 
-    // Window-edge rails: the grid owns the top and left perimeter seams;
-    // tiles own the interior plus right/bottom edges through their own
-    // right/bottom hairlines.
-    PixelLine {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        z: root.layerPerimeter
-        lineColor: Theme.border
-    }
+    // Window-edge rail: the grid owns the left perimeter seam; tiles and the
+    // right dock own interior plus right/bottom seams, and each zone's top
+    // header owns the aligned horizontal hairline under the shared top band.
     PixelLine {
         anchors.left: parent.left
         anchors.top: parent.top

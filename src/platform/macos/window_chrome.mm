@@ -95,10 +95,19 @@ void WindowChrome::attach(QQuickWindow *window)
     window->create();
     window->setFlags((window->flags() & ~Qt::FramelessWindowHint) | Qt::ExpandedClientAreaHint
                      | Qt::NoTitleBarBackgroundHint);
-    window->setGeometry(declared);
-    // The band carries no title, as on Windows.
+    // The band carries no title, as on Windows. A compact unified toolbar
+    // gives the native title-bar band ~38 pt height so the traffic lights sit
+    // centered on the unified top header row shared with the panes.
     NSWindow *nsWindow = nsWindowOf(window);
-    if (nsWindow) nsWindow.titleVisibility = NSWindowTitleHidden;
+    if (nsWindow) {
+        nsWindow.titleVisibility = NSWindowTitleHidden;
+        NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"SpanTuiTitlebar"];
+        toolbar.allowsUserCustomization = NO;
+        nsWindow.toolbar = toolbar;
+        nsWindow.toolbarStyle = NSWindowToolbarStyleUnifiedCompact;
+        nsWindow.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
+    }
+    window->setGeometry(declared);
     observeTransitions(window);
     // The traffic lights keep their place in a windowed window; re-read on
     // resize and on leaving full screen in case AppKit lays the title bar

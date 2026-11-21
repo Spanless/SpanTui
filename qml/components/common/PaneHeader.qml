@@ -11,6 +11,11 @@ Item {
 
     property string title: ""
     property string titleTone: "default"
+    // Extra horizontal insets used by top-row tiles when a side panel is
+    // collapsed and window-chrome controls share the header band.
+    property real leadingInset: 0
+    property real trailingInset: 0
+    readonly property alias interactiveContent: headerRow
 
     // Whole-header drag gesture; positions are delivered in global coords.
     property bool dragEnabled: false
@@ -70,9 +75,10 @@ Item {
     }
 
     RowLayout {
+        id: headerRow
         anchors.fill: parent
-        anchors.leftMargin: Theme.spaceMd
-        anchors.rightMargin: Theme.spaceMd
+        anchors.leftMargin: Theme.spaceMd + root.leadingInset
+        anchors.rightMargin: Theme.spaceMd + root.trailingInset
         spacing: Theme.spaceSm
 
         Item {

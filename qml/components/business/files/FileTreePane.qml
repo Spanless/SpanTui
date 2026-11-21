@@ -150,19 +150,29 @@ Item {
         // strips run to the inset edge.
         spacing: Theme.spaceSm
 
-        // Pane toolbar — the dock's segmented switch owns the header strip,
-        // so file actions live here, flush with the tree rows' highlight edge
-        // (ListItem's spaceSm surface inset) and the switch above.
+        // Pane toolbar — title on the left (aligned with RightDock's top page
+        // switch), file actions on the right, followed by a quiet hairline.
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: Theme.sizeSm
+            Layout.minimumHeight: Theme.sizeSm
+            Layout.preferredHeight: Math.max(Theme.sizeSm, fileToolbarRow.implicitHeight)
             visible: root.hasProject
 
-            Row {
-                anchors.right: parent.right
+            RowLayout {
+                id: fileToolbarRow
+                anchors.fill: parent
+                anchors.leftMargin: Theme.spaceSm
                 anchors.rightMargin: Theme.spaceSm
-                anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spaceSm
+
+                UiText {
+                    Layout.fillWidth: true
+                    text: qsTr("Files")
+                    size: "sm"
+                    tone: "muted"
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
                 ChromeButton {
                     size: "sm"; kind: "ghost"; iconName: "file-plus"; tip: qsTr("New file")
                     enabled: root.fileTreeModel !== null
@@ -184,6 +194,15 @@ Item {
                     onClicked: root.fileTreeModel.undoLastDelete()
                 }
             }
+        }
+
+        PixelLine {
+            visible: root.hasProject
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            Layout.bottomMargin: Theme.spaceSm
+            lineColor: Theme.separator
+            opacity: Theme.fadeSm
         }
 
         // Floating card: sits one gutter step deeper than the list strips.

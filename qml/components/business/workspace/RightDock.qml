@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import SpanTui
 
 Item {
@@ -23,9 +24,17 @@ Item {
     // dock shows the file tree alone and drops its page rail.
     readonly property bool gitPages: Tools.gitAvailable
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
+    readonly property Window hostWindow: Window.window
+    readonly property real topBandHeight: hostWindow && hostWindow.topBarHeight > 0
+                                          ? hostWindow.topBarHeight : Theme.paneHeaderH
 
     // Hairlines sit above the dock surface, matching the tile seam tier.
     readonly property int layerSeam: 30
+
+    Component.onCompleted: {
+        if (WindowChrome && WindowChrome.addInteractiveItem)
+            WindowChrome.addInteractiveItem(pageTabs)
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -58,20 +67,61 @@ Item {
         lineColor: Theme.border
     }
 
-    // Body on the left, page rail on the right edge: the rail takes a
-    // narrow column instead of a header row, so every page keeps the full
-    // dock height and the switch never has to fold its labels.
-    RowLayout {
+    // Header shares the window's unified top-band height so its bottom hairline
+    // continues the sidebar and center tiles' header line cleanly across the
+    // window, followed by the full-width page body.
+    ColumnLayout {
         anchors.fill: parent
         spacing: 0
+
+        Item {
+            id: dockHeader
+            Layout.fillWidth: true
+            Layout.preferredHeight: root.topBandHeight
+
+            SegmentedControl {
+                id: pageTabs
+                visible: !root.remote && root.gitPages
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spaceMd + Theme.spaceSm
+                anchors.verticalCenter: parent.verticalCenter
+                size: "md"
+                tone: "subtle"
+                iconCellWidth: Theme.sizeMd + Theme.spaceSm
+                current: root.page
+                model: [
+                    { key: "files", iconName: "folder", tip: qsTr("Files") },
+                    { key: "diff", iconName: "git-branch", tip: qsTr("Changes") },
+                    { key: "history", iconName: "history", tip: qsTr("History") }
+                ]
+                onPicked: key => WorkspaceLayout.setRightPage(String(key))
+            }
+
+            UiText {
+                visible: root.remote || !root.gitPages
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: Theme.spaceMd + Theme.spaceSm
+                anchors.rightMargin: Theme.spaceMd + (root.hostWindow ? root.hostWindow.topRightInset : 0)
+                anchors.verticalCenter: parent.verticalCenter
+                size: "md"
+                text: qsTr("Files")
+                elide: Text.ElideRight
+            }
+        }
+
+        PixelLine {
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            lineColor: Theme.border
+        }
 
         StackLayout {
             id: dockBody
             Layout.fillWidth: true
             Layout.fillHeight: true
-            // The dock owns the body gutter on all sides (matching the
-            // sidebar's spaceMd list inset). Pages fill the inset area and
-            // keep only their own internal padding.
+            // The dock body owns the page gutter on all sides (matching the
+            // sidebar's spaceMd list inset).
             Layout.margins: Theme.spaceMd
             // Both bodies stay alive: a Loader swap destroys the old page and
             // can abort in-flight delegate incubation inside its lists, which
@@ -94,44 +144,6 @@ Item {
                 hostName: {
                     const _ = RemoteHosts.count
                     return root.remote ? RemoteHosts.hostName(root.remoteHostId) : ""
-                }
-            }
-        }
-
-        PixelLine {
-            visible: !root.remote && root.gitPages
-            vertical: true
-            Layout.fillHeight: true
-            Layout.preferredWidth: implicitWidth
-            lineColor: Theme.separator
-        }
-
-        // Page rail: one icon button per page, the current one toggled on;
-        // labels live in the tips.
-        Item {
-            visible: !root.remote && root.gitPages
-            Layout.fillHeight: true
-            Layout.preferredWidth: Theme.sizeMd + Theme.spaceSm * 2
-
-            Column {
-                anchors.top: parent.top
-                anchors.topMargin: Theme.spaceMd
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: Theme.spaceSm
-
-                Repeater {
-                    model: [
-                        { key: "files", text: qsTr("Files"), iconName: "folder" },
-                        { key: "diff", text: qsTr("Changes"), iconName: "git-commit" },
-                        { key: "history", text: qsTr("History"), iconName: "history" }
-                    ]
-                    delegate: ChromeButton {
-                        required property var modelData
-                        iconName: modelData.iconName
-                        tip: modelData.text
-                        kind: root.page === modelData.key ? "selected" : "ghost"
-                        onClicked: WorkspaceLayout.setRightPage(modelData.key)
-                    }
                 }
             }
         }
