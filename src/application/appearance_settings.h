@@ -16,8 +16,13 @@ class SettingsStore;
 // Without a store (gallery hosts) it serves the defaults.
 //
 // Font lanes: ui (primary text), uiAux (the "sm" tier: badges, metadata),
-// formHint (SettingRow notes), editor and terminal. Each lane is a primary +
-// fallback family picked from a list, a pixel size and a weight.
+// formHint (SettingRow notes), editor and terminal. Each lane has a pixel
+// size of its own; its families and weight come from the font set
+// (fontPreset): "system" (the platform's interface and monospace fonts),
+// "span" (the bundled Span Sans / Span Mono) or "custom". Only "custom" uses
+// the lane's own primary + fallback family and weight, which the
+// <lane>PrimaryFontFamily / FallbackFontFamily / FontWeight properties hold;
+// switching to "custom" seeds them from the set that was in use.
 //
 // Sized fonts are functions; QML cannot see what a function reads, so every
 // binding passes `Appearance.fontRevision` as the last argument. The revision
@@ -32,6 +37,7 @@ class AppearanceSettings final : public QObject {
     Q_PROPERTY(bool reduceMotion READ reduceMotion NOTIFY reduceMotionChanged FINAL)
     Q_PROPERTY(int wheelScrollLines READ wheelScrollLines NOTIFY wheelScrollLinesChanged FINAL)
     Q_PROPERTY(int fontRevision READ fontRevision NOTIFY fontRevisionChanged FINAL)
+    Q_PROPERTY(QString fontPreset READ fontPreset WRITE setFontPreset NOTIFY appearanceChanged FINAL)
     // Installed families, computed once: every face, and fixed-pitch only.
     Q_PROPERTY(QStringList availableFonts READ availableFonts CONSTANT FINAL)
     Q_PROPERTY(QStringList availableFixedPitchFonts READ availableFixedPitchFonts CONSTANT FINAL)
@@ -91,6 +97,10 @@ public:
     bool reduceMotion() const { return m_reduceMotion; }
     int wheelScrollLines() const { return m_wheelScrollLines; }
     int fontRevision() const { return m_fontRevision; }
+    QString fontPreset() const { return m_fontPreset; }
+    // Used while nothing valid is stored and no lane was customized before
+    // font sets existed: "system" on macOS, "span" elsewhere.
+    static QString defaultFontPreset();
 
     QStringList availableFonts() const;
     QStringList availableFixedPitchFonts() const;
@@ -132,6 +142,7 @@ public:
 
     void setLanguage(const QString &value);
     void setThemeMode(const QString &value);
+    void setFontPreset(const QString &value);
     void setSystemDark(bool value);
     void setSystemWheelScrollLines(int value);
     // Re-reads the OS animation preference (cheap; call on focus / startup).
@@ -191,13 +202,17 @@ private:
     static double snappedLineHeight(double value);
 
     QStringList laneFamilyChoices(FontLaneId lane, bool primary) const;
-    QStringList laneFamilyList(FontLaneId lane) const;
+    // The lane as the active font set renders it: its own size, the set's
+    // families and weight.
+    FontLane effectiveLane(FontLaneId lane) const;
     QFont laneFont(FontLaneId lane, int pixelSize) const;
     QVariantList availableFontWeights(FontLaneId lane) const;
     void setLanePrimary(FontLaneId lane, const QString &value);
     void setLaneFallback(FontLaneId lane, const QString &value);
     void setLaneSize(FontLaneId lane, int value);
     void setLaneWeight(FontLaneId lane, int value);
+    // Stages the lane's keys; storeLane also emits the lane's signal.
+    void writeLane(FontLaneId lane);
     void storeLane(FontLaneId lane);
     void setEffectiveDarkInputs(const QString &themeMode, bool systemDark);
     void store(const QString &key, const QString &value);
@@ -210,6 +225,7 @@ private:
     bool m_reduceMotion = false;
     int m_wheelScrollLines = 3;
     int m_fontRevision = 0;
+    QString m_fontPreset = defaultFontPreset();
     FontLane m_fontLanes[FontLaneCount];
     double m_editorLineHeight = 1.0;
     mutable bool m_fontCacheReady = false;

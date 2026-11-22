@@ -7,7 +7,7 @@
 | 所有者 | 源码 | 状态 |
 |---|---|---|
 | `SettingsStore` | `src/application/settings_store.*` | `settings` 表的读写与暂存队列、窗口几何、`workspace.layoutJson`、会话目录的载入与保存；不解释偏好含义 |
-| `AppearanceSettings`（QML `Appearance`） | `src/application/appearance_settings.*` | 语言、主题、系统深色/减弱动效/滚轮行数、字体通道、查看器行距、`fontRevision` |
+| `AppearanceSettings`（QML `Appearance`） | `src/application/appearance_settings.*` | 语言、主题、系统深色/减弱动效/滚轮行数、字体方案与字体通道、查看器行距、`fontRevision` |
 | `TerminalSettings` | `src/application/terminal_settings.*` | 终端配色方案与明暗槽位、光标、帧率、关闭瓦片默认、`shellProfiles` |
 | `WorkspaceSettings` | `src/application/workspace_settings.*` | 脚本运行模式、`renderMode`、资源采样间隔、快捷键覆盖、`toolPathOverrides`、`worktreeRoot` |
 | `ProjectWorkspaceRegistry` | `src/application/project_workspace_registry.*` | 项目列表（路径、别名、最后打开时间，持久化）；按需创建的 `ProjectContext`；向各上下文应用空闲、Git 可用与前台集合 |

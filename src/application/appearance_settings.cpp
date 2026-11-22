@@ -2,6 +2,7 @@
 
 #include "application/settings_store.h"
 #include "platform/accessibility_preferences.h"
+#include "platform/font_conventions.h"
 #include "terminal/render/terminal_font_set.h"
 
 #include <QFontDatabase>
@@ -160,11 +161,18 @@ void AppearanceSettings::load()
         storedThemeMode == kThemeLight || storedThemeMode == kThemeDark ? storedThemeMode : QString(kThemeSystem);
     // An unset terminal family follows the bundled safe fixed-pitch face.
     const QString safeTerminalFamily = span::terminal::TerminalFontSet::safeFixedFont().family();
+    // A lane family or weight changed from its default predates font sets:
+    // keep that choice by starting in the custom set.
+    bool lanesCustomized = false;
     for (int id = 0; id < FontLaneCount; ++id) {
         const FontLaneSpec &spec = laneSpec(FontLaneId(id));
         const QString key = QString::fromLatin1(spec.key);
         FontLane &lane = m_fontLanes[id];
         lane.primary = m_store->value(key + kSettingPrimaryFontFamilySuffix);
+        const QString storedWeight = m_store->value(key + kSettingFontWeightSuffix);
+        lanesCustomized = lanesCustomized
+            || (!lane.primary.isEmpty() && lane.primary != QString::fromLatin1(spec.primary))
+            || (!storedWeight.isEmpty() && storedWeight.toInt() != int(QFont::Normal));
         if (lane.primary.isEmpty()) {
             lane.primary = id == TerminalLane ? safeTerminalFamily : QString::fromLatin1(spec.primary);
         }
@@ -174,8 +182,14 @@ void AppearanceSettings::load()
         }
         lane.size = std::clamp(m_store->value(key + kSettingFontSizeSuffix, QString::number(spec.defaultSize)).toInt(),
                                spec.minSize, spec.maxSize);
-        lane.weight = nearestNativeWeight(
-            lane.primary, m_store->value(key + kSettingFontWeightSuffix, QStringLiteral("400")).toInt());
+        lane.weight =
+            nearestNativeWeight(lane.primary, storedWeight.isEmpty() ? int(QFont::Normal) : storedWeight.toInt());
+    }
+    const QString storedPreset = m_store->value(kSettingFontPreset);
+    if (storedPreset == kFontPresetSystem || storedPreset == kFontPresetSpan || storedPreset == kFontPresetCustom) {
+        m_fontPreset = storedPreset;
+    } else {
+        m_fontPreset = lanesCustomized ? QString(kFontPresetCustom) : defaultFontPreset();
     }
     m_editorLineHeight = snappedLineHeight(m_store->value(kSettingEditorLineHeight, QStringLiteral("1")).toDouble());
     emit appearanceChanged();
@@ -195,6 +209,11 @@ const AppearanceSettings::FontLaneSpec &AppearanceSettings::laneSpec(FontLaneId 
         {"terminal", "Span Mono", "Cascadia Mono", 13, 10, 22},
     };
     return specs[lane];
+}
+
+QString AppearanceSettings::defaultFontPreset()
+{
+    return span::platform::prefersSystemFonts() ? QString(kFontPresetSystem) : QString(kFontPresetSpan);
 }
 
 int AppearanceSettings::nearestNativeWeight(const QString &family, int requested)
@@ -270,7 +289,38 @@ QStringList AppearanceSettings::laneFamilyChoices(FontLaneId lane, bool primary)
     return primary && lane == EditorLane ? availableFixedPitchFonts() : availableFonts();
 }
 
-QStringList AppearanceSettings::laneFamilyList(FontLaneId lane) const
+AppearanceSettings::FontLane AppearanceSettings::effectiveLane(FontLaneId lane) const
+{
+    FontLane result = m_fontLanes[lane];
+    if (m_fontPreset == kFontPresetCustom) {
+        return result;
+    }
+    result.weight = QFont::Normal;
+    if (lane == TerminalLane) {
+        // The face an unset terminal lane loads with (see load()).
+        result.primary = span::terminal::TerminalFontSet::safeFixedFont().family();
+        result.fallback = result.primary;
+    } else {
+        result.primary = QString::fromLatin1(laneSpec(lane).primary);
+        result.fallback = QString::fromLatin1(laneSpec(lane).fallback);
+    }
+    if (m_fontPreset == kFontPresetSystem) {
+        // A family the platform lacks keeps the Span one. The terminal keeps
+        // Span Mono as its fallback: the CJK face is not fixed-pitch, and
+        // the terminal's own fallback chain reaches it anyway.
+        const span::platform::SystemFontFamilies system = span::platform::systemFontFamilies();
+        const QString &primary = lane == EditorLane || lane == TerminalLane ? system.mono : system.ui;
+        if (!primary.isEmpty()) {
+            result.primary = primary;
+        }
+        if (lane != TerminalLane && !system.cjk.isEmpty()) {
+            result.fallback = system.cjk;
+        }
+    }
+    return result;
+}
+
+QFont AppearanceSettings::laneFont(FontLaneId lane, int pixelSize) const
 {
     static const QStringList kUiTails{QStringLiteral("Segoe UI Variable Text"), QStringLiteral("Segoe UI"),
                                       QStringLiteral("Microsoft YaHei UI"),     QStringLiteral("Microsoft YaHei"),
@@ -278,18 +328,14 @@ QStringList AppearanceSettings::laneFamilyList(FontLaneId lane) const
     static const QStringList kEditorTails{QStringLiteral("Cascadia Mono"),        QStringLiteral("Consolas"),
                                           QStringLiteral("Microsoft YaHei Mono"), QStringLiteral("Microsoft YaHei"),
                                           QStringLiteral("Noto Sans SC"),         QStringLiteral("Courier New")};
-    const FontLane &font = m_fontLanes[lane];
-    return resolveInstalledFamilies({font.primary, font.fallback}, lane == EditorLane ? kEditorTails : kUiTails);
-}
-
-QFont AppearanceSettings::laneFont(FontLaneId lane, int pixelSize) const
-{
-    const FontLane &spec = m_fontLanes[lane];
+    const FontLane spec = effectiveLane(lane);
     const int size = std::max(8, pixelSize);
     if (lane == TerminalLane) {
         return resolvedTerminalFont(spec.primary, spec.fallback, size, spec.weight);
     }
-    QFont font = fontFromNativeFace(laneFamilyList(lane), size, spec.weight);
+    const QStringList families =
+        resolveInstalledFamilies({spec.primary, spec.fallback}, lane == EditorLane ? kEditorTails : kUiTails);
+    QFont font = fontFromNativeFace(families, size, spec.weight);
     if (lane == EditorLane) {
         font.setStyleHint(QFont::Monospace, QFont::PreferMatch);
         font.setFixedPitch(true);
@@ -343,7 +389,7 @@ QVariantList AppearanceSettings::availableFontWeights(FontLaneId lane) const
     return result;
 }
 
-void AppearanceSettings::storeLane(FontLaneId lane)
+void AppearanceSettings::writeLane(FontLaneId lane)
 {
     const QString key = QString::fromLatin1(laneSpec(lane).key);
     const FontLane &font = m_fontLanes[lane];
@@ -351,6 +397,11 @@ void AppearanceSettings::storeLane(FontLaneId lane)
     store(key + kSettingFallbackFontFamilySuffix, font.fallback);
     store(key + kSettingFontSizeSuffix, QString::number(font.size));
     store(key + kSettingFontWeightSuffix, QString::number(font.weight));
+}
+
+void AppearanceSettings::storeLane(FontLaneId lane)
+{
+    writeLane(lane);
     if (lane == TerminalLane) {
         emit terminalFontChanged();
     } else {
@@ -424,6 +475,31 @@ void AppearanceSettings::setThemeMode(const QString &value)
     if (m_themeMode == normalized) return;
     store(kSettingThemeMode, normalized);
     setEffectiveDarkInputs(normalized, m_systemDark);
+}
+
+void AppearanceSettings::setFontPreset(const QString &value)
+{
+    const QString normalized = value == kFontPresetSystem || value == kFontPresetSpan || value == kFontPresetCustom
+        ? value
+        : defaultFontPreset();
+    if (m_fontPreset == normalized) {
+        return;
+    }
+    if (normalized == kFontPresetCustom) {
+        // Customizing starts from the fonts on screen.
+        for (int id = 0; id < FontLaneCount; ++id) {
+            const FontLane seed = effectiveLane(FontLaneId(id));
+            FontLane &lane = m_fontLanes[id];
+            lane.primary = seed.primary;
+            lane.fallback = seed.fallback;
+            lane.weight = nearestNativeWeight(seed.primary, seed.weight);
+            writeLane(FontLaneId(id));
+        }
+    }
+    m_fontPreset = normalized;
+    store(kSettingFontPreset, normalized);
+    emit appearanceChanged();
+    emit terminalFontChanged();
 }
 
 void AppearanceSettings::setSystemDark(bool value)

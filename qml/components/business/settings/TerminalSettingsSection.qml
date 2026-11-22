@@ -4,7 +4,8 @@ import QtQuick.Dialogs
 import QtQuick.Layouts
 import SpanTui
 
-// Terminal section: shells, terminal typography and display & execution.
+// Terminal section: shells, then display & execution. Terminal typography
+// lives with the other fonts on the interface section.
 SettingsSection {
     id: root
 
@@ -120,31 +121,6 @@ SettingsSection {
         fileMode: FileDialog.OpenFile
         nameFilters: [qsTr("Programs (*.exe)")]
         onAccepted: Shells.addCustomProfileUrl(selectedFile)
-    }
-
-    FontSettingsGroup {
-        title: qsTr("Terminal Typography")
-        primaryTitle: qsTr("Terminal primary font")
-        primaryDescription: qsTr("Fixed-pitch typeface used for the terminal grid and console output.")
-        fallbackTitle: qsTr("Terminal fallback font")
-        fallbackDescription: qsTr("Fallback typeface used when the primary terminal font lacks glyphs.")
-        sizeTitle: qsTr("Terminal font size")
-        sizeDescription: qsTr("Pixel size for terminal cells, command input, and shell text.")
-        weightTitle: qsTr("Terminal font weight")
-        weightDescription: qsTr("Selects the font weight style provided by the active terminal font family.")
-        fontModel: Appearance.availableFonts
-        primaryFamily: Appearance.terminalPrimaryFontFamily
-        fallbackFamily: Appearance.terminalFallbackFontFamily
-        fontSize: Appearance.terminalFontSize
-        minimumSize: 10
-        maximumSize: 22
-        weightModel: Appearance.availableTerminalFontWeights
-        fontWeight: Appearance.terminalFontWeight
-        fixedPitchCheck: family => Appearance.isFixedPitch(family)
-        onPrimaryFamilyPicked: family => Appearance.terminalPrimaryFontFamily = family
-        onFallbackFamilyPicked: family => Appearance.terminalFallbackFontFamily = family
-        onFontSizeEdited: size => Appearance.terminalFontSize = size
-        onFontWeightPicked: weight => Appearance.terminalFontWeight = weight
     }
 
     // Group: Terminal Display & Execution

@@ -7,10 +7,14 @@ import SpanTui
 // through properties and edits leave as request signals; the caller owns
 // the state and writes it back. Zero spacing like SettingsSection, so the
 // group drops into a section column without changing its rhythm.
+// showFaces false leaves the size row alone (a font set picks the faces);
+// showTitle false drops the SectionLabel.
 ColumnLayout {
     id: root
 
     property string title: ""
+    property bool showTitle: true
+    property bool showFaces: true
     property string primaryTitle: ""
     property string primaryDescription: ""
     property string fallbackTitle: ""
@@ -52,10 +56,12 @@ ColumnLayout {
     }
 
     SectionLabel {
+        visible: root.showTitle
         text: root.title
     }
 
     SettingRow {
+        visible: root.showFaces
         title: root.primaryTitle
         description: root.primaryDescription
         hint: root.nonFixedPitch(root.primaryFamily) ? qsTr("Non-monospace font") : ""
@@ -72,6 +78,7 @@ ColumnLayout {
     }
 
     SettingRow {
+        visible: root.showFaces
         title: root.fallbackTitle
         description: root.fallbackDescription
         hint: root.nonFixedPitch(root.fallbackFamily) ? qsTr("Non-monospace font") : ""
@@ -102,6 +109,7 @@ ColumnLayout {
     }
 
     SettingRow {
+        visible: root.showFaces
         title: root.weightTitle
         description: root.weightDescription
 

@@ -4,7 +4,7 @@
 
 | 对象 | QML 单例 | 拥有 |
 |---|---|---|
-| `AppearanceSettings` | `Appearance` | 语言、主题、系统显示事实（深色、减弱动效、滚轮行数）、五条字体通道、查看器行距 |
+| `AppearanceSettings` | `Appearance` | 语言、主题、系统显示事实（深色、减弱动效、滚轮行数）、字体方案与五条字体通道、查看器行距 |
 | `TerminalSettings` | `TerminalSettings` | 终端配色方案与明暗槽位、光标、帧率、关闭瓦片默认、Shell 配置 |
 | `WorkspaceSettings` | `WorkspaceSettings` | 脚本运行模式、渲染方式、资源采样间隔、快捷键覆盖、外部工具路径、工作树文件夹 |
 
@@ -14,9 +14,9 @@
 
 | 对象 | 信号 | 范围 |
 |---|---|---|
-| `Appearance` | `appearanceChanged` | 语言、主题、非终端字体通道、查看器行距 |
+| `Appearance` | `appearanceChanged` | 语言、主题、字体方案、非终端字体通道、查看器行距 |
 | | `effectiveDarkChanged` | 实际明暗翻转（主题或系统） |
-| | `terminalFontChanged` | 终端字体通道 |
+| | `terminalFontChanged` | 终端字体通道；切换字体方案时也发 |
 | | `fontRevisionChanged` | 任一字体变化；QML 字号函数靠它重算 |
 | | `reduceMotionChanged`、`wheelScrollLinesChanged` | 系统显示事实 |
 | `TerminalSettings` | `appearanceChanged` | 配色、光标、帧率；实际明暗翻转时也发 |
@@ -36,7 +36,8 @@
 |---|---|---|
 | `language` | `zh_CN`（默认）、`en` | 下拉框中每种语言用自身文字命名，不翻译 |
 | `themeMode` | `system`、`light`、`dark` | |
-| `<通道>PrimaryFontFamily`、`<通道>FallbackFontFamily`、`<通道>FontSize`、`<通道>FontWeight` | `ui` 14（10–18）、`uiAux` 12（8–16）、`formHint` 10（8–16）、`editor` 13（10–22）、`terminal` 13（10–22） | 每通道主字体 + 回退字体；只有终端通道对非等宽字体给警示 |
+| `fontPreset` | `system`、`span`、`custom`；缺省见下文 | 字体方案，见 [字体方案](#字体方案) |
+| `<通道>PrimaryFontFamily`、`<通道>FallbackFontFamily`、`<通道>FontSize`、`<通道>FontWeight` | `ui` 14（10–18）、`uiAux` 12（8–16）、`formHint` 10（8–16）、`editor` 13（10–22）、`terminal` 13（10–22） | 字号对所有方案生效；主字体 + 回退字体与字重只在 `custom` 方案下使用；只有终端通道对非等宽字体给警示 |
 | `editorLineHeight` | 1.0、1.25、1.5、2.0 | 查看器行距 |
 | `renderMode` | `auto`、`software`；其他按 `auto` | 每次启动读一次 |
 | `terminal.cursorStyle` | `block`、`bar`、`underline` | DECSCUSR 可覆盖，`CSI 0 SP q` 交还 |
@@ -55,6 +56,21 @@
 - 载入与 QML 写入都做范围与枚举归一，非法值回退默认，不中断启动。
 - 只识别上表的键；旧版残留键（`darkTheme`、`*FontFamilies` 等）不读不写。
 - `shortcuts.bindings` 未知 id 与无法解析的序列被忽略但原样写回，新版本写入的条目在旧版本中不丢失；空串表示解绑。`terminal.shellProfiles` 由 `ShellProfileRegistry` 校验，未知 id 回退默认。
+
+### 字体方案
+
+`fontPreset` 一次决定五条通道的字体家族与字重，字号仍按通道各自设置：
+
+| 方案 | 界面通道（`ui`/`uiAux`/`formHint`） | 等宽通道（`editor`/`terminal`） |
+|---|---|---|
+| `system` | 平台界面字体 + 平台 CJK 字体 | 平台等宽字体（`editor` 回退为平台 CJK 字体，`terminal` 回退为 Span Mono） |
+| `span` | Span Sans | Span Mono |
+| `custom` | 通道自己的主字体、回退字体、字重 | 同左 |
+
+- 平台字体由 `platform/font_conventions.h` 给出（macOS 为 SF Pro、Menlo 或用户自装的 SF Mono、PingFang SC；Windows 为 Segoe UI、Cascadia Mono/Consolas、Microsoft YaHei UI，见 [macOS 平台](../platform/macos.md)）；平台缺某项时该项沿用 Span 字体。预设方案一律取最接近 400 的原生字重。
+- 切到 `custom` 时，用切换前方案的家族与字重覆盖各通道的自定义值，自定义从屏幕上正在用的字体开始；此前的自定义值不保留。
+- 未存 `fontPreset`（或值非法）时：任一通道已存的主字体不同于 Span 默认、或字重不是 400，视为字体方案出现前已自定义，取 `custom`；否则取平台默认——macOS `system`，其余 `span`（`AppearanceSettings::defaultFontPreset()`）。推断结果不写库，用户选择后才写。
+- 全部字体设置都在设置页“界面”（`InterfaceSettingsSection.qml`）：字体方案行之后依次是界面、辅助、提示、查看器（含行距）、终端五组；“终端”页不再有字体项。非 `custom` 时各组只剩字号行并隐藏小标题（`FontSettingsGroup.showFaces`/`showTitle`）；终端组对非等宽字体给警示。
 
 ### 新增设置项
 
@@ -135,23 +151,24 @@
 
 | 家族 | 字重 | 用途 | 来源 |
 |---|---|---|---|
-| Span Mono | 100–900，各带斜体 | `editor`、`terminal` 默认；`TerminalFontSet` 兜底 | Geist Mono，固化 `ss03`、`ss08`；自绘 Powerline 与 `U+FFFD` |
-| Span Sans | 300–900，各带斜体 | `ui`、`uiAux`、`formHint` 默认 | Figtree，固化 `ss01`、`ss02` |
+| Span Mono | 100–900，各带斜体 | `span` 方案的 `editor`、`terminal`；`TerminalFontSet` 兜底 | Geist Mono，固化 `ss03`、`ss08`；自绘 Powerline 与 `U+FFFD` |
+| Span Sans | 300–900，各带斜体 | `span` 方案的 `ui`、`uiAux`、`formHint` | Figtree，固化 `ss01`、`ss02` |
 | Span Symbols | Regular | 仅终端回退链的图标字体，不出现在选择器 | Nerd Fonts Symbols + 自绘 Powerline，按 Span Mono 格度量 |
 
 - "固化"即把样式集替换字形写进 cmap，不依赖 OpenType 特性；无编程连字。
 - 同家族所有字重共用家族名，选择器只出现 Span Mono / Span Sans。
+- 选择器列表（`TerminalFontSet::availableFamilies`）排除遗留位图族：Windows 的 `MS Sans Serif`、`Fixedsys`、LOGFONT 逻辑族等，以及 macOS 的 `GB18030 Bitmap`（只有位图、无轮廓也无 `hhea` 表，选择器预览行在它上面排版时 Qt 每次报 "Failed to compute left/right minimum bearings"）。同一名单也不参与终端的矢量字形查询。
 - 图标独立成 Span Symbols，终端主字体换掉后仍能显示 Nerd 图标。
 - 不含 CJK（由回退字体承担）；框线、方块、盲文由终端自绘（见 [渲染 §2](../terminal/rendering-scrollback.md#2-特殊字形几何)）。
 - 度量沿用 Geist Mono typo（`USE_TYPO_METRICS`）：宽 0.6em，升 1005、降 295，终端行高 1.3em。
 - Powerline `U+E0B0`–`U+E0B7` 一律绘成半圆，`U+E0B8`–`U+E0BF` 为对角三角与斜线；按单元格精确绘制，平边略出血防细缝。
 - `U+FFFD` 自绘为占满格宽的实心菱形挖空 `?`：终端把无矢量字体收录的码位换成它，Geist Mono 本身不含此字。
-- 默认值只在设置为空时采用，升级不改已有设置。
+- 默认值只在设置为空时采用，升级不改已有设置；`span` 方案即这组默认值。
 - 重新生成：`tools/fonts/build-fonts.ps1`（Python + fontTools，固定上游版本并校验 SHA-256，工作目录 `.dev/tmp/fontbuild/`），产物写回 `assets/fonts/`。正常构建不需要。
 
 ## 6. 代码与测试
 
 - 设置界面：`qml/Settings.qml`、`qml/components/business/settings/`
-- `src/application/{preferences, settings_store, appearance_settings, terminal_settings, workspace_settings, clipboard}.*`
+- `src/application/{preferences, settings_store, appearance_settings, terminal_settings, workspace_settings, clipboard}.*`、`src/platform/font_conventions.h`
 - `src/application/{shortcut_registry, tool_registry, graphics_mode_service, shell_profile_registry}.*`、`src/core/external_tools.*`、`src/remote/tailscale_devices.*`、`src/terminal/platform/{windows/win_shell_catalog, macos/mac_shell_catalog}.cpp`
 - 测试：`settings_test`、`shortcut_registry_test`、`shell_profile_registry_test`

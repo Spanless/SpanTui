@@ -187,6 +187,7 @@ void TerminalFontSetTest::reportsResolvedGridMetrics() {
     QVERIFY(!allFamilies.contains(QStringLiteral("Script"), Qt::CaseInsensitive));
     QVERIFY(!allFamilies.contains(QStringLiteral("Decorative"), Qt::CaseInsensitive));
     QVERIFY(!allFamilies.contains(QStringLiteral("Terminal"), Qt::CaseInsensitive));
+    QVERIFY(!allFamilies.contains(QStringLiteral("GB18030 Bitmap"), Qt::CaseInsensitive));
     QVERIFY(!allFamilies.contains(m_symbolsFamily, Qt::CaseInsensitive));
 
     QFont font;

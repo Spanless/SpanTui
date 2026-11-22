@@ -13,6 +13,7 @@ inline constexpr QLatin1StringView kSettingLanguage{"language"};
 inline constexpr QLatin1StringView kSettingThemeMode{"themeMode"};
 inline constexpr QLatin1StringView kSettingRenderMode{"renderMode"};
 inline constexpr QLatin1StringView kSettingEditorLineHeight{"editorLineHeight"};
+inline constexpr QLatin1StringView kSettingFontPreset{"fontPreset"};
 // A font lane stores <lane key><suffix>, e.g. terminalFontSize.
 inline constexpr QLatin1StringView kSettingPrimaryFontFamilySuffix{"PrimaryFontFamily"};
 inline constexpr QLatin1StringView kSettingFallbackFontFamilySuffix{"FallbackFontFamily"};
@@ -45,6 +46,10 @@ inline constexpr QLatin1StringView kLanguageEnglish{"en"};
 inline constexpr QLatin1StringView kThemeSystem{"system"};
 inline constexpr QLatin1StringView kThemeLight{"light"};
 inline constexpr QLatin1StringView kThemeDark{"dark"};
+// Font sets: the platform's fonts, the bundled Span fonts, or the font lanes.
+inline constexpr QLatin1StringView kFontPresetSystem{"system"};
+inline constexpr QLatin1StringView kFontPresetSpan{"span"};
+inline constexpr QLatin1StringView kFontPresetCustom{"custom"};
 inline constexpr QLatin1StringView kRenderAuto{"auto"};
 inline constexpr QLatin1StringView kRenderSoftware{"software"};
 inline constexpr QLatin1StringView kScriptRunProjectSession{"projectSession"};

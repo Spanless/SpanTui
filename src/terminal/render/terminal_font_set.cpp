@@ -52,7 +52,11 @@ bool isLegacyBitmapFamily(const QString &family) {
         QStringLiteral("Modern"),
         QStringLiteral("Script"),
         QStringLiteral("Decorative"),
-        QStringLiteral("Terminal")
+        QStringLiteral("Terminal"),
+        // macOS NISC18030.ttf: bitmap strikes only, no outlines and no
+        // 'hhea' table, so Qt cannot derive minimum bearings and every text
+        // layout in it (a font picker's preview row) warns.
+        QStringLiteral("GB18030 Bitmap")
     };
     return hasFamily(legacyFamilies, family);
 }

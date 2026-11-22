@@ -1223,6 +1223,62 @@
 <context>
     <name>InterfaceSettingsSection</name>
     <message>
+        <source>Font set</source>
+        <translation>字体方案</translation>
+    </message>
+    <message>
+        <source>System uses the platform&apos;s interface and monospace fonts. Span uses the bundled Span Sans and Span Mono. Custom lets you pick each font, starting from the set in use. Font sizes apply to every set.</source>
+        <translation>系统默认使用操作系统的界面字体与等宽字体；Span 使用内置的 Span Sans 与 Span Mono；自定义可逐项挑选字体，从当前方案的字体开始改。字号对所有方案都生效。</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <translation>系统默认</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>自定义</translation>
+    </message>
+    <message>
+        <source>Terminal Typography</source>
+        <translation>终端字体排版</translation>
+    </message>
+    <message>
+        <source>Terminal primary font</source>
+        <translation>终端主字体</translation>
+    </message>
+    <message>
+        <source>Fixed-pitch typeface used for the terminal grid and console output.</source>
+        <translation>用于终端网格与控制台输出的等宽主字体。</translation>
+    </message>
+    <message>
+        <source>Terminal fallback font</source>
+        <translation>终端降级字体</translation>
+    </message>
+    <message>
+        <source>Fallback typeface used when the primary terminal font lacks glyphs.</source>
+        <translation>当主终端字体缺少字符时使用的回退等宽字体。</translation>
+    </message>
+    <message>
+        <source>Terminal font size</source>
+        <translation>终端字号</translation>
+    </message>
+    <message>
+        <source>Pixel size for terminal cells, command input, and shell text.</source>
+        <translation>终端单元格、命令输入与终端文本的像素字号。</translation>
+    </message>
+    <message>
+        <source>Terminal font weight</source>
+        <translation>终端字重</translation>
+    </message>
+    <message>
+        <source>Selects the font weight style provided by the active terminal font family.</source>
+        <translation>选择当前终端字体族所支持的字重样式。</translation>
+    </message>
+    <message>
+        <source>Fonts</source>
+        <translation>字体</translation>
+    </message>
+    <message>
         <source>UI Typography</source>
         <translation>界面字体排版</translation>
     </message>
@@ -2235,8 +2291,8 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
         <translation>字体排版、文本清晰度与字号</translation>
     </message>
     <message>
-        <source>Terminal display, cursor, fonts, and execution</source>
-        <translation>终端显示、光标、字体与运行</translation>
+        <source>Terminal display, cursor, and execution</source>
+        <translation>终端显示、光标与运行</translation>
     </message>
     <message>
         <source>Display language, appearance, and system preferences</source>
@@ -2877,42 +2933,6 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
 </context>
 <context>
     <name>TerminalSettingsSection</name>
-    <message>
-        <source>Terminal Typography</source>
-        <translation>终端字体排版</translation>
-    </message>
-    <message>
-        <source>Terminal primary font</source>
-        <translation>终端主字体</translation>
-    </message>
-    <message>
-        <source>Fixed-pitch typeface used for the terminal grid and console output.</source>
-        <translation>用于终端网格与控制台输出的等宽主字体。</translation>
-    </message>
-    <message>
-        <source>Terminal fallback font</source>
-        <translation>终端降级字体</translation>
-    </message>
-    <message>
-        <source>Fallback typeface used when the primary terminal font lacks glyphs.</source>
-        <translation>当主终端字体缺少字符时使用的回退等宽字体。</translation>
-    </message>
-    <message>
-        <source>Terminal font size</source>
-        <translation>终端字号</translation>
-    </message>
-    <message>
-        <source>Pixel size for terminal cells, command input, and shell text.</source>
-        <translation>终端单元格、命令输入与终端文本的像素字号。</translation>
-    </message>
-    <message>
-        <source>Terminal font weight</source>
-        <translation>终端字重</translation>
-    </message>
-    <message>
-        <source>Selects the font weight style provided by the active terminal font family.</source>
-        <translation>选择当前终端字体族所支持的字重样式。</translation>
-    </message>
     <message>
         <source>Terminal Display &amp; Execution</source>
         <translation>终端显示与运行</translation>

@@ -1,4 +1,5 @@
 #include "application/preferences.h"
+#include "platform/font_conventions.h"
 #include "workspace/session_model.h"
 
 #include <QClipboard>
@@ -48,6 +49,8 @@ private slots:
     void persistsAndSnapsEditorLineHeight();
     void terminalFontUsesFixedPitch();
     void nativeWeightKeepsSelectedPrimaryFamily();
+    void fontPresetsPickFacesAndSeedCustom();
+    void infersFontPresetFromEarlierLaneSettings();
     void preservesMissingTerminalFontAndReportsEffectiveFallback();
     void persistsUserColorSchemesAndSlots();
     void refusesInvalidColorSchemeSaves();
@@ -117,6 +120,7 @@ void SettingsTest::loadsDefaultAppearanceSettings()
     TerminalSettings &terminal = preferences.terminal;
 
     QCOMPARE(appearance.language(), QStringLiteral("zh_CN"));
+    QCOMPARE(appearance.fontPreset(), AppearanceSettings::defaultFontPreset());
     QCOMPARE(appearance.uiPrimaryFontFamily(), QStringLiteral("Span Sans"));
     QCOMPARE(appearance.uiFallbackFontFamily(), QStringLiteral("Microsoft YaHei UI"));
     QCOMPARE(appearance.uiFontSize(), 14);
@@ -419,6 +423,8 @@ void SettingsTest::persistsAppearanceSettings()
 
         // Not the default, so the reload proves it was stored.
         state.setLanguage(QStringLiteral("en"));
+        // Only the custom set renders the lanes' own families and weights.
+        state.setFontPreset(QStringLiteral("custom"));
         uiPrimaryFont = state.availableFonts().contains(QStringLiteral("Segoe UI")) ? QStringLiteral("Segoe UI")
                                                                                     : state.availableFonts().first();
         uiFallbackFont = state.availableFonts().contains(QStringLiteral("Microsoft YaHei UI"))
@@ -479,6 +485,7 @@ void SettingsTest::persistsAppearanceSettings()
     const TerminalSettings &terminal = preferences.terminal;
 
     QCOMPARE(reloaded.language(), QStringLiteral("en"));
+    QCOMPARE(reloaded.fontPreset(), QStringLiteral("custom"));
     QCOMPARE(reloaded.uiPrimaryFontFamily(), uiPrimaryFont);
     QCOMPARE(reloaded.uiFallbackFontFamily(), uiFallbackFont);
     QCOMPARE(reloaded.uiFontSize(), 15);
@@ -702,6 +709,7 @@ void SettingsTest::terminalFontUsesFixedPitch()
     QVERIFY(!terminalFont.kerning());
 
     // Editor primary+fallback become a resolved family list (with platform tails).
+    state.setFontPreset(QStringLiteral("custom"));
     // Consolas and Microsoft YaHei ship with every supported Windows.
     state.setEditorPrimaryFontFamily(QStringLiteral("Consolas"));
     state.setEditorFallbackFontFamily(QStringLiteral("Microsoft YaHei"));
@@ -747,6 +755,7 @@ void SettingsTest::nativeWeightKeepsSelectedPrimaryFamily()
         QVERIFY(!font.styleName().isEmpty());
     };
     const auto selectedFace = [](const QVariantList &options) { return options.constLast().toMap(); };
+    state.setFontPreset(QStringLiteral("custom"));
 
     // The bundled mono family ships a Regular and a Bold face: picking the
     // heavier face must keep the family instead of falling back.
@@ -780,6 +789,88 @@ void SettingsTest::nativeWeightKeepsSelectedPrimaryFamily()
         QCOMPARE(int(font.weight()), face.value(QStringLiteral("weight")).toInt());
         QCOMPARE(font.styleName(), face.value(QStringLiteral("style")).toString());
     }
+}
+
+void SettingsTest::fontPresetsPickFacesAndSeedCustom()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString dbPath = dir.filePath(QStringLiteral("state.db"));
+    const QString spanSans = QStringLiteral("Span Sans");
+    const span::platform::SystemFontFamilies system = span::platform::systemFontFamilies();
+    // A family the platform lacks (an offscreen host) keeps the Span one.
+    const QString systemUi = system.ui.isEmpty() ? spanSans : system.ui;
+    const QString systemMono = system.mono.isEmpty() ? m_bundledTerminalFamily : system.mono;
+    QVERIFY(QFontDatabase::families().contains(QStringLiteral("Arial")));
+
+    {
+        Preferences preferences;
+        QVERIFY(openAt(preferences, dbPath));
+        AppearanceSettings &state = preferences.appearance;
+
+        // The Span set ignores the lanes' own families.
+        state.setFontPreset(QStringLiteral("span"));
+        state.setUiPrimaryFontFamily(QStringLiteral("Arial"));
+        state.setTerminalPrimaryFontFamily(QStringLiteral("Arial"));
+        QCOMPARE(state.uiFont(14).families().constFirst(), spanSans);
+        QCOMPARE(state.editorFont(13).families().constFirst(), m_bundledTerminalFamily);
+        QCOMPARE(state.terminalFont().families().constFirst(), m_bundledTerminalFamily);
+        // Sizes stay the lanes' own in every set.
+        state.setTerminalFontSize(17);
+        QCOMPARE(state.terminalFont().pixelSize(), 17);
+
+        QSignalSpy terminalSpy(&state, &AppearanceSettings::terminalFontChanged);
+        state.setFontPreset(QStringLiteral("system"));
+        QCOMPARE(terminalSpy.count(), 1);
+        QCOMPARE(state.uiFont(14).families().constFirst(), systemUi);
+        QCOMPARE(state.editorFont(13).families().constFirst(), systemMono);
+        QCOMPARE(state.terminalFont().families().constFirst(), systemMono);
+
+        // Customizing starts from the set on screen.
+        state.setFontPreset(QStringLiteral("custom"));
+        QCOMPARE(state.uiPrimaryFontFamily(), systemUi);
+        QCOMPARE(state.terminalPrimaryFontFamily(), systemMono);
+        QCOMPARE(state.uiFont(14).families().constFirst(), systemUi);
+        state.setTerminalPrimaryFontFamily(QStringLiteral("Arial"));
+        QCOMPARE(state.terminalFont().families().constFirst(), QStringLiteral("Arial"));
+
+        state.setFontPreset(QStringLiteral("bogus"));
+        QCOMPARE(state.fontPreset(), AppearanceSettings::defaultFontPreset());
+        state.setFontPreset(QStringLiteral("custom"));
+        preferences.store.saveNow();
+    }
+
+    Preferences preferences;
+    QVERIFY(openAt(preferences, dbPath));
+    QCOMPARE(preferences.appearance.fontPreset(), QStringLiteral("custom"));
+    QCOMPARE(preferences.appearance.terminalFontSize(), 17);
+}
+
+void SettingsTest::infersFontPresetFromEarlierLaneSettings()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString dbPath = dir.filePath(QStringLiteral("state.db"));
+    {
+        // A size change stores the lane's default families with it.
+        Preferences preferences;
+        QVERIFY(openAt(preferences, dbPath));
+        preferences.appearance.setUiFontSize(15);
+        preferences.store.saveNow();
+    }
+    {
+        Preferences preferences;
+        QVERIFY(openAt(preferences, dbPath));
+        QCOMPARE(preferences.appearance.fontPreset(), AppearanceSettings::defaultFontPreset());
+    }
+
+    // A family picked before font sets existed keeps that choice on screen.
+    seedSetting(dbPath, QStringLiteral("earlier_ui_font_seed"), QStringLiteral("uiPrimaryFontFamily"),
+                QStringLiteral("Arial"));
+    Preferences preferences;
+    QVERIFY(openAt(preferences, dbPath));
+    QCOMPARE(preferences.appearance.fontPreset(), QStringLiteral("custom"));
+    QCOMPARE(preferences.appearance.uiFont(14).families().constFirst(), QStringLiteral("Arial"));
 }
 
 void SettingsTest::preservesMissingTerminalFontAndReportsEffectiveFallback()

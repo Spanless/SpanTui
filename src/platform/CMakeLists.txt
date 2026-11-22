@@ -4,6 +4,7 @@ add_library(SpanPlatform STATIC
     crash_handler.h
     credential_protection.h
     directory_change_watcher.h
+    font_conventions.h
     graphics_adapter.h
     instance_lock.h
     keyboard_conventions.h
@@ -28,6 +29,7 @@ if(WIN32)
         windows/crash_handler.cpp
         windows/credential_protection.cpp
         windows/directory_change_watcher.cpp
+        windows/font_conventions.cpp
         windows/graphics_adapter.cpp
         windows/instance_lock.cpp
         windows/keyboard_conventions.cpp
@@ -46,6 +48,7 @@ else()
         macos/crash_handler.cpp
         macos/credential_protection.cpp
         macos/directory_change_watcher.cpp
+        macos/font_conventions.cpp
         macos/graphics_adapter.mm
         macos/instance_lock.cpp
         macos/keyboard_conventions.cpp
