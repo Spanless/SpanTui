@@ -1,6 +1,7 @@
 #include "terminal/api/terminal_session_input.h"
 
 #include "terminal/core/terminal_core_worker.h"
+#include "terminal/terminal_constants.h"
 
 #include <QCoreApplication>
 
@@ -14,7 +15,14 @@ namespace {
 constexpr int kPasteUtf16UnitsPerSlice = 4096;
 constexpr qsizetype kPasteQueueResumeBytes = 768 * 1024;
 constexpr int kMaximumPendingPasteUtf16Units = 16 * 1024 * 1024;
-constexpr qsizetype kMaximumPendingEngineWriteBytes = 1024 * 1024;
+// The answer to a paste event's read carries the whole pasted image, base64
+// encoded (4/3) and framed in OSC 5522 chunks, in one engine turn, far past
+// what the process backend takes at once. The backlog holds the largest image
+// the session offers, with room for the framing.
+constexpr qsizetype kMaximumPendingEngineWriteBytes = kPasteImageMaxBytes * 3 / 2;
+// Queued engine output goes to the backend in slices it can take whole; it
+// refuses any single write past its own 1 MiB budget.
+constexpr qsizetype kEngineWriteSliceBytes = 64 * 1024;
 // Retry delays while the process is starting or backed up.
 constexpr int kEngineWriteRetryMs = 16;
 constexpr int kPasteRetryMs = 5;
@@ -87,16 +95,22 @@ void TerminalSessionInput::writeFromEngine(const QByteArray &bytes,
                                           const TerminalInputToken &token)
 {
     if (!token.valid() || bytes.isEmpty() || (!m_sink.running() && !m_sink.processStarting())) return;
-    if (m_pendingEngineWrites.empty() && m_sink.writeToProcess(bytes, token.kind)) return;
+    if (m_pendingEngineWrites.empty() && bytes.size() <= kEngineWriteSliceBytes
+        && m_sink.writeToProcess(bytes, token.kind)) {
+        return;
+    }
     if (m_pendingEngineWriteBytes + bytes.size() > kMaximumPendingEngineWriteBytes) {
         m_sink.reportError(QCoreApplication::translate(
             "span::terminal::TerminalSession",
             "Terminal input backlog is full; input was dropped."));
         return;
     }
-    m_pendingEngineWrites.push_back({bytes, token});
+    for (qsizetype offset = 0; offset < bytes.size(); offset += kEngineWriteSliceBytes)
+        m_pendingEngineWrites.push_back({bytes.mid(offset, kEngineWriteSliceBytes), token});
     m_pendingEngineWriteBytes += bytes.size();
-    if (!m_engineWriteTimer.isActive()) m_engineWriteTimer.start(kEngineWriteRetryMs);
+    // An idle queue starts draining now: a large reply was queued only to be
+    // sliced, and a refused write retries from drainEngineWrite's timer.
+    if (!m_engineWriteTimer.isActive()) drainEngineWrite();
 }
 
 void TerminalSessionInput::drainEngineWrite()
