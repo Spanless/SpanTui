@@ -123,8 +123,11 @@ Item {
     }
 
     Component.onCompleted: {
-        if (WindowChrome && WindowChrome.addInteractiveItem)
-            WindowChrome.addInteractiveItem(root)
+        // Only center tile headers claim interactive hit-testing in the top
+        // band (excluding leading/trailing window-chrome insets), so empty
+        // space in the sidebar and right-dock headers still drags the window.
+        if (root.tileZone === "center" && WindowChrome && WindowChrome.addInteractiveItem)
+            WindowChrome.addInteractiveItem(header.interactiveContent)
         root.geometryReady = true
     }
 
@@ -175,6 +178,13 @@ Item {
         PaneHeader {
             id: header
             Layout.fillWidth: true
+            Layout.preferredHeight: root.tileRow === 0 && root.hostWindow && root.hostWindow.topBarHeight > 0
+                                    ? root.hostWindow.topBarHeight : Theme.paneHeaderH
+            leadingInset: root.tileZone === "center" && root.tileRow === 0 && root.tileColumn === 0
+                          && root.hostWindow ? root.hostWindow.topLeftInset : 0
+            trailingInset: root.tileZone === "center" && root.tileRow === 0 && root.isRightmostCenterColumn
+                           && WorkspaceLayout.rightWidth <= 0 && root.hostWindow
+                           ? root.hostWindow.topRightInset : 0
             visible: root.hasPaneHeader
             dragEnabled: root.tileZone === "center"
 
@@ -256,7 +266,7 @@ Item {
             // feed back into itself; the readout counts at its width as last
             // shown (ResourceStrip.fitWidth), since collapsing changes it.
             readonly property real titleFloor: Math.min(titleText.implicitWidth, Theme.dialogSm / 4)
-            readonly property real dividerSpan: spacing + statusDivider.implicitWidth
+            readonly property real dividerSpan: spacing + Theme.spaceSm * 2 + statusDivider.implicitWidth
             readonly property real baseNeed: statusIcon.implicitWidth + spacing + titleFloor
             readonly property bool branchOn: Boolean(root.projectGit && root.projectGit.available)
             readonly property string branchName: branchOn && root.projectGit.currentBranch.length > 0
@@ -334,6 +344,8 @@ Item {
             PixelLine {
                 vertical: true
                 Layout.alignment: Qt.AlignVCenter
+                Layout.leftMargin: Theme.spaceSm
+                Layout.rightMargin: Theme.spaceSm
                 Layout.preferredWidth: implicitWidth
                 Layout.preferredHeight: Theme.iconSm
                 visible: terminalHeaderRow.branchShown && resourceStrip.shown
@@ -374,6 +386,8 @@ Item {
                 id: statusDivider
                 vertical: true
                 Layout.alignment: Qt.AlignVCenter
+                Layout.leftMargin: Theme.spaceSm
+                Layout.rightMargin: Theme.spaceSm
                 Layout.preferredWidth: implicitWidth
                 Layout.preferredHeight: Theme.iconSm
                 visible: terminalHeaderRow.branchShown || resourceStrip.shown

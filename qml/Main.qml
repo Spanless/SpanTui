@@ -24,6 +24,9 @@ ApplicationWindow {
     font: Appearance.uiFont(Appearance.uiFontSize, Appearance.fontRevision)
 
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
+    readonly property real topBarHeight: titleBar.height
+    readonly property real topLeftInset: sideToggles.leftDocked ? 0 : (sideToggles.x + sideToggles.width)
+    readonly property real topRightInset: windowControls.visible ? (windowControls.width + Theme.spaceMd) : 0
     readonly property bool interactionAnimationsEnabled:
         window.visible && window.active && !Appearance.reduceMotion
         && !(WindowTransition && WindowTransition.active)
@@ -188,23 +191,31 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        // Where the system draws the caption buttons (macOS traffic lights)
-        // the band is as tall as their native title bar, so they sit on its
-        // centre line; full screen keeps the windowed height but frees the
-        // leading edge.
+        // Transparent chrome overlay on top of the workspace's top header band
+        // (y = 0..topBarHeight). Holds window-anchored controls (macOS traffic
+        // lights via the system, SidebarToggles, and Windows WindowControls)
+        // while Sidebar, top-row center tiles and RightDock share one aligned
+        // header row directly below.
         readonly property rect captionRect: WindowChrome.captionButtonsRect
         readonly property bool hasSystemCaption: captionRect.width > 0
         readonly property bool captionShown: hasSystemCaption && window.visibility !== Window.FullScreen
-        height: PixelGrid.snapSize(hasSystemCaption ? 2 * (captionRect.y + captionRect.height / 2)
-                                                    : Theme.titlebarH, window.renderDpr)
+        height: PixelGrid.snapSize(
+            Math.max(Theme.paneHeaderH,
+                     hasSystemCaption ? 2 * (captionRect.y + captionRect.height / 2)
+                                      : Theme.titlebarH),
+            window.renderDpr)
 
         onHeightChanged: WindowChrome.setTitleBarHeight(height)
 
         SidebarToggles {
             id: sideToggles
-            anchors.left: parent.left
-            anchors.leftMargin: titleBar.captionShown ? titleBar.captionRect.x + titleBar.captionRect.width + Theme.spaceMd
-                                                      : Theme.spaceMd
+            readonly property real captionEnd: titleBar.captionShown
+                ? titleBar.captionRect.x + titleBar.captionRect.width : 0
+            readonly property real minX: captionEnd > 0 ? captionEnd + Theme.spaceMd : Theme.spaceMd
+            readonly property bool leftDocked: WorkspaceLayout.leftWidth > 0 && !WorkspaceLayout.leftFloating
+            x: leftDocked
+               ? Math.max(minX, WorkspaceLayout.leftWidth - width - Theme.spaceMd)
+               : minX
             anchors.verticalCenter: parent.verticalCenter
             size: titleBar.height >= Theme.sizeMd ? "md" : "sm"
         }
@@ -222,7 +233,7 @@ ApplicationWindow {
         id: workspaceCanvas
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: titleBar.bottom
+        anchors.top: parent.top
         anchors.bottom: parent.bottom
         z: Theme.zWorkspace
         interactionAnimationsEnabled: window.interactionAnimationsEnabled

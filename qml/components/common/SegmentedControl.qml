@@ -14,13 +14,21 @@ Item {
     property var checkedKeys: []
     // "sm" | "md" — cell height tier; sm serves dense tool strips.
     property string size: "md"
+    // "sunken" (standard sunken track + raised thumb) | "subtle" (quiet flat
+    // track + flat soft thumb for header bars).
+    property string tone: "sunken"
+    // Optional explicit width for icon-only cells (0 keeps square cells).
+    property real iconCellWidth: 0
     signal picked(var key)
     signal toggled(var key, bool checked)
 
     // Gap between the track edge and the thumbs; keeps them concentric.
     readonly property real trackPad: Theme.thumbInset
     readonly property int count: model.length
-    readonly property real segmentW: count > 0 ? (width - trackPad * 2) / count : 0
+    readonly property bool subtle: tone === "subtle"
+    readonly property real rowSpacing: subtle ? trackPad : 0
+    readonly property real segmentW: count > 0
+        ? (width - trackPad * 2 - rowSpacing * Math.max(0, count - 1)) / count : 0
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
     readonly property bool reduceMotion: Appearance.reduceMotion
 
@@ -49,7 +57,11 @@ Item {
         anchors.fill: parent
         devicePixelRatio: root.renderDpr
         radius: Theme.radiusMd
-        elevation: "sunken"
+        elevation: root.subtle ? "none" : "sunken"
+        fillTopColor: root.subtle ? Theme.mix(Theme.surfaceRaised, Theme.surfaceInset, 0.45)
+                                  : Theme.surfaceInset
+        fillMiddleColor: fillTopColor
+        fillBottomColor: fillTopColor
     }
 
     // Tracks the real cell (icon segments are square). Depends on
@@ -75,7 +87,13 @@ Item {
         height: Math.max(0, parent.height - root.trackPad * 2)
         devicePixelRatio: root.renderDpr
         radius: Theme.radiusSm
-        elevation: "raised"
+        elevation: root.subtle ? "none" : "raised"
+        fillTopColor: root.subtle
+                      ? (Theme.dark ? Theme.mix(Theme.surfaceInset, Theme.raisedFill, 0.18)
+                                    : Theme.surfaceInset)
+                      : Theme.raisedFillTop
+        fillMiddleColor: root.subtle ? fillTopColor : Theme.raisedFill
+        fillBottomColor: fillMiddleColor
 
         Behavior on x {
             enabled: !root.reduceMotion && root.indicatorArmed
@@ -92,6 +110,7 @@ Item {
         anchors.fill: parent
         anchors.leftMargin: root.trackPad
         anchors.rightMargin: root.trackPad
+        spacing: root.rowSpacing
 
         Repeater {
             id: segments
@@ -113,13 +132,15 @@ Item {
                     on || segmentMouse.containsMouse ? Theme.text : Theme.muted
                 Behavior on labelColor { ColorAnimation { duration: Theme.durHover } }
 
-                // Icon-only segments stay square; text segments share the
-                // width evenly. implicitWidth feeds the control's natural
-                // width for unfilled placements.
-                width: iconOnly ? height : root.segmentW
+                // Icon-only segments stay square by default (or use
+                // iconCellWidth when given); text segments share the width
+                // evenly. implicitWidth feeds the control's natural width for
+                // unfilled placements.
+                readonly property real iconW: root.iconCellWidth > 0 ? root.iconCellWidth : height
+                width: iconOnly ? iconW : root.segmentW
                 height: parent.height
                 implicitWidth: iconOnly
-                               ? root.implicitHeight
+                               ? (root.iconCellWidth > 0 ? root.iconCellWidth : root.implicitHeight)
                                : segmentContent.implicitWidth + Theme.spaceMd * 2
 
                 Accessible.role: Accessible.Button

@@ -8,7 +8,7 @@ macOS（Apple Silicon，本机构建，不签名、不公证、无 CI）与 Wind
 |---|---|---|
 | 终端进程 `terminal/api/platform_terminal.h` | `terminal/platform/macos/mac_pty_process.*`：`forkpty` | 见 §2 |
 | Shell 目录 `terminal/api/shell_catalog.h` | `mac_shell_catalog.cpp`：`$SHELL` 优先，再按 `/etc/shells`（不含 `/bin/sh`） | id 为文件名（重名时用完整路径），一律以 `-l` 登录 shell 启动 |
-| 窗口外框 `platform/window_chrome.h` | `macos/window_chrome.mm`：原生红绿灯，内容延伸到透明标题栏下，隐藏系统标题文字 | `systemCaptionButtons` 为真，QML 不画窗口按钮；`captionButtonsRect` 报告红绿灯在窗口内的矩形（启动、窗口缩放与退出全屏时重读；全屏时保留窗口态的值），标题带高度取其中线的两倍（系统标题栏高度），侧栏开关排在其右侧；`Main.qml` 的 `topPadding: 0` 让标题带画进标题栏的安全区；原生窗口在内容延伸前创建，QML 声明的矩形即窗框（先延伸会使窗框向上越出屏幕）；无深色窗框设置（随系统外观） |
+| 窗口外框 `platform/window_chrome.h` | `macos/window_chrome.mm`：原生红绿灯，内容延伸到透明标题栏下，隐藏系统标题文字，挂载空 `NSToolbar`（`NSWindowToolbarStyleUnifiedCompact`，无分隔线、禁止自定义）使原生标题带与红绿灯中线对齐约 38 pt 统一顶带 | `systemCaptionButtons` 为真，QML 不画窗口按钮；`captionButtonsRect` 报告红绿灯在窗口内的矩形（启动、窗口缩放与退出全屏时重读；全屏时保留窗口态的值），`Main.qml` 的 `topBarHeight` 取 `Theme.paneHeaderH` 与其中线两倍的较大值，红绿灯与左栏/中心瓦片/右栏顶带居中对齐；`Main.qml` 的 `topPadding: 0` 让画布从 `y = 0` 起绘制进标题栏安全区；原生窗口在内容延伸前创建并在挂载 toolbar 后复位声明矩形，保持窗框不向上偏移；无深色窗框设置（随系统外观） |
 | 进程包含 `platform/process_containment.h` | `macos/process_containment.cpp` | 没有 Job：`installApplicationContainment()` 不做事，`applicationJob*` 恒为假；受管与非受管启动都用 `QProcess::startDetached`。主程序崩溃时辅助进程不随之结束 |
 | 打开方式 `platform/open_with_handlers.h` | `macos/open_with_handlers.mm`：`NSWorkspace` 按扩展名的 UTType 列出可打开的 `.app` | 跳过 `/System/` 下的应用；“在文件管理器中打开”为 Finder；文件夹经 `NSWorkspace openURLs` 交给目标应用 |
 | 程序图标 `platform/program_icon_provider.h` | `macos/program_icon_provider.mm`：`NSWorkspace iconForFile` | 输入为 `.app` 或可执行文件路径 |

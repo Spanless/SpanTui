@@ -596,6 +596,10 @@
 <context>
     <name>FileTreePane</name>
     <message>
+        <source>Files</source>
+        <translation>文件</translation>
+    </message>
+    <message>
         <source>Refresh tree</source>
         <translation>刷新文件树</translation>
     </message>
@@ -2512,6 +2516,10 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
 <context>
     <name>Sidebar</name>
     <message>
+        <source>SpanTui</source>
+        <translation>SpanTui</translation>
+    </message>
+    <message>
         <source>Remove project</source>
         <translation>移除项目</translation>
     </message>
@@ -2606,10 +2614,6 @@ SpanTui 将复制并校验安装程序，然后退出；安装程序会显示安
     <message>
         <source>Delete</source>
         <translation>删除</translation>
-    </message>
-    <message>
-        <source>No sessions</source>
-        <translation>没有会话</translation>
     </message>
     <message>
         <source>Add project folder...</source>

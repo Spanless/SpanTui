@@ -23,7 +23,7 @@ GUI 子系统程序没有控制台，窗口出现前的失败只能用系统对�
 
 `src/application/diagnostics/ui_health_monitor.*`：
 
-- UI 线程每 250ms 写原子心跳；看门狗线程每 500ms 检查，缺失 2 秒即把 Phase、epoch、窗口状态、队列深度写入 `<root>\diagnostics\hang\hang-latest.log`；恢复后追加 `recovered`，不杀进程。
+- UI 线程每 250ms 写原子心跳；看门狗线程每 500ms 检查，缺失 2 秒即把 Phase、epoch、窗口状态、队列深度写入 `<root>\diagnostics\hang\hang-latest.log`；恢复后追加 `recovered`，不杀进程。看门狗线程创建后立即分离，析构只发停止信号、不等待（可能正在写报告）；不在析构里分离——分离与线程退出并发。
 - 看门狗只读预分配的原子快照，不调用可能阻塞 GUI 的 Windows API；不写 minidump（`dump=skipped-in-process`）：`MiniDumpWriteDump` 挂起全部线程并争用卡死线程可能持有的堆锁。
 - 最小化时心跳 ×5、阈值同步放宽。顺序固定：先放宽阈值再放慢心跳；恢复时先补一次心跳再收紧——否则慢心跳会被误判为卡死。
 

@@ -105,10 +105,12 @@ Item {
         spacing: Theme.spaceSm
         UiText {
             id: labelText
+            size: "sm"
             anchors.verticalCenter: parent.verticalCenter
         }
         UiText {
             id: valueText
+            size: "sm"
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(implicitWidth, metric.widest)
             onImplicitWidthChanged: metric.widest = Math.max(metric.widest, implicitWidth)
@@ -220,7 +222,7 @@ Item {
             spacing: Theme.spaceMd
 
             Rectangle {
-                readonly property real dotSize: Theme.spaceMd
+                readonly property real dotSize: Theme.spaceSm + 2
                 anchors.verticalCenter: parent.verticalCenter
                 width: dotSize
                 height: dotSize
