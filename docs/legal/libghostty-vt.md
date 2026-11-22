@@ -10,6 +10,7 @@
 - **固定 Commit SHA**：`ae0dc1b7136c2baddc3e067663aa041cd555cfda`
 - **构建工具**：Zig 0.17.0，`-Doptimize=ReleaseFast`，目标 `x86_64-windows-gnu`
 - **静态库 SHA-256**：`CCF2649B4F17B9ADAC04B943EBB5F6A10A71B94FD9C864A3BA3FA32A0A10A139`（`lib/libghostty-vt.a`）
+- **macOS 构建**：同一 commit 以 Zig `-Demit-lib-vt -Demit-xcframework=false -Dtarget=aarch64-macos -Doptimize=ReleaseFast` 在本机编译，不提交；配置时以缓存变量 `SPANTUI_LIBGHOSTTY_VT_LIBRARY` 传入静态库路径（头文件仍用仓库内的 `include/`，须与该 commit 一致）
 - **开源许可证**：MIT License（正文位于 `src/terminal/vendor/libghostty-vt/LICENSE`）
 
 ---
@@ -17,7 +18,7 @@
 ## 2. 预编译库与构建边界
 
 - **提交预编译库**：`src/terminal/vendor/libghostty-vt/` 只含 `LICENSE`、`include/ghostty/` 头文件与 `lib/libghostty-vt.a`；日常构建与 CI 不需要 Zig。
-- **CMake 目标**：`src/terminal/CMakeLists.txt` 将其声明为导入静态库 `SpanGhosttyVt`（`GHOSTTY_STATIC`，额外只依赖 `ntdll`），私有链接进 `SpanTerminal`；直接包含 `ghostty_engine.h` 的测试显式链接它。
+- **CMake 目标**：`src/terminal/CMakeLists.txt` 将其声明为导入静态库 `SpanGhosttyVt`（`GHOSTTY_STATIC`；Windows 用仓库内的库并额外依赖 `ntdll`，macOS 用 `SPANTUI_LIBGHOSTTY_VT_LIBRARY`，路径不存在时配置失败），私有链接进 `SpanTerminal`；直接包含 `ghostty_engine.h` 的测试显式链接它。
 - **封装边界**：只有 `src/terminal/core/ghostty_engine.*` 包含 `ghostty/vt.h`；其余代码只看到 `Frame`、`Line`、`Cell` 等本项目类型。
 - **升级**：执行 `tools/update-libghostty.ps1 -Commit <sha> -Zig <zig.exe>`。脚本在 `.dev/tmp/` 下克隆并编译，用 `llvm-strip` 去调试信息、用 `llvm-objcopy` 去掉 GNU ld 不识别的 `.drectve` 段，再用 `llvm-ar` 按原顺序以纯文件名重打包（Zig 以构建缓存里的绝对路径给归档成员命名，不重打包会把本机路径带进提交），替换 `include/` 与 `lib/`，并打印新的 SHA-256；升级后同步更新本节的 commit、Zig 版本与哈希。`tools/check-docs.ps1` 的 `vendor` 规则核对本节与 [ConPTY](conpty.md) 记录的哈希等于仓库内二进制。
 

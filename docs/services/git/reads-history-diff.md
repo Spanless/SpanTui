@@ -6,7 +6,7 @@
 - status 带 `--untracked-files=all`（新目录里每个文件各一行）与 `--ignored=matching`（忽略目录只报一条；传统模式配合 `-uall` 会逐个列出）。
 - 解析结果以相对路径推送给 `FileTreeModel` 显示徽标。
 - **节奏**：默认 10 秒；`IdleGovernor` 判定空闲时 30 秒，且只刷新状态映射，不重算统计与 diff 行；恢复活跃立即 `scheduleRefresh`。
-- **触发来源**：`.git` 内的 HEAD、index、refs 由 `QFileSystemWatcher` 监视，变化后合并刷新；工作区文件改动由 `DirectoryChangeWatcher`（`src/platform/windows/directory_change_watcher.*`，`ReadDirectoryChangesW` 递归监视仓库根，在 GUI 事件循环完成，不另开线程）标记"有改动"。轮询到点时只有标记为真才跑 `git status`，安静的仓库不启动 git 进程；状态刷新开始时清除标记，失败则重新标记。git 目录内的变化不计；通知溢出视为有改动；无法监视（目录不支持通知、根被删除）时退回每次轮询都刷新。后台项目停止监视，回到前台重新监视并完整刷新。
+- **触发来源**：`.git` 内的 HEAD、index、refs 由 `QFileSystemWatcher` 监视，变化后合并刷新；工作区文件改动由 `DirectoryChangeWatcher`（`src/platform/directory_change_watcher.h`；Windows 以 `ReadDirectoryChangesW` 递归监视仓库根，在 GUI 事件循环完成，不另开线程；macOS 用 FSEvents）标记"有改动"。轮询到点时只有标记为真才跑 `git status`，安静的仓库不启动 git 进程；状态刷新开始时清除标记，失败则重新标记。git 目录内的变化不计；通知溢出视为有改动；无法监视（目录不支持通知、根被删除）时退回每次轮询都刷新。后台项目停止监视，回到前台重新监视并完整刷新。
 - **只有前台项目轮询**：前台 = 中央区瓦片所属项目 + 右栏绑定项目（`boundTerminalProjectPath`），由 `WorkspaceController` 算出、经 `ProjectWorkspaceRegistry` 对每个 `ProjectContext` `setForeground`。后台项目保留已读状态，停止轮询并忽略监视器触发，新建的后台上下文不发现仓库；回到前台立即完整刷新并恢复轮询。
 - **普通目录**：`rev-parse` 报 "not a git repository" 是正常的不可用状态，不轮询；以 `QFileSystemWatcher` 监视项目根（`.git` 已存在时也监视它，应对与 `git init` 的竞态），出现 `.git` 再发现。其他错误（所有权存疑、损坏、无法运行）显示错误并在轮询时重试。
 

@@ -1,6 +1,7 @@
 #include "terminal/api/terminal_session_input.h"
 
 #include "terminal/core/terminal_core_worker.h"
+#include "terminal/terminal_constants.h"
 
 #include <QCoreApplication>
 
@@ -14,7 +15,14 @@ namespace {
 constexpr int kPasteUtf16UnitsPerSlice = 4096;
 constexpr qsizetype kPasteQueueResumeBytes = 768 * 1024;
 constexpr int kMaximumPendingPasteUtf16Units = 16 * 1024 * 1024;
-constexpr qsizetype kMaximumPendingEngineWriteBytes = 1024 * 1024;
+// The answer to a paste event's read carries the whole pasted image, base64
+// encoded (4/3) and framed in OSC 5522 chunks, in one engine turn, far past
+// what the process backend takes at once. The backlog holds the largest image
+// the session offers, with room for the framing.
+constexpr qsizetype kMaximumPendingEngineWriteBytes = kPasteImageMaxBytes * 3 / 2;
+// Queued engine output goes to the backend in slices it can take whole; it
+// refuses any single write past its own 1 MiB budget.
+constexpr qsizetype kEngineWriteSliceBytes = 64 * 1024;
 // Retry delays while the process is starting or backed up.
 constexpr int kEngineWriteRetryMs = 16;
 constexpr int kPasteRetryMs = 5;
@@ -42,8 +50,9 @@ void TerminalSessionInput::cancelQueued(bool includeProtocol)
         m_sink.postCore([](TerminalCoreWorker *core) { core->endPaste(); },
                         TerminalInputKind::PasteEnd);
     }
-    m_pendingPaste.clear();
-    m_pendingPasteOffset = 0;
+    m_pastes.clear();
+    m_pendingPasteUnits = 0;
+    m_pasteOffset = 0;
     m_pasteOpen = false;
     m_pendingEngineWrites.erase(
         std::remove_if(m_pendingEngineWrites.begin(), m_pendingEngineWrites.end(),
@@ -57,32 +66,28 @@ void TerminalSessionInput::cancelQueued(bool includeProtocol)
     if (!m_pendingEngineWrites.empty()) m_engineWriteTimer.start(0);
 }
 
-void TerminalSessionInput::paste(const QString &text)
+void TerminalSessionInput::paste(const QString &text, const TerminalPasteOffer &offer)
 {
-    if (m_pendingPaste.size() >= kMaximumPendingPasteUtf16Units) {
+    if (m_pendingPasteUnits >= kMaximumPendingPasteUtf16Units) {
         m_sink.reportError(QCoreApplication::translate(
             "span::terminal::TerminalSession",
             "Paste buffer is full; remaining clipboard text was dropped."));
         return;
     }
     QString chunk = text;
-    if (m_pendingPaste.size() + chunk.size() > kMaximumPendingPasteUtf16Units) {
-        chunk.truncate(kMaximumPendingPasteUtf16Units - m_pendingPaste.size());
+    if (m_pendingPasteUnits + chunk.size() > kMaximumPendingPasteUtf16Units) {
+        chunk.truncate(kMaximumPendingPasteUtf16Units - m_pendingPasteUnits);
         m_sink.reportError(QCoreApplication::translate(
             "span::terminal::TerminalSession",
             "Paste truncated to %1 characters.").arg(kMaximumPendingPasteUtf16Units));
     }
-    if (chunk.isEmpty()) {
+    if (chunk.isEmpty() && offer.representations.isEmpty()) {
         return;
     }
-    m_pendingPaste.append(chunk);
-    if (!m_pasteOpen) {
-        m_sink.postCore([](TerminalCoreWorker *core) { core->beginPaste(); },
-                        TerminalInputKind::PasteBegin);
-        m_pasteOpen = true;
-    }
+    m_pendingPasteUnits += chunk.size();
+    m_pastes.push_back({std::move(chunk), offer});
     if (!m_pasteTimer.isActive()) {
-        m_pasteTimer.start(0);
+        drainPaste();
     }
 }
 
@@ -90,16 +95,22 @@ void TerminalSessionInput::writeFromEngine(const QByteArray &bytes,
                                           const TerminalInputToken &token)
 {
     if (!token.valid() || bytes.isEmpty() || (!m_sink.running() && !m_sink.processStarting())) return;
-    if (m_pendingEngineWrites.empty() && m_sink.writeToProcess(bytes, token.kind)) return;
+    if (m_pendingEngineWrites.empty() && bytes.size() <= kEngineWriteSliceBytes
+        && m_sink.writeToProcess(bytes, token.kind)) {
+        return;
+    }
     if (m_pendingEngineWriteBytes + bytes.size() > kMaximumPendingEngineWriteBytes) {
         m_sink.reportError(QCoreApplication::translate(
             "span::terminal::TerminalSession",
             "Terminal input backlog is full; input was dropped."));
         return;
     }
-    m_pendingEngineWrites.push_back({bytes, token});
+    for (qsizetype offset = 0; offset < bytes.size(); offset += kEngineWriteSliceBytes)
+        m_pendingEngineWrites.push_back({bytes.mid(offset, kEngineWriteSliceBytes), token});
     m_pendingEngineWriteBytes += bytes.size();
-    if (!m_engineWriteTimer.isActive()) m_engineWriteTimer.start(kEngineWriteRetryMs);
+    // An idle queue starts draining now: a large reply was queued only to be
+    // sliced, and a refused write retries from drainEngineWrite's timer.
+    if (!m_engineWriteTimer.isActive()) drainEngineWrite();
 }
 
 void TerminalSessionInput::drainEngineWrite()
@@ -124,32 +135,44 @@ void TerminalSessionInput::drainEngineWrite()
 
 void TerminalSessionInput::drainPaste()
 {
-    if (!m_sink.running() || !m_pasteOpen) {
+    if (!m_sink.running() || m_pastes.empty()) {
         return;
     }
     if (m_sink.pendingProcessBytes() > kPasteQueueResumeBytes) {
         m_pasteTimer.start(kPasteRetryMs);
         return;
     }
-    const int remaining = m_pendingPaste.size() - m_pendingPasteOffset;
-    if (remaining <= 0) {
+    const PendingPaste &paste = m_pastes.front();
+    if (!m_pasteOpen) {
+        m_sink.postCore([offer = paste.offer, hasText = !paste.text.isEmpty()](
+                            TerminalCoreWorker *core) { core->beginPaste(offer, hasText); },
+                        TerminalInputKind::PasteBegin);
+        m_pasteOpen = true;
+    }
+    const int remaining = int(paste.text.size()) - m_pasteOffset;
+    if (remaining > 0) {
+        int count = std::min(kPasteUtf16UnitsPerSlice, remaining);
+        if (count < remaining && paste.text.at(m_pasteOffset + count - 1).isHighSurrogate()
+            && paste.text.at(m_pasteOffset + count).isLowSurrogate()) {
+            --count;
+        }
+        const QString chunk = paste.text.mid(m_pasteOffset, count);
+        m_sink.postCore([chunk](TerminalCoreWorker *core) { core->sendPasteBody(chunk); }, TerminalInputKind::User);
+        m_pasteOffset += count;
+    }
+    // The last slice closes the bracket in the same turn, so a paste that
+    // fits one slice is complete before the next key arrives.
+    if (m_pasteOffset >= paste.text.size()) {
         m_sink.postCore([](TerminalCoreWorker *core) { core->endPaste(); },
                         TerminalInputKind::PasteEnd);
-        m_pendingPaste.clear();
-        m_pendingPasteOffset = 0;
+        m_pendingPasteUnits -= paste.text.size();
+        m_pastes.pop_front();
+        m_pasteOffset = 0;
         m_pasteOpen = false;
-        return;
     }
-    int count = std::min(kPasteUtf16UnitsPerSlice, remaining);
-    if (count < remaining && m_pendingPaste.at(m_pendingPasteOffset + count - 1).isHighSurrogate() &&
-        m_pendingPaste.at(m_pendingPasteOffset + count).isLowSurrogate()) {
-        --count;
+    if (!m_pastes.empty()) {
+        m_pasteTimer.start(0);
     }
-    const QString chunk = m_pendingPaste.mid(m_pendingPasteOffset, count);
-    m_sink.postCore([chunk](TerminalCoreWorker *core) { core->sendPasteBody(chunk); },
-                    TerminalInputKind::User);
-    m_pendingPasteOffset += count;
-    m_pasteTimer.start(0);
 }
 
 } // namespace span::terminal

@@ -1,6 +1,7 @@
 #include "core/product_paths.h"
 
 #include "core/core_constants.h"
+#include "core/platform_folders.h"
 #include "core/product_identity.h"
 
 #include <QCoreApplication>
@@ -20,22 +21,6 @@ QString applicationDirectory()
                                         : QString();
 }
 
-QString knownFolder(const char *variable, const QString &homeRelative)
-{
-    const QString folder = qEnvironmentVariable(variable);
-    return folder.isEmpty() ? QDir(QDir::homePath()).filePath(homeRelative) : folder;
-}
-
-QString localAppDataDirectory()
-{
-    return knownFolder("LOCALAPPDATA", QStringLiteral("AppData/Local"));
-}
-
-QString legacyDefaultRoot()
-{
-    return QDir(knownFolder("APPDATA", QStringLiteral("AppData/Roaming"))).filePath(QStringLiteral("Span/SpanTui"));
-}
-
 bool hasPortableMarker(const QString &applicationDir)
 {
     return !applicationDir.isEmpty()
@@ -45,14 +30,13 @@ bool hasPortableMarker(const QString &applicationDir)
 
 } // namespace
 
-QString ProductPaths::resolveRoot(const QString &overridePath, const QString &applicationDir,
-                                  const QString &localAppData)
+QString ProductPaths::resolveRoot(const QString &overridePath, const QString &applicationDir, const QString &dataParent)
 {
     if (!overridePath.isEmpty()) {
         return QDir::cleanPath(QDir(overridePath).absolutePath());
     }
     return hasPortableMarker(applicationDir) ? QDir(QDir::cleanPath(applicationDir)).filePath(portableDataDirName())
-                                             : QDir(QDir::cleanPath(localAppData)).filePath(kProductName);
+                                             : QDir(QDir::cleanPath(dataParent)).filePath(kProductName);
 }
 
 QString ProductPaths::moveLegacyDefaultRoot()
@@ -60,12 +44,12 @@ QString ProductPaths::moveLegacyDefaultRoot()
     if (!g_rootOverride.isEmpty() || hasPortableMarker(applicationDirectory())) {
         return QString();
     }
-    return moveLegacyRoot(legacyDefaultRoot(), root());
+    return moveLegacyRoot(legacyDefaultDataRoot(), root());
 }
 
 QString ProductPaths::moveLegacyRoot(const QString &legacyRoot, const QString &root)
 {
-    if (!QFileInfo(legacyRoot).isDir() || QFileInfo::exists(root)) {
+    if (legacyRoot.isEmpty() || !QFileInfo(legacyRoot).isDir() || QFileInfo::exists(root)) {
         return QString();
     }
     // A failed move leaves the old folder untouched; this launch then starts
@@ -90,7 +74,7 @@ QString ProductPaths::rootOverride()
 
 QString ProductPaths::root()
 {
-    return resolveRoot(g_rootOverride, applicationDirectory(), localAppDataDirectory());
+    return resolveRoot(g_rootOverride, applicationDirectory(), userDataParentDirectory());
 }
 
 bool ProductPaths::isPortable()

@@ -1,7 +1,7 @@
 # SSH remote hosts: argument building for the system OpenSSH client, the
 # askpass bridge, the persistent remote shell channel behind the remote file
 # browser and its sftp transfer queue. No SSH protocol code lives here — every
-# connection is a Windows OpenSSH process.
+# connection is a process of the system OpenSSH client.
 add_library(SpanRemote STATIC
     remote_constants.h
     remote_file_listing.cpp
@@ -20,6 +20,7 @@ add_library(SpanRemote STATIC
     remote_transfer_queue.h
     ssh_askpass.cpp
     ssh_askpass.h
+    ssh_askpass_platform.h
     ssh_command.cpp
     ssh_command.h
     tailscale_devices.cpp
@@ -27,7 +28,13 @@ add_library(SpanRemote STATIC
 )
 target_link_libraries(SpanRemote
     PUBLIC SpanCore Qt6::Gui Qt6::Network
-    PRIVATE SpanPlatform Qt6::Sql shell32
+    PRIVATE SpanPlatform Qt6::Sql
 )
+if(WIN32)
+    target_sources(SpanRemote PRIVATE windows/ssh_askpass_platform.cpp)
+    target_link_libraries(SpanRemote PRIVATE shell32)
+else()
+    target_sources(SpanRemote PRIVATE macos/ssh_askpass_platform.cpp)
+endif()
 # QML-facing types (src/application/runtime/qml_types.h).
 qt_extract_metatypes(SpanRemote)

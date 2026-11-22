@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import SpanTui
 
 Item {
@@ -7,6 +8,8 @@ Item {
     property int sessionRevision: 0
     readonly property Window hostWindow: Window.window
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
+    readonly property real topBandHeight: hostWindow && hostWindow.topBarHeight > 0
+                                          ? hostWindow.topBarHeight : Theme.paneHeaderH
 
     // Project and worktree rows share this menu. A project whose folder is
     // gone offers only its removal; a worktree row adds its own deletion.
@@ -153,6 +156,7 @@ Item {
         property string title: ""
         property string actionIcon: ""
         property string actionTip: ""
+        property bool showAction: true
         signal actionClicked()
         Layout.fillWidth: true
         Layout.preferredHeight: Theme.sizeMd
@@ -171,6 +175,7 @@ Item {
                 verticalAlignment: Text.AlignVCenter
             }
             ChromeButton {
+                visible: header.showAction && header.actionIcon.length > 0
                 size: "sm"
                 kind: "ghost"
                 iconName: header.actionIcon
@@ -217,12 +222,11 @@ Item {
     }
 
     // One project row: folder icon, name, and its checked-out branch on the
-    // right. Expanded, a main project shows its listed worktrees (through
-    // `nested`) and then its own sessions at the bottom. A worktree row
-    // starts with a corner glyph in its main project's icon column, and its
-    // sessions line up under its folder icon. "No sessions" shows only when
-    // the row has nothing under it at all. A project whose folder is gone is
-    // dimmed and says so on hover.
+    // right (hovering swaps in a quick new-terminal button). Expanded, a main
+    // project shows its listed worktrees (through `nested`) and then its own
+    // sessions at the bottom. A worktree row starts with a corner glyph in its
+    // main project's icon column, and its sessions line up under its folder
+    // icon. A project whose folder is gone is dimmed and says so on hover.
     component ProjectNode: Column {
         id: node
         property string name: ""
@@ -252,6 +256,9 @@ Item {
                     root.openProjectMenu(mouseArea, mouse.x, mouse.y, node.path, node.name)
             }
             RowLayout {
+                id: projectHeaderRow
+                readonly property bool showQuickAdd: (nodeHeader.hovered || quickNewTermButton.hovered)
+                                                     && node.available
                 anchors.fill: parent
                 spacing: Theme.spaceSm
                 opacity: node.available ? 1 : Theme.opacityDisabled
@@ -272,13 +279,22 @@ Item {
                 }
                 UiText { Layout.fillWidth: true; text: node.name; elide: Text.ElideRight }
                 UiText {
-                    visible: node.branch.length > 0
+                    visible: node.branch.length > 0 && !projectHeaderRow.showQuickAdd
                     // The name keeps at least half the row.
                     Layout.maximumWidth: nodeHeader.width / 2
                     text: node.branch
                     tone: "muted"
                     size: "sm"
                     elide: Text.ElideMiddle
+                }
+                ChromeButton {
+                    id: quickNewTermButton
+                    visible: projectHeaderRow.showQuickAdd
+                    size: "sm"
+                    kind: "ghost"
+                    iconName: "plus"
+                    tip: qsTr("New terminal")
+                    onClicked: WorkspaceController.createSession(node.path)
                 }
             }
             Tip {
@@ -290,7 +306,7 @@ Item {
         TreeExpandHost {
             width: parent.width
             expanded: node.expanded
-            hasContent: true
+            hasContent: node.sessions.length > 0 || node.nestedCount > 0
             spacing: Theme.spaceSm
             Column {
                 id: nestedColumn
@@ -304,16 +320,6 @@ Item {
                     x: node.childIndent
                     width: node.width - x
                 }
-            }
-            UiText {
-                x: node.childIndent
-                width: node.width - x
-                height: Theme.sizeMd
-                leftPadding: Theme.spaceMd
-                verticalAlignment: Text.AlignVCenter
-                text: qsTr("No sessions")
-                tone: "muted"
-                visible: node.sessions.length === 0 && node.nestedCount === 0
             }
         }
     }
@@ -333,8 +339,43 @@ Item {
         function onSessionStatesChanged() { root.sessionRevision += 1 }
     }
 
+    // Unified top-band header: matches the center tiles' PaneHeader and
+    // RightDock's header so one unbroken hairline spans all three columns.
+    // On macOS, native traffic lights occupy the left side; on Windows, the
+    // app name sits on the left while Main.qml's SidebarToggles floats on the
+    // right. Empty space drags the window.
+    Item {
+        id: sidebarHeader
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: root.topBandHeight
+
+        UiText {
+            visible: !WindowChrome.systemCaptionButtons
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.spaceMd
+            anchors.verticalCenter: parent.verticalCenter
+            text: Qt.application.displayName || qsTr("SpanTui")
+            tone: "muted"
+            emphasis: true
+        }
+    }
+
+    PixelLine {
+        id: sidebarHeaderLine
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: sidebarHeader.bottom
+        devicePixelRatio: root.renderDpr
+        lineColor: Theme.border
+    }
+
     ColumnLayout {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: sidebarHeaderLine.bottom
+        anchors.bottom: parent.bottom
         anchors.margins: Theme.spaceMd
         spacing: Theme.spaceSm
 
@@ -437,6 +478,7 @@ Item {
         SectionHeader {
             visible: Tools.sshAvailable
             title: qsTr("Remote")
+            showAction: RemoteHosts.count > 0
             actionIcon: "plus"
             actionTip: qsTr("Add SSH host...")
             onActionClicked: hostDialog.openFor("")
@@ -454,8 +496,11 @@ Item {
             ListItem {
                 id: addHostRow
                 visible: RemoteHosts.count === 0
-                width: parent.width - Theme.spaceMd
+                width: parent.width
                 cursorShape: Qt.PointingHandCursor
+                property real hoverMix: hovered ? 1 : 0
+                Behavior on hoverMix { NumberAnimation { duration: Theme.durHover } }
+                readonly property color contentInk: Theme.mix(Theme.muted, Theme.text, hoverMix)
                 onClicked: mouse => {
                     if (mouse.button === Qt.LeftButton)
                         hostDialog.openFor("")
@@ -463,12 +508,67 @@ Item {
                 RowLayout {
                     anchors.fill: parent
                     spacing: Theme.spaceSm
-                    Icon { name: "plus"; size: Theme.iconMd; color: Theme.muted }
+                    Icon {
+                        name: "plus"
+                        size: Theme.iconSm
+                        color: addHostRow.contentInk
+                        hovered: addHostRow.hovered
+                        pressed: addHostRow.mouseArea.pressed
+                    }
                     UiText {
                         Layout.fillWidth: true
                         text: qsTr("Add an SSH host")
-                        tone: "muted"
+                        color: addHostRow.contentInk
                         elide: Text.ElideRight
+                    }
+                }
+            }
+
+            // Dashed outline aligned to addHostRow's surface rect, marking the
+            // empty-state CTA clearly without visual weight.
+            Shape {
+                id: addHostOutline
+                visible: addHostRow.visible
+                anchors.fill: addHostRow
+                anchors.leftMargin: Theme.spaceSm
+                anchors.rightMargin: Theme.spaceSm
+                anchors.topMargin: addHostRow.hairline
+                anchors.bottomMargin: addHostRow.hairline
+                antialiasing: true
+                preferredRendererType: Shape.CurveRenderer
+                vendorExtensionsEnabled: false
+                opacity: Theme.fadeMd + (Theme.fadeLg - Theme.fadeMd) * addHostRow.hoverMix
+
+                readonly property real dashStroke: 1
+                readonly property real dashLength: 4
+                readonly property real dashGap: 3
+                readonly property real halfStroke: dashStroke / 2
+                readonly property real boxW: Math.max(0, width - dashStroke)
+                readonly property real boxH: Math.max(0, height - dashStroke)
+                readonly property real boxR: Math.min(Theme.radiusSm, boxW / 2, boxH / 2)
+
+                ShapePath {
+                    strokeColor: Theme.mix(Theme.border, Theme.muted, addHostRow.hoverMix)
+                    strokeWidth: addHostOutline.dashStroke
+                    fillColor: "transparent"
+                    strokeStyle: ShapePath.DashLine
+                    dashPattern: [addHostOutline.dashLength, addHostOutline.dashGap]
+                    PathSvg {
+                        path: addHostOutline.boxW > 0 && addHostOutline.boxH > 0
+                              ? "M " + (addHostOutline.halfStroke + addHostOutline.boxR) + " " + addHostOutline.halfStroke
+                                + " H " + (addHostOutline.halfStroke + addHostOutline.boxW - addHostOutline.boxR)
+                                + " A " + addHostOutline.boxR + " " + addHostOutline.boxR + " 0 0 1 "
+                                + (addHostOutline.halfStroke + addHostOutline.boxW) + " " + (addHostOutline.halfStroke + addHostOutline.boxR)
+                                + " V " + (addHostOutline.halfStroke + addHostOutline.boxH - addHostOutline.boxR)
+                                + " A " + addHostOutline.boxR + " " + addHostOutline.boxR + " 0 0 1 "
+                                + (addHostOutline.halfStroke + addHostOutline.boxW - addHostOutline.boxR) + " " + (addHostOutline.halfStroke + addHostOutline.boxH)
+                                + " H " + (addHostOutline.halfStroke + addHostOutline.boxR)
+                                + " A " + addHostOutline.boxR + " " + addHostOutline.boxR + " 0 0 1 "
+                                + addHostOutline.halfStroke + " " + (addHostOutline.halfStroke + addHostOutline.boxH - addHostOutline.boxR)
+                                + " V " + (addHostOutline.halfStroke + addHostOutline.boxR)
+                                + " A " + addHostOutline.boxR + " " + addHostOutline.boxR + " 0 0 1 "
+                                + (addHostOutline.halfStroke + addHostOutline.boxR) + " " + addHostOutline.halfStroke + " Z"
+                              : ""
                     }
                 }
             }
@@ -554,59 +654,80 @@ Item {
             Layout.fillHeight: true
         }
 
-        // App-level entries pinned to the rail's bottom — spacing alone
-        // separates them from the list, matching the header row above.
-        // The GlideHighlight wrapper shares the rail's one hover pill across
-        // the rows (pane tone, not the overlay tone menus use).
-        GlideHighlight {
+        // Running background task row, shown on demand above the footer bar.
+        ListItem {
+            id: taskRow
+            visible: TaskProgress.count > 0
             Layout.fillWidth: true
-            Layout.topMargin: Theme.spaceMd
-            target: railColumn
-            fillColor: Theme.hover
-            insetX: Theme.spaceSm
-            insetY: PixelGrid.hairline(root.renderDpr)
-
-            Column {
-                id: railColumn
-                width: parent.width
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                if (root.hostWindow && root.hostWindow.openTaskPopup)
+                    root.hostWindow.openTaskPopup(taskRow)
+            }
+            RowLayout {
+                anchors.fill: parent
                 spacing: Theme.spaceSm
+                LoadingSpinner {
+                    size: Theme.iconSm
+                    active: TaskProgress.primaryOutcome === TaskProgress.Running
+                }
+                UiText {
+                    Layout.fillWidth: true
+                    size: "sm"
+                    tone: "muted"
+                    text: TaskProgress.primaryTitle
+                    elide: Text.ElideRight
+                }
+            }
+        }
 
-                ListItem {
-                    id: taskRow
-                    visible: TaskProgress.count > 0
-                    width: parent.width
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (root.hostWindow && root.hostWindow.openTaskPopup)
-                            root.hostWindow.openTaskPopup(taskRow)
-                    }
-                    RowLayout {
-                        anchors.fill: parent
-                        spacing: Theme.spaceSm
-                        LoadingSpinner {
-                            size: Theme.iconSm
-                            active: TaskProgress.primaryOutcome === TaskProgress.Running
-                        }
-                        UiText {
-                            Layout.fillWidth: true
-                            size: "sm"
-                            tone: "muted"
-                            text: TaskProgress.primaryTitle
-                            elide: Text.ElideRight
-                        }
-                    }
+        PixelLine {
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            Layout.topMargin: Theme.spaceSm
+            devicePixelRatio: root.renderDpr
+            lineColor: Theme.separator
+            opacity: Theme.fadeSm
+        }
+
+        // Compact single-row app footer: Messages (hugging its icon, label and
+        // unread badge together) on the left, spacer in the middle, and
+        // Updates / Theme / Settings icon buttons on the right.
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.minimumHeight: Theme.sizeMd
+            spacing: Theme.spaceSm
+
+            ListItem {
+                id: inboxRow
+                cursorShape: Qt.PointingHandCursor
+                Layout.fillWidth: false
+                Layout.preferredWidth: Math.ceil(inboxContent.implicitWidth) + contentPadX * 2
+                onClicked: {
+                    if (root.hostWindow && root.hostWindow.openInbox)
+                        root.hostWindow.openInbox(inboxRow)
                 }
 
-                NavRow {
-                    id: inboxRow
-                    width: parent.width
-                    icon: "bell"
-                    label: qsTr("Messages")
-                    onClicked: {
-                        if (root.hostWindow && root.hostWindow.openInbox)
-                            root.hostWindow.openInbox(inboxRow)
+                Row {
+                    id: inboxContent
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spaceSm
+
+                    Icon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "bell"
+                        size: inboxRow.contentIcon
+                        color: inboxRow.hovered ? Theme.text : Theme.muted
+                        Behavior on color { ColorAnimation { duration: Theme.durHover } }
+                        hovered: inboxRow.hovered
+                        pressed: inboxRow.mouseArea.pressed
                     }
-                    trailing: Item {
+                    UiText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Messages")
+                        color: Theme.text
+                    }
+                    Item {
                         readonly property bool show: MessageCenter.unreadCount > 0
                                                      && !MessageCenter.inboxOpen
                         readonly property bool hasError: MessageCenter.unreadErrorCount > 0
@@ -614,19 +735,21 @@ Item {
                             ? "99+" : String(MessageCenter.unreadCount)
                         readonly property color badgeFill: hasError ? Theme.danger : Theme.accent
                         readonly property color badgeInk: hasError ? Theme.dangerText : Theme.accentText
-                        // The digits' ink, relative to the baseline. The circle
-                        // grows with the UI font, and the label centres on its
-                        // ink: centred by its line box, the empty descent pushes
-                        // the digits up, out of a 13 px circle at larger sizes.
+                        // The digits' ink, relative to the baseline origin.
+                        // Both axes centre on the tight ink box: vertically
+                        // the empty descent would push digits up, and
+                        // horizontally tabular sidebearings (notably "1")
+                        // would pull the glyph off centre.
                         readonly property rect labelInk: badgeMetrics.tightBoundingRect(badgeLabel)
                         readonly property int badgeH: PixelGrid.snapSize(
                             Math.max(13, Math.ceil(labelInk.height) + Theme.spaceSm), root.renderDpr)
                         readonly property int badgePad: PixelGrid.snapSize(
                             badgeLabel.length > 1 ? Theme.spaceSm : 0, root.renderDpr)
 
+                        anchors.verticalCenter: parent.verticalCenter
                         visible: show
                         width: show ? Math.max(badgeH,
-                            badgeText.implicitWidth + badgePad * 2) : 0
+                            Math.ceil(labelInk.width) + badgePad * 2) : 0
                         height: badgeH
 
                         FontMetrics {
@@ -645,55 +768,72 @@ Item {
                         }
                         RenderText {
                             id: badgeText
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            x: PixelGrid.snap(parent.width / 2
+                                - parent.labelInk.x - parent.labelInk.width / 2, root.renderDpr)
                             y: PixelGrid.snap(parent.height / 2 - baselineOffset
                                 - parent.labelInk.y - parent.labelInk.height / 2, root.renderDpr)
                             text: parent.badgeLabel
                             color: parent.badgeInk
                             font: Appearance.uiAuxFont(Theme.uiSm, Appearance.fontRevision)
-                            horizontalAlignment: Text.AlignHCenter
                         }
                     }
                 }
+            }
 
-                NavRow {
-                    width: parent.width
-                    icon: "update"
-                    label: qsTr("Updates")
-                    shimmer: AppUpdate.busy
-                    // Accent marks the indicator, never the label text.
-                    trailing: CrispSurface {
-                        visible: AppUpdate.updateAvailable
-                        width: PixelGrid.snapSize(6, root.renderDpr) // style-ok: status dot, as WorkspaceTab
-                        height: width
-                        devicePixelRatio: root.renderDpr
-                        radius: width / 2
-                        fillTopColor: Theme.accent
-                        fillMiddleColor: fillTopColor
-                        fillBottomColor: fillTopColor
-                        strokeEnabled: false
-                    }
-                    onClicked: {
-                        if (root.hostWindow && root.hostWindow.requestUpdate)
-                            root.hostWindow.requestUpdate()
-                    }
+            Item {
+                Layout.fillWidth: true
+            }
+
+            ChromeButton {
+                id: updateButton
+                size: "md"
+                kind: "ghost"
+                iconName: AppUpdate.busy ? "" : "update"
+                tip: qsTr("Updates")
+                onClicked: {
+                    if (root.hostWindow && root.hostWindow.requestUpdate)
+                        root.hostWindow.requestUpdate()
                 }
-
-                NavRow {
-                    width: parent.width
-                    icon: Theme.dark ? "sun" : "moon"
-                    label: qsTr("Theme")
-                    onClicked: Appearance.themeMode = Appearance.effectiveDark ? "light" : "dark"
+                LoadingSpinner {
+                    anchors.centerIn: parent
+                    size: Theme.iconSm
+                    active: AppUpdate.busy
+                    visible: AppUpdate.busy
                 }
+                CrispSurface {
+                    visible: AppUpdate.updateAvailable && !AppUpdate.busy
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.topMargin: Theme.spaceSm
+                    anchors.rightMargin: Theme.spaceSm
+                    width: PixelGrid.snapSize(6, root.renderDpr) // style-ok: status dot, as WorkspaceTab
+                    height: width
+                    devicePixelRatio: root.renderDpr
+                    radius: width / 2
+                    fillTopColor: Theme.accent
+                    fillMiddleColor: fillTopColor
+                    fillBottomColor: fillTopColor
+                    strokeEnabled: false
+                }
+            }
 
-                NavRow {
-                    width: parent.width
-                    icon: "settings"
-                    label: qsTr("Settings")
-                    onClicked: {
-                        if (root.hostWindow)
-                            root.hostWindow.page = "settings"
-                    }
+            ChromeButton {
+                size: "md"
+                kind: "ghost"
+                iconName: Theme.dark ? "sun" : "moon"
+                tip: qsTr("Theme")
+                onClicked: Appearance.themeMode = Appearance.effectiveDark ? "light" : "dark"
+            }
+
+            ChromeButton {
+                size: "md"
+                kind: "ghost"
+                iconName: "settings"
+                tip: qsTr("Settings")
+                Layout.rightMargin: Theme.spaceSm
+                onClicked: {
+                    if (root.hostWindow)
+                        root.hostWindow.page = "settings"
                 }
             }
         }

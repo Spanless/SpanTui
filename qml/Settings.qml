@@ -77,7 +77,7 @@ AppPopup {
                             : root.activeSection === "interface"
                               ? qsTr("Typography, text clarity, and font sizing")
                               : root.activeSection === "terminal"
-                                ? qsTr("Terminal display, cursor, fonts, and execution")
+                                ? qsTr("Terminal display, cursor, and execution")
                                 : root.activeSection === "shortcuts"
                                   ? qsTr("Keyboard shortcuts for terminal, files, and Git")
                                   : root.activeSection === "remote"

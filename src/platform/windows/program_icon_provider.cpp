@@ -1,4 +1,4 @@
-#include "platform/windows/program_icon_provider.h"
+#include "platform/program_icon_provider.h"
 
 #include <QDir>
 #include <QUrl>

@@ -8,8 +8,11 @@
 
 namespace span::platform {
 
-// Watches a whole directory tree (ReadDirectoryChangesW). The overlapped read
-// completes on the owning thread's event loop; there is no thread of its own.
+// Watches a whole directory tree; notifications arrive on the owning
+// thread's event loop.
+//   Windows: an overlapped ReadDirectoryChangesW read, no thread of its own.
+//   macOS: an FSEvents stream delivered on a private dispatch queue and
+//   forwarded to the owning thread.
 class DirectoryChangeWatcher final : public QObject {
     Q_OBJECT
 
@@ -30,9 +33,6 @@ signals:
 
 private:
     struct Impl;
-    void readCompleted();
-    bool startRead();
-
     std::unique_ptr<Impl> m_impl;
 };
 

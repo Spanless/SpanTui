@@ -1,7 +1,8 @@
 #include "application/window_transition_coordinator.h"
 
+#include "platform/window_chrome.h"
+
 #include <QQuickWindow>
-#include <windows.h>
 
 namespace span::application {
 
@@ -267,8 +268,7 @@ void WindowTransitionCoordinator::recoverFromStalledTransition()
     // While a native size/move drag runs, the OS holds the mouse capture on
     // this window. Silence with capture still held means the user paused
     // mid-gesture — keep watching rather than committing mid-drag.
-    if (m_nativeResizeActive
-        && ::GetCapture() == reinterpret_cast<HWND>(m_window->winId())) {
+    if (m_nativeResizeActive && WindowChrome::nativeMoveOrResizeHeld(m_window)) {
         m_stallWatchdog.start();
         return;
     }

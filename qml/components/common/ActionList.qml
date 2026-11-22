@@ -7,12 +7,12 @@ import SpanTui
 // The owner decides when to close; this list only presents and fires.
 //
 // Hover is one shared GlideHighlight pill that glides between rows instead
-// of a per-row fill (rows keep only their pressed fill). The pill is a solid
-// accent fill (danger for danger rows) and the row it sits on switches its
-// label to accentText/dangerText; a pressed row sinks through the shared
-// solidFill recipe (accentPressed / dangerPressed). Separator and disabled rows are not glide
-// targets — the pill stays on the last row, matching pointer-in-a-gap
-// behavior.
+// of a per-row fill (rows keep only their pressed fill). The pill is a soft
+// tint (accentOnOverlay, dangerOnOverlay for danger rows) and labels keep
+// their colour; only the muted glyphs lift to the label tone. A pressed row
+// deepens the tint (…OnOverlayPressed). Separator and disabled rows are not
+// glide targets — the pill stays on the last row, matching
+// pointer-in-a-gap behavior.
 //
 // A row whose action carries a non-empty `submenu` array shows a trailing
 // chevron; the host opens that array as a nested list (AppContextMenu).
@@ -65,8 +65,8 @@ Item {
     GlideHighlight {
         id: glide
         target: column
-        fillColor: Theme.accent
-        dangerFillColor: Theme.danger
+        fillColor: Theme.accentOnOverlay
+        dangerFillColor: Theme.dangerOnOverlay
     }
 
     Column {
@@ -99,9 +99,12 @@ Item {
                 readonly property bool glideDanger: danger
                 readonly property bool onFill: glide.currentRow === actionRow
                                                || itemMouse.pressed
-                readonly property color labelColor: onFill
-                    ? (danger ? Theme.dangerText : Theme.accentText)
-                    : (danger ? Theme.danger : Theme.text)
+                // 0 → 1 as the pill takes the row; glyph tones mix along it.
+                property real fillMix: onFill ? 1 : 0
+                Behavior on fillMix { NumberAnimation { duration: Theme.durHover } }
+                readonly property color labelColor: danger ? Theme.danger : Theme.text
+                readonly property color glyphColor:
+                    Theme.mix(danger ? Theme.danger : Theme.muted, labelColor, fillMix)
 
                 width: root.rowWidth
                 height: separator ? root.separatorHeight : Theme.sizeMd
@@ -124,8 +127,8 @@ Item {
                     anchors.fill: parent
                     devicePixelRatio: root.renderDpr
                     radius: Theme.radiusSm
-                    fillTopColor: actionRow.danger ? Theme.dangerPressed
-                                                   : Theme.accentPressed
+                    fillTopColor: actionRow.danger ? Theme.dangerOnOverlayPressed
+                                                   : Theme.accentOnOverlayPressed
                     fillMiddleColor: fillTopColor
                     fillBottomColor: fillTopColor
                     strokeEnabled: false
@@ -158,13 +161,9 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         name: actionRow.modelData.icon || ""
                         size: Theme.iconMd
-                        color: actionRow.onFill || actionRow.danger
-                               ? actionRow.labelColor : Theme.muted
+                        color: actionRow.glyphColor
                         hovered: actionRow.onFill
                         pressed: itemMouse.pressed
-                        // The pill is a solid accent/danger fill — a tinted
-                        // part would blend into it.
-                        tinted: !actionRow.onFill
                     }
 
                     UiText {
@@ -184,8 +183,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     name: "chevron-right"
                     size: Theme.iconSm
-                    color: actionRow.onFill ? actionRow.labelColor : Theme.muted
-                    tinted: !actionRow.onFill
+                    color: Theme.mix(Theme.muted, actionRow.labelColor, actionRow.fillMix)
                     opacity: (actionRow.itemEnabled ? 1 : Theme.opacityDisabled)
                              * actionRow.enter
                 }

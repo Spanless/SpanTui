@@ -18,7 +18,8 @@ Item {
     property bool running: false
     property bool focused: false
     property bool pinned: false
-    // Set by the host when its header has no room left for the readout.
+    // Set by the host when its header has no room left for the readout
+    // (measured against fitWidth, never the live width).
     property bool collapsed: false
 
     readonly property bool remote: server !== null
@@ -104,10 +105,12 @@ Item {
         spacing: Theme.spaceSm
         UiText {
             id: labelText
+            size: "sm"
             anchors.verticalCenter: parent.verticalCenter
         }
         UiText {
             id: valueText
+            size: "sm"
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(implicitWidth, metric.widest)
             onImplicitWidthChanged: metric.widest = Math.max(metric.widest, implicitWidth)
@@ -132,11 +135,32 @@ Item {
         syncConsumers()
         refreshPerf()
     }
+    // The width a host budgets for the readout: its width as last shown,
+    // held while it is hidden. A collapsed readout stops sampling and starts
+    // over at the typical widths, so its live width shrinks; a budget read
+    // off that would fit it again the moment it collapsed, and the header
+    // would flip it in and out on every polish. Until it first shows, the
+    // live width stands in (a never-shown readout has nothing to shrink).
+    // Noted on a later turn of the event loop: `shown` hangs off `collapsed`,
+    // which the host derives from this budget, so a synchronous write from
+    // inside the `shown` (or `perf`) notification would re-enter that very
+    // binding (a binding loop).
+    property real shownWidth: 0
+    readonly property real fitWidth: shownWidth > 0 ? shownWidth : implicitWidth
+    function noteFitWidth() {
+        if (shown)
+            shownWidth = implicitWidth
+    }
+    onImplicitWidthChanged: Qt.callLater(noteFitWidth)
     // A hidden readout starts over at the typical widths.
-    onShownChanged: if (!shown) {
-                        cpuMetric.widest = 0
-                        memoryMetric.widest = 0
-                    }
+    onShownChanged: {
+        if (shown) {
+            Qt.callLater(noteFitWidth)
+        } else {
+            cpuMetric.widest = 0
+            memoryMetric.widest = 0
+        }
+    }
     onServerChanged: {
         syncConsumers()
         refreshPerf()
@@ -198,7 +222,7 @@ Item {
             spacing: Theme.spaceMd
 
             Rectangle {
-                readonly property real dotSize: Theme.spaceMd
+                readonly property real dotSize: Theme.spaceSm + 2
                 anchors.verticalCenter: parent.verticalCenter
                 width: dotSize
                 height: dotSize

@@ -4,15 +4,16 @@
 
 class QString;
 
-// Process-wide crash / fatal diagnostics for the WIN32 GUI app (no console).
+// Process-wide crash / fatal diagnostics for the GUI app, which has no console.
 // Writes:
 //   <logDirectory>/crash-latest.log  — last fault only
 //   <logDirectory>/crash.log         — append history
 // and keeps a small ring of recent Qt log lines so the report has context.
 namespace crash_handler {
 
-// Call once at startup. Installs SEH / terminate / abort handlers and
-// prepares log paths. Empty = ProductPaths root.
+// Call once at startup. Installs the fault handlers (Windows SEH; POSIX
+// fatal signals on an alternate stack), std::terminate and abort handlers,
+// and prepares log paths. Empty = ProductPaths root.
 void install(const QString &logDirectory);
 
 // Feed recent diagnostics into the crash ring buffer (from the Qt message handler).

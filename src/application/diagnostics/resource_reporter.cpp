@@ -1,5 +1,6 @@
 #include "application/diagnostics/resource_reporter.h"
 
+#include "monitoring/platform_resource_sampler.h"
 #include "workspace/file_tree_model.h"
 #include "terminal/api/terminal_manager.h"
 
@@ -11,9 +12,7 @@
 #include <QThread>
 #include <QTimer>
 
-#include <windows.h>
-#include <psapi.h>
-#include <tlhelp32.h>
+#include <algorithm>
 
 namespace span::application::diagnostics {
 namespace {
@@ -63,29 +62,11 @@ void ResourceReporter::writeSnapshot() {
     snapshot.insert(QStringLiteral("windowActive"), m_window && m_window->isActive());
     snapshot.insert(QStringLiteral("windowVisible"), m_window && m_window->isVisible());
 
-    PROCESS_MEMORY_COUNTERS_EX counters{};
-    if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&counters),
-                             sizeof(counters))) {
-        snapshot.insert(QStringLiteral("privateBytes"), qint64(counters.PrivateUsage));
-        snapshot.insert(QStringLiteral("workingSetBytes"), qint64(counters.WorkingSetSize));
-    }
-    DWORD handles = 0;
-    if (GetProcessHandleCount(GetCurrentProcess(), &handles)) {
-        snapshot.insert(QStringLiteral("handles"), int(handles));
-    }
-    int threadCount = 0;
-    HANDLE threadSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-    if (threadSnapshot != INVALID_HANDLE_VALUE) {
-        THREADENTRY32 entry{};
-        entry.dwSize = sizeof(entry);
-        for (BOOL found = Thread32First(threadSnapshot, &entry); found; found = Thread32Next(threadSnapshot, &entry)) {
-            if (entry.th32OwnerProcessID == GetCurrentProcessId()) {
-                ++threadCount;
-            }
-        }
-        CloseHandle(threadSnapshot);
-    }
-    snapshot.insert(QStringLiteral("threads"), threadCount);
+    const OwnProcessCounters counters = ownProcessCounters();
+    if (counters.privateBytes >= 0) snapshot.insert(QStringLiteral("privateBytes"), counters.privateBytes);
+    if (counters.workingSetBytes >= 0) snapshot.insert(QStringLiteral("workingSetBytes"), counters.workingSetBytes);
+    if (counters.handles >= 0) snapshot.insert(QStringLiteral("handles"), counters.handles);
+    snapshot.insert(QStringLiteral("threads"), std::max(counters.threads, 0));
     m_file->write(QJsonDocument(snapshot).toJson(QJsonDocument::Compact));
     m_file->write("\n");
     m_file->flush();

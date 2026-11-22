@@ -26,9 +26,9 @@ void setToolExecutable(ExternalTool tool, const QString &path);
 // directories that usually hold it, then the search path. Empty when absent.
 QString defaultToolExecutable(ExternalTool tool);
 
-// Absolute directories of the process PATH followed by the persisted user
-// and machine PATH, so a tool installed after launch is found without a
-// restart. Relative entries are dropped: a bare program name would otherwise
+// Absolute directories of the process PATH followed by persistedSearchPath()
+// (external_tool_locations.h), so a tool installed after launch is found
+// without a restart. Relative entries are dropped: a bare program name would otherwise
 // resolve against the current directory, which is the folder being opened.
 QStringList executableSearchPath();
 

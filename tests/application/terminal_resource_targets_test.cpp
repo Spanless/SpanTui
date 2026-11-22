@@ -86,7 +86,7 @@ void TerminalResourceTargetsTest::platformSamplerMeasuresRunningSessionsOnly()
     const double shellCpu = shell.value(QStringLiteral("cpuPercent")).toDouble();
     QVERIFY(shellCpu >= 0.0 && shellCpu <= 100.0);
     QVERIFY(monitor.cpuPercent() >= 0.0 && monitor.cpuPercent() <= 100.0);
-    QVERIFY(monitor.pdhStatus() != int(ResourceSampleProvider::PdhStatus::ProviderFailed));
+    QVERIFY(monitor.gpuCounterStatus() != int(ResourceSampleProvider::GpuCounterStatus::ProviderFailed));
     // Installed RAM scales the header's memory load level.
     QVERIFY(monitor.physicalMemoryBytes() > 0);
 

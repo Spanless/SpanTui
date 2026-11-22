@@ -28,6 +28,7 @@ class WorkspaceControllerTest final : public QObject {
 private slots:
     void addingProjectDoesNotCreateSession();
     void createSessionAddsCatalogAndTerminalTile();
+    void newTerminalFollowsBoundProject();
     void closingTerminalTileWithoutTerminationKeepsSession();
     void closingTerminalTileWithTerminationRemovesSessionAndProcessOwner();
     void removeSessionClosesTileAndCatalog();
@@ -36,7 +37,7 @@ private slots:
     void removeMissingProjectDiscardsItsWork();
     void worktreePathRules();
     void showProjectManagerReusesSingleton();
-    void toggleProjectSidebarCollapsesLeft();
+    void toggleSidePanelShowsAndHidesEachSide();
     void boundTerminalProjectFollowsFocusedTerminal();
     void createProjectTileRejectsRetiredKinds();
     void openFileReusesExistingEditorTile();
@@ -116,6 +117,39 @@ void WorkspaceControllerTest::createSessionAddsCatalogAndTerminalTile()
     QCOMPARE(sessions.countForProject(project), 1);
     QCOMPARE(tileKind(layout, tileId), QStringLiteral("terminal"));
     QCOMPARE(layout.tileIdForSession(sessions.activeSessionId()), tileId);
+}
+
+void WorkspaceControllerTest::newTerminalFollowsBoundProject()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString databasePath = dir.filePath(QStringLiteral("state.db"));
+    const QString alpha = makeProject(dir, QStringLiteral("alpha"));
+    const QString beta = makeProject(dir, QStringLiteral("beta"));
+    prepareSchema(databasePath);
+
+    ProjectWorkspaceRegistry projects(databasePath);
+    WorkspaceLayout layout;
+    SessionModel sessions;
+    TerminalManager terminals;
+    WorkspaceController controller(&projects, &layout, &sessions, &terminals);
+    QSignalSpy errors(&controller, &WorkspaceController::errorOccurred);
+
+    // No project yet: nothing opens, the user is told why.
+    QVERIFY(controller.createSessionInBoundScope().isEmpty());
+    QCOMPARE(errors.count(), 1);
+
+    QVERIFY(projects.addProject(alpha));
+    QVERIFY(projects.addProject(beta));
+    const QString betaTile = controller.createSession(beta);
+    QVERIFY(controller.focusTile(betaTile));
+    QCOMPARE(controller.boundTerminalProjectPath(), beta);
+
+    const QString tileId = controller.createSessionInBoundScope();
+    QVERIFY(!tileId.isEmpty());
+    QVERIFY(tileId != betaTile);
+    QCOMPARE(sessions.countForProject(beta), 2);
+    QCOMPARE(sessions.countForProject(alpha), 0);
 }
 
 void WorkspaceControllerTest::closingTerminalTileWithoutTerminationKeepsSession()
@@ -298,12 +332,14 @@ void WorkspaceControllerTest::worktreePathRules()
     WorkspaceController controller(&projects, &layout, &sessions, &terminals);
     QVERIFY(projects.addProject(project));
 
-    const QString parent = QDir::toNativeSeparators(QFileInfo(project).path());
-    QCOMPARE(controller.suggestedWorktreeRoot(project), parent + QStringLiteral("\\worktrees"));
+    // Locations come back with native separators.
+    const QString parent = QFileInfo(project).path();
+    const auto native = [&](const QString &relative) { return QDir::toNativeSeparators(parent + relative); };
+    QCOMPARE(controller.suggestedWorktreeRoot(project), native(QStringLiteral("/worktrees")));
     QCOMPARE(controller.worktreeFolderName(QStringLiteral(" feature/login page ")),
              QStringLiteral("feature-login-page"));
-    QCOMPARE(controller.worktreeLocation(parent + QStringLiteral("\\wt"), project, QStringLiteral("feature/login")),
-             parent + QStringLiteral("\\wt\\app\\feature-login"));
+    QCOMPARE(controller.worktreeLocation(native(QStringLiteral("/wt")), project, QStringLiteral("feature/login")),
+             native(QStringLiteral("/wt/app/feature-login")));
     QCOMPARE(controller.worktreeLocation(QString(), project, QStringLiteral("x")), QString());
 
     QVERIFY(controller.worktreeNameProblem(QString()).isEmpty());
@@ -311,9 +347,9 @@ void WorkspaceControllerTest::worktreePathRules()
     QVERIFY(!controller.worktreeNameProblem(QStringLiteral("a b")).isEmpty());
 
     QVERIFY(!controller.worktreeLocationProblem(QString()).isEmpty());
-    QVERIFY(!controller.worktreeLocationProblem(QStringLiteral("relative\\path")).isEmpty());
+    QVERIFY(!controller.worktreeLocationProblem(QDir::toNativeSeparators(QStringLiteral("relative/path"))).isEmpty());
     QVERIFY(!controller.worktreeLocationProblem(occupied).isEmpty());
-    QVERIFY(controller.worktreeLocationProblem(parent + QStringLiteral("\\fresh")).isEmpty());
+    QVERIFY(controller.worktreeLocationProblem(native(QStringLiteral("/fresh"))).isEmpty());
 
     QVERIFY(!controller.worktreeRootProblem(QString()).isEmpty());
     QVERIFY(!controller.worktreeRootProblem(QStringLiteral("relative")).isEmpty());
@@ -344,7 +380,7 @@ void WorkspaceControllerTest::showProjectManagerReusesSingleton()
     QCOMPARE(tileKind(layout, first), QStringLiteral("projects"));
 }
 
-void WorkspaceControllerTest::toggleProjectSidebarCollapsesLeft()
+void WorkspaceControllerTest::toggleSidePanelShowsAndHidesEachSide()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -358,10 +394,17 @@ void WorkspaceControllerTest::toggleProjectSidebarCollapsesLeft()
     WorkspaceController controller(&projects, &layout, &sessions, &terminals);
 
     QVERIFY(!layout.leftCollapsed());
-    QVERIFY(controller.toggleProjectSidebar());
+    QVERIFY(controller.toggleSidePanel(QStringLiteral("left")));
     QVERIFY(layout.leftCollapsed());
-    QVERIFY(controller.toggleProjectSidebar());
+    QVERIFY(controller.toggleSidePanel(QStringLiteral("left")));
     QVERIFY(!layout.leftCollapsed());
+
+    QVERIFY(layout.setLeftWidth(250, 1600));
+    QVERIFY(controller.toggleSidePanel(QStringLiteral("right")));
+    QVERIFY(layout.rightShown());
+    QVERIFY(controller.toggleSidePanel(QStringLiteral("right")));
+    QVERIFY(layout.rightCollapsed());
+    QVERIFY(!controller.toggleSidePanel(QStringLiteral("bogus")));
 }
 
 void WorkspaceControllerTest::boundTerminalProjectFollowsFocusedTerminal()

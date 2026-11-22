@@ -13,6 +13,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QOperatingSystemVersion>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
@@ -174,9 +175,12 @@ void MessageCenterWiringTest::terminalProgressAndNotificationsReachTheHost()
     QVERIFY(dir.isValid());
     const QChar esc(0x1b);
     const QChar bel(0x07);
-    const QString command = QStringLiteral("cmd.exe /d /c \"echo %1]9;4;1;40%2& echo %1]9;4;2;40%2"
-                                           "& echo %1]9;4;0;0%2& echo %1]777;notify;Build;done%2\"")
-                                .arg(esc, bel);
+    const QString command = QOperatingSystemVersion::currentType() == QOperatingSystemVersion::Windows
+        ? QStringLiteral("cmd.exe /d /c \"echo %1]9;4;1;40%2& echo %1]9;4;2;40%2"
+                         "& echo %1]9;4;0;0%2& echo %1]777;notify;Build;done%2\"")
+              .arg(esc, bel)
+        : QStringLiteral("/usr/bin/printf \"%1]9;4;1;40%2%1]9;4;2;40%2%1]9;4;0;0%2%1]777;notify;Build;done%2\"")
+              .arg(esc, bel);
     span::terminal::TerminalManager terminals;
     span::application::TaskProgressService tasks;
     span::application::connectTerminalHostEvents(&terminals, &tasks);

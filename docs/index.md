@@ -47,6 +47,8 @@
 
 **Windows 平台**：[无边框窗口](services/platform/windows/window-chrome.md) · [右键菜单](services/platform/windows/explorer-integration.md) · [进程包含](services/platform/windows/process-containment.md) · [诊断与崩溃](services/platform/windows/diagnostics-crashes.md)
 
+**macOS 平台**：[实现与差异](services/platform/macos.md)
+
 **监控与更新**：[资源监控](services/monitoring/resource-monitoring.md) · [应用更新](services/update/updater.md)
 
 ## 参考与法律

@@ -1,13 +1,27 @@
-# libghostty-vt, prebuilt for x86_64-windows-gnu by tools/update-libghostty.ps1
-# (docs/legal/libghostty-vt.md). The Zig-built archive needs only the CRT and
-# ntdll. GLOBAL: the engine's tests include its header too.
+# libghostty-vt (docs/legal/libghostty-vt.md). Windows: prebuilt for
+# x86_64-windows-gnu by tools/update-libghostty.ps1 and vendored; the
+# Zig-built archive needs only the CRT and ntdll. macOS: built locally for
+# aarch64-macos from the same pinned commit and passed in as
+# SPANTUI_LIBGHOSTTY_VT_LIBRARY; the vendored headers serve both. GLOBAL: the
+# engine's tests include its header too.
 add_library(SpanGhosttyVt STATIC IMPORTED GLOBAL)
 set_target_properties(SpanGhosttyVt PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/vendor/libghostty-vt/lib/libghostty-vt.a
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/vendor/libghostty-vt/include
     INTERFACE_COMPILE_DEFINITIONS GHOSTTY_STATIC
-    INTERFACE_LINK_LIBRARIES ntdll
 )
+if(WIN32)
+    set_target_properties(SpanGhosttyVt PROPERTIES
+        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/vendor/libghostty-vt/lib/libghostty-vt.a
+        INTERFACE_LINK_LIBRARIES ntdll
+    )
+else()
+    set(SPANTUI_LIBGHOSTTY_VT_LIBRARY "" CACHE FILEPATH "libghostty-vt.a built for this platform")
+    if(NOT EXISTS "${SPANTUI_LIBGHOSTTY_VT_LIBRARY}")
+        message(FATAL_ERROR "SPANTUI_LIBGHOSTTY_VT_LIBRARY must name a libghostty-vt.a built for this platform "
+                            "(docs/legal/libghostty-vt.md); got '${SPANTUI_LIBGHOSTTY_VT_LIBRARY}'.")
+    endif()
+    set_target_properties(SpanGhosttyVt PROPERTIES IMPORTED_LOCATION "${SPANTUI_LIBGHOSTTY_VT_LIBRARY}")
+endif()
 
 add_library(SpanTerminal STATIC
     terminal_constants.h
@@ -19,12 +33,15 @@ add_library(SpanTerminal STATIC
     api/terminal_session_input.h
     api/terminal_input_transaction.h
     api/terminal_process.h
+    api/platform_terminal.h
     api/shell_catalog.h
     api/terminal_types.h
     shared/terminal_output_queue.cpp
     shared/terminal_output_queue.h
     shared/terminal_frame_store.cpp
     shared/terminal_frame_store.h
+    shared/terminal_paste.cpp
+    shared/terminal_paste.h
     core/ghostty_engine.cpp
     core/ghostty_engine.h
     core/terminal_color.cpp
@@ -37,9 +54,6 @@ add_library(SpanTerminal STATIC
     core/terminal_viewport_trace.h
     core/terminal_win32_input.cpp
     core/terminal_win32_input.h
-    platform/windows/win_conpty_process.cpp
-    platform/windows/win_conpty_process.h
-    platform/windows/win_shell_catalog.cpp
     render/terminal_font_set.cpp
     render/terminal_font_set.h
     render/terminal_glyph_atlas.cpp
@@ -78,13 +92,26 @@ add_library(SpanTerminal STATIC
 
 target_compile_definitions(SpanTerminal PRIVATE SPANTUI_VERSION="${PROJECT_VERSION}")
 
-# Bundled ConPTY (docs/legal/conpty.md). conpty.dll starts the OpenConsole.exe
-# in its own folder, so both sit next to every executable of the build tree —
-# the app and the terminal tests run the same console host as a release; the
-# package step copies them next to SpanTui.exe.
-foreach(conpty_file conpty.dll OpenConsole.exe)
-    configure_file(vendor/conpty/x64/${conpty_file} ${CMAKE_BINARY_DIR}/${conpty_file} COPYONLY)
-endforeach()
+if(WIN32)
+    target_sources(SpanTerminal PRIVATE
+        platform/windows/win_conpty_process.cpp
+        platform/windows/win_conpty_process.h
+        platform/windows/win_shell_catalog.cpp
+    )
+    # Bundled ConPTY (docs/legal/conpty.md). conpty.dll starts the
+    # OpenConsole.exe in its own folder, so both sit next to every executable
+    # of the build tree — the app and the terminal tests run the same console
+    # host as a release; the package step copies them next to SpanTui.exe.
+    foreach(conpty_file conpty.dll OpenConsole.exe)
+        configure_file(vendor/conpty/x64/${conpty_file} ${CMAKE_BINARY_DIR}/${conpty_file} COPYONLY)
+    endforeach()
+else()
+    target_sources(SpanTerminal PRIVATE
+        platform/macos/mac_pty_process.cpp
+        platform/macos/mac_pty_process.h
+        platform/macos/mac_shell_catalog.cpp
+    )
+endif()
 target_link_libraries(SpanTerminal
     PUBLIC SpanCore Qt6::Core Qt6::Gui Qt6::Quick
     # QRhi uploads only the new part of a glyph atlas texture, and Qt's

@@ -1,4 +1,4 @@
-#include "platform/windows/directory_change_watcher.h"
+#include "platform/directory_change_watcher.h"
 
 #include <QDir>
 #include <QWinEventNotifier>
@@ -25,11 +25,24 @@ struct DirectoryChangeWatcher::Impl {
     std::vector<DWORD> buffer = std::vector<DWORD>(kBufferBytes / sizeof(DWORD));
     QWinEventNotifier notifier;
     bool readPending = false;
+
+    bool startRead();
+    // The names of a finished read, or false while it is still running.
+    // `ended`: the read failed for a reason other than an overflow (the root
+    // was deleted or renamed), so the watch cannot go on.
+    bool takeCompleted(QStringList *paths, bool *ended);
 };
 
 DirectoryChangeWatcher::DirectoryChangeWatcher(QObject *parent) : QObject(parent), m_impl(std::make_unique<Impl>())
 {
-    connect(&m_impl->notifier, &QWinEventNotifier::activated, this, &DirectoryChangeWatcher::readCompleted);
+    connect(&m_impl->notifier, &QWinEventNotifier::activated, this, [this]() {
+        QStringList paths;
+        bool ended = false;
+        if (!m_impl->takeCompleted(&paths, &ended)) return;
+        // A watch that cannot go on still reports the change that ended it.
+        if (ended || !m_impl->startRead()) stop();
+        emit changed(paths);
+    });
 }
 
 DirectoryChangeWatcher::~DirectoryChangeWatcher()
@@ -53,7 +66,7 @@ bool DirectoryChangeWatcher::watch(const QString &root)
     }
     m_impl->notifier.setHandle(m_impl->event);
     m_impl->notifier.setEnabled(true);
-    if (!startRead()) {
+    if (!m_impl->startRead()) {
         stop();
         return false;
     }
@@ -86,49 +99,45 @@ bool DirectoryChangeWatcher::watching() const
     return m_impl->readPending;
 }
 
-bool DirectoryChangeWatcher::startRead()
+bool DirectoryChangeWatcher::Impl::startRead()
 {
     // Manual-reset event: clear it so the notifier does not fire again
     // before this read completes.
-    ResetEvent(m_impl->event);
-    m_impl->overlapped = {};
-    m_impl->overlapped.hEvent = m_impl->event;
-    m_impl->readPending = ReadDirectoryChangesW(m_impl->directory, m_impl->buffer.data(), kBufferBytes, TRUE,
-                                                kNotifyFilter, nullptr, &m_impl->overlapped, nullptr)
+    ResetEvent(event);
+    overlapped = {};
+    overlapped.hEvent = event;
+    readPending = ReadDirectoryChangesW(directory, buffer.data(), kBufferBytes, TRUE, kNotifyFilter, nullptr,
+                                        &overlapped, nullptr)
         != FALSE;
-    return m_impl->readPending;
+    return readPending;
 }
 
-void DirectoryChangeWatcher::readCompleted()
+bool DirectoryChangeWatcher::Impl::takeCompleted(QStringList *paths, bool *ended)
 {
-    if (!m_impl->readPending) return;
-    m_impl->readPending = false;
+    if (!readPending) return false;
+    readPending = false;
     DWORD bytes = 0;
-    const bool completed = GetOverlappedResult(m_impl->directory, &m_impl->overlapped, &bytes, FALSE) != FALSE;
+    const bool completed = GetOverlappedResult(directory, &overlapped, &bytes, FALSE) != FALSE;
     const DWORD error = completed ? ERROR_SUCCESS : GetLastError();
     if (error == ERROR_IO_INCOMPLETE) {
-        m_impl->readPending = true;
-        return;
+        readPending = true;
+        return false;
     }
 
     // Copy the names out before the next read reuses the buffer; zero bytes
     // (or ERROR_NOTIFY_ENUM_DIR) is an overflow and stays an empty list.
-    QStringList paths;
     if (completed && bytes > 0) {
-        const auto *base = reinterpret_cast<const char *>(m_impl->buffer.data());
+        const auto *base = reinterpret_cast<const char *>(buffer.data());
         for (DWORD offset = 0;;) {
             const auto *info = reinterpret_cast<const FILE_NOTIFY_INFORMATION *>(base + offset);
-            paths.append(QString::fromWCharArray(info->FileName, int(info->FileNameLength / sizeof(WCHAR)))
-                             .replace(QLatin1Char('\\'), QLatin1Char('/')));
+            paths->append(QString::fromWCharArray(info->FileName, int(info->FileNameLength / sizeof(WCHAR)))
+                              .replace(QLatin1Char('\\'), QLatin1Char('/')));
             if (info->NextEntryOffset == 0) break;
             offset += info->NextEntryOffset;
         }
     }
-
-    // A failed read other than an overflow (the root was deleted or renamed)
-    // ends the watch; the change is still reported.
-    if ((!completed && error != ERROR_NOTIFY_ENUM_DIR) || !startRead()) stop();
-    emit changed(paths);
+    *ended = !completed && error != ERROR_NOTIFY_ENUM_DIR;
+    return true;
 }
 
 } // namespace span::platform

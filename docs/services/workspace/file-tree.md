@@ -24,6 +24,6 @@
 
 ## 4. 脚本
 
-`.bat`/`.cmd`/`.ps1`：`canRunInProjectTerminal`、`projectTerminalCommand`、`runInIndependentTerminal`（见 [脚本运行](../terminal/standalone-script-launch.md)）。
+平台可运行的脚本（Windows `.bat`/`.cmd`/`.ps1`，macOS `.sh`/`.command`/`.bash`/`.zsh`）：`canRunInProjectTerminal`、`projectTerminalCommand`、`runInIndependentTerminal`（见 [脚本运行](../terminal/standalone-script-launch.md)）。
 
 测试：`file_tree_model_test`。

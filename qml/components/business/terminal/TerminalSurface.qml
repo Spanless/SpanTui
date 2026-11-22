@@ -149,15 +149,15 @@ Item {
         anchors.right: scrollGutter.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.leftMargin: Theme.spaceMd
-        anchors.bottomMargin: Theme.spaceMd
-        anchors.topMargin: Theme.spaceMd
+        anchors.leftMargin: Theme.spaceLg
+        anchors.bottomMargin: Theme.spaceMd + Theme.spaceSm
+        anchors.topMargin: Theme.spaceMd + Theme.spaceSm
         clip: true
 
         TerminalView {
             id: terminalView
             anchors.fill: parent
-            anchors.rightMargin: Theme.spaceMd
+            anchors.rightMargin: Theme.spaceLg
             visible: root.visible && root.hasActiveSession
             session: root.boundSession
             font: Appearance.terminalFont
@@ -173,6 +173,7 @@ Item {
             maximumFrameRate: TerminalSettings.refreshRate
             selectionColor: Theme.terminalSelection
             shortcutBindings: Shortcuts.terminalBindings
+            applicationBindings: Shortcuts.applicationBindings
             searchMatchColor: Theme.terminalSearchMatch
             searchCurrentColor: Theme.terminalSearchCurrent
 

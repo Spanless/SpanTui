@@ -27,7 +27,14 @@ Item {
     readonly property int layerDragPreview: 35
     readonly property int layerDropTarget: 40
     readonly property int layerDragGhost: 50
-    readonly property real islandX: leftSlot.visible ? WorkspaceLayout.leftWidth : 0
+    // A floating side (window too narrow to dock it) slides in over the
+    // canvas, above everything the canvas draws; the title bar stays above.
+    readonly property int layerOverlayCatcher: 60
+    readonly property int layerOverlay: 61
+    // The canvas share a floating side may cover.
+    readonly property real overlayMaxShare: 0.85
+    readonly property bool overlayOpen: WorkspaceLayout.leftOverlayOpen || WorkspaceLayout.rightOverlayOpen
+    readonly property real islandX: WorkspaceLayout.leftWidth
     readonly property real islandY: 0
     readonly property real rightDockWidth: WorkspaceLayout.rightWidth
     readonly property real islandW: Math.max(0, width - islandX - rightDockWidth)
@@ -65,14 +72,80 @@ Item {
         geometry: geometry
     }
 
-    Item {
+    function overlayWidth(panelWidth: real): real {
+        return Math.min(panelWidth, Math.round(root.width * root.overlayMaxShare))
+    }
+
+    // Focus moves into an opened overlay (so Esc reaches it) and back to
+    // where it was when the overlay closes.
+    readonly property string openOverlay: WorkspaceLayout.leftOverlayOpen ? "left"
+                                          : WorkspaceLayout.rightOverlayOpen ? "right" : ""
+    property Item focusBeforeOverlay: null
+    onOpenOverlayChanged: {
+        if (openOverlay.length > 0) {
+            if (!focusBeforeOverlay)
+                focusBeforeOverlay = Window.activeFocusItem
+            const slot = openOverlay === "left" ? leftSlot : rightSlot
+            slot.forceActiveFocus()
+        } else if (focusBeforeOverlay) {
+            focusBeforeOverlay.forceActiveFocus()
+            focusBeforeOverlay = null
+        }
+    }
+
+    // Under an open overlay: a press anywhere else on the canvas closes it
+    // and goes no further. The title bar is above the canvas, so its side
+    // toggles keep working as toggles.
+    MouseArea {
+        anchors.fill: parent
+        z: root.layerOverlayCatcher
+        visible: root.overlayOpen
+        acceptedButtons: Qt.AllButtons
+        onPressed: WorkspaceLayout.closeOverlays()
+        onWheel: wheel => { wheel.accepted = true }
+    }
+
+    CrispSurface {
+        z: root.layerOverlay - 1
+        x: leftSlot.x
+        y: leftSlot.y
+        width: leftSlot.width
+        height: leftSlot.height
+        visible: leftSlot.floating && leftSlot.visible
+        elevation: "floating"
+        fillTopColor: Theme.surfaceBase
+        strokeEnabled: false
+    }
+    CrispSurface {
+        z: root.layerOverlay - 1
+        x: rightSlot.x
+        y: rightSlot.y
+        width: rightSlot.width
+        height: rightSlot.height
+        visible: rightSlot.floating && rightSlot.visible
+        elevation: "floating"
+        fillTopColor: Theme.surfaceBase
+        strokeEnabled: false
+    }
+
+    // Docked, a side is a column of the canvas; floating, the same item
+    // (and the same tiles in it) slides in from its edge as an overlay.
+    FocusScope {
         id: leftSlot
-        x: 0
+        readonly property bool floating: WorkspaceLayout.leftFloating
+        readonly property bool open: WorkspaceLayout.leftOverlayOpen
+        x: floating && !open ? -width : 0
         y: root.islandY
-        z: root.layerSlot
-        width: WorkspaceLayout.leftWidth
+        z: floating ? root.layerOverlay : root.layerSlot
+        width: floating ? root.overlayWidth(WorkspaceLayout.leftPanelWidth) : WorkspaceLayout.leftWidth
         height: root.islandH
-        visible: width > 0
+        visible: floating ? open || slideIn.running : width > 0
+        Keys.onEscapePressed: WorkspaceLayout.closeOverlays()
+
+        Behavior on x {
+            enabled: leftSlot.floating && root.interactionAnimationsEnabled
+            NumberAnimation { id: slideIn; duration: Theme.durMid; easing.type: Easing.OutCubic }
+        }
 
         Repeater {
             model: WorkspaceLayout
@@ -180,14 +253,22 @@ Item {
         }
     }
 
-    Item {
+    FocusScope {
         id: rightSlot
-        x: root.width - width
+        readonly property bool floating: WorkspaceLayout.rightFloating
+        readonly property bool open: WorkspaceLayout.rightOverlayOpen
+        x: floating && !open ? root.width : root.width - width
         y: root.islandY
-        z: root.layerSlot
-        width: WorkspaceLayout.rightWidth
+        z: floating ? root.layerOverlay : root.layerSlot
+        width: floating ? root.overlayWidth(WorkspaceLayout.rightPanelWidth) : WorkspaceLayout.rightWidth
         height: root.islandH
-        visible: width > 0
+        visible: floating ? open || slideInRight.running : width > 0
+        Keys.onEscapePressed: WorkspaceLayout.closeOverlays()
+
+        Behavior on x {
+            enabled: rightSlot.floating && root.interactionAnimationsEnabled
+            NumberAnimation { id: slideInRight; duration: Theme.durMid; easing.type: Easing.OutCubic }
+        }
 
         RightDock {
             anchors.fill: parent
@@ -201,7 +282,7 @@ Item {
         width: Theme.handleW
         height: root.islandH
         z: root.layerEdgeHandle
-        visible: leftSlot.visible
+        visible: WorkspaceLayout.leftWidth > 0
         railEndInset: 6
         edge: "right"
         interactionAnimationsEnabled: root.interactionAnimationsEnabled
@@ -216,7 +297,7 @@ Item {
         width: Theme.handleW
         height: root.islandH
         z: root.layerEdgeHandle
-        visible: rightSlot.visible
+        visible: WorkspaceLayout.rightWidth > 0
         railEndInset: 6
         edge: "left"
         interactionAnimationsEnabled: root.interactionAnimationsEnabled
@@ -232,7 +313,7 @@ Item {
         z: root.layerEdgeHandle - 1
         visible: WorkspaceLayout.leftCollapsed
         cursorShape: Qt.PointingHandCursor
-        onClicked: WorkspaceLayout.setSideCollapsed("left", false)
+        onClicked: WorkspaceController.toggleSidePanel("left")
     }
 
     // Edge seam preview (left / right side drags), canvas-local.
@@ -247,16 +328,9 @@ Item {
         lineColor: Theme.accent
     }
 
-    // Window-edge rails: the grid owns the top and left perimeter seams;
-    // tiles own the interior plus right/bottom edges through their own
-    // right/bottom hairlines.
-    PixelLine {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        z: root.layerPerimeter
-        lineColor: Theme.border
-    }
+    // Window-edge rail: the grid owns the left perimeter seam; tiles and the
+    // right dock own interior plus right/bottom seams, and each zone's top
+    // header owns the aligned horizontal hairline under the shared top band.
     PixelLine {
         anchors.left: parent.left
         anchors.top: parent.top

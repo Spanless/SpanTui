@@ -1,4 +1,4 @@
-#include "platform/windows/process_containment.h"
+#include "platform/process_containment.h"
 
 #include <QCoreApplication>
 #include <QDir>

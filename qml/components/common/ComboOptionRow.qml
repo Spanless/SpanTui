@@ -3,10 +3,10 @@ import QtQuick.Controls
 import SpanTui
 
 // One option row of an AppComboBox popup. Hover runs through the list's
-// glide pill (a solid accent fill); the row paints only press /
-// keyboard-highlight fills itself, in the same accent. `onFill` marks the
-// row under any of them: its label turns accentText and the FadeText
-// dissolves into the accent. The committed value carries a leading check
+// glide pill (a soft accentOnOverlay tint); the row paints only press /
+// keyboard-highlight fills itself, in the same tint. `onFill` marks the row
+// under any of them: labels keep their colour and the FadeText dissolves
+// into the tint. The committed value carries a leading check
 // mark (`current`) — the highlight only tracks pointer/keyboard position,
 // so it never doubles as the current-value marker. Extra
 // content (e.g. a font sample) goes into the trailing cell, sized by
@@ -32,6 +32,10 @@ ItemDelegate {
                                    || (glideManaged
                                        ? ListView.view.glideContext.currentRow === row
                                        : hovered)
+    // 0 → 1 as the row takes the tint; the fade edge and trailing glyph
+    // tones mix along it.
+    property real fillMix: onFill ? 1 : 0
+    Behavior on fillMix { NumberAnimation { duration: Theme.durHover } }
 
     width: combo.listWidth
     height: Theme.sizeMd
@@ -53,7 +57,7 @@ ItemDelegate {
             anchors.verticalCenter: parent.verticalCenter
             name: "check"
             size: Theme.iconSm
-            color: row.onFill ? Theme.accentText : Theme.text
+            color: Theme.text
             opacity: row.current ? 1 : 0
         }
 
@@ -81,10 +85,9 @@ ItemDelegate {
             anchors.rightMargin: Theme.spaceMd
             text: row.combo.itemTextForIndex(row.index, row.modelData)
             size: "md"
-            color: row.onFill ? Theme.accentText : Theme.text
-            fadeColor: row.down ? Theme.accentPressed
-                       : row.onFill ? Theme.accent
-                       : Theme.overlaySurface
+            color: Theme.text
+            fadeColor: row.down ? Theme.accentOnOverlayPressed
+                       : Theme.mix(Theme.overlaySurface, Theme.accentOnOverlay, row.fillMix)
         }
 
         Item {
@@ -103,7 +106,7 @@ ItemDelegate {
         devicePixelRatio: row.combo.renderDpr
         radius: Theme.radiusSm
         fillEnabled: row.down || (row.hovered && !row.glideManaged) || row.keyHighlighted
-        fillTopColor: row.down ? Theme.accentPressed : Theme.accent
+        fillTopColor: row.down ? Theme.accentOnOverlayPressed : Theme.accentOnOverlay
         fillMiddleColor: fillTopColor
         fillBottomColor: fillTopColor
         strokeEnabled: false

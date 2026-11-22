@@ -5,7 +5,6 @@
 
 #include <atomic>
 #include <memory>
-#include <thread>
 
 class QQuickWindow;
 class ResourceMonitor;
@@ -58,7 +57,6 @@ private:
 
     QQuickWindow *m_window = nullptr;
     QTimer m_heartbeatTimer;
-    std::thread m_watchdog;
     std::shared_ptr<Snapshot> m_snapshot;
     std::atomic_bool m_started{false};
 };

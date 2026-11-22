@@ -13,6 +13,9 @@ ApplicationWindow {
     minimumWidth: 980  // style-ok: window default geometry
     minimumHeight: 640  // style-ok: window default geometry
     flags: Qt.Window | Qt.FramelessWindowHint
+    // The title band is drawn under the system title bar (macOS traffic
+    // lights), so the content is not inset by its safe area.
+    topPadding: 0
     visible: false
     title: Qt.application.displayName || qsTr("SpanTui")
     // Solid workspace paper. Panels and panes sit flush on it and carry the
@@ -21,6 +24,9 @@ ApplicationWindow {
     font: Appearance.uiFont(Appearance.uiFontSize, Appearance.fontRevision)
 
     readonly property real renderDpr: PixelGrid.safeDpr(Screen.devicePixelRatio)
+    readonly property real topBarHeight: titleBar.height
+    readonly property real topLeftInset: sideToggles.leftDocked ? 0 : (sideToggles.x + sideToggles.width)
+    readonly property real topRightInset: windowControls.visible ? (windowControls.width + Theme.spaceMd) : 0
     readonly property bool interactionAnimationsEnabled:
         window.visible && window.active && !Appearance.reduceMotion
         && !(WindowTransition && WindowTransition.active)
@@ -129,6 +135,25 @@ ApplicationWindow {
     }
 
 
+    // The window's commands: the system menu bar runs them where there is one
+    // (macOS), window shortcuts elsewhere — never both, so a chord runs once.
+    AppCommands {
+        id: appCommands
+        window: window
+    }
+    Loader {
+        active: Shortcuts.nativeMenuBar
+        sourceComponent: MacMenuBar {
+            commands: appCommands
+        }
+    }
+    Loader {
+        active: !Shortcuts.nativeMenuBar
+        sourceComponent: AppShortcuts {
+            commands: appCommands
+        }
+    }
+
     FolderDialog {
         id: projectFolderDialog
         title: qsTr("Choose a project folder")
@@ -157,8 +182,7 @@ ApplicationWindow {
         syncTheme()
         syncAnimationPolicy()
         WindowChrome.setTitleBarHeight(titleBar.height)
-        WindowChrome.addInteractiveItem(leftSidebarButton)
-        WindowChrome.addInteractiveItem(rightSidebarButton)
+        WindowChrome.addInteractiveItem(sideToggles)
     }
 
     Item {
@@ -167,40 +191,38 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: PixelGrid.snapSize(Theme.titlebarH, window.renderDpr)
+        // Transparent chrome overlay on top of the workspace's top header band
+        // (y = 0..topBarHeight). Holds window-anchored controls (macOS traffic
+        // lights via the system, SidebarToggles, and Windows WindowControls)
+        // while Sidebar, top-row center tiles and RightDock share one aligned
+        // header row directly below.
+        readonly property rect captionRect: WindowChrome.captionButtonsRect
+        readonly property bool hasSystemCaption: captionRect.width > 0
+        readonly property bool captionShown: hasSystemCaption && window.visibility !== Window.FullScreen
+        height: PixelGrid.snapSize(
+            Math.max(Theme.paneHeaderH,
+                     hasSystemCaption ? 2 * (captionRect.y + captionRect.height / 2)
+                                      : Theme.titlebarH),
+            window.renderDpr)
 
         onHeightChanged: WindowChrome.setTitleBarHeight(height)
 
-
-        Row {
+        SidebarToggles {
             id: sideToggles
-            anchors.left: parent.left
-            anchors.leftMargin: Theme.spaceMd
+            readonly property real captionEnd: titleBar.captionShown
+                ? titleBar.captionRect.x + titleBar.captionRect.width : 0
+            readonly property real minX: captionEnd > 0 ? captionEnd + Theme.spaceMd : Theme.spaceMd
+            readonly property bool leftDocked: WorkspaceLayout.leftWidth > 0 && !WorkspaceLayout.leftFloating
+            x: leftDocked
+               ? Math.max(minX, WorkspaceLayout.leftWidth - width - Theme.spaceMd)
+               : minX
             anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.spaceSm
-            height: Theme.sizeMd
-
-            ChromeButton {
-                id: leftSidebarButton
-                size: "md"
-                kind: WorkspaceLayout.leftCollapsed ? "ghost" : "selected"
-                iconName: "panel-left"
-                tip: qsTr("Toggle project sidebar")
-                onClicked: WorkspaceController.toggleProjectSidebar()
-            }
-            ChromeButton {
-                id: rightSidebarButton
-                size: "md"
-                kind: WorkspaceLayout.rightCollapsed ? "ghost" : "selected"
-                iconName: "panel-right"
-                tip: qsTr("Toggle side panel")
-                onClicked: WorkspaceLayout.setSideCollapsed(
-                    "right", !WorkspaceLayout.rightCollapsed)
-            }
+            size: titleBar.height >= Theme.sizeMd ? "md" : "sm"
         }
 
         WindowControls {
             id: windowControls
+            visible: !WindowChrome.systemCaptionButtons
             anchors.right: parent.right
             anchors.rightMargin: Theme.spaceMd
             anchors.verticalCenter: parent.verticalCenter
@@ -211,7 +233,7 @@ ApplicationWindow {
         id: workspaceCanvas
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: titleBar.bottom
+        anchors.top: parent.top
         anchors.bottom: parent.bottom
         z: Theme.zWorkspace
         interactionAnimationsEnabled: window.interactionAnimationsEnabled

@@ -8,12 +8,12 @@
 #include "application/runtime/terminal_application.h"
 #include "application/runtime/workspace_application.h"
 #include "platform/diagnostics/launch_logging.h"
-#include "platform/windows/crash_handler.h"
-#include "platform/windows/native_dialog.h"
-#include "platform/windows/process_containment.h"
+#include "platform/crash_handler.h"
+#include "platform/native_dialog.h"
+#include "platform/process_containment.h"
 #include "remote/ssh_askpass.h"
 #include "terminal/core/terminal_viewport_trace.h"
-#include "terminal/platform/windows/win_conpty_process.h"
+#include "terminal/api/platform_terminal.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 {
     // SSH_ASKPASS helper: answered before any GUI, logging or data-root setup.
     if (span::remote::isAskpassInvocation(argc)) {
-        return span::remote::runAskpassClient();
+        return span::remote::runAskpassClient(argc, argv);
     }
 
     span::application::GuiApplication app(argc, argv);
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
         return 2;
     }
     span::core::ProductPaths::setRootOverride(launchOptions.dataDir);
-    span::terminal::WinConPtyProcess::setPreferSystemConPty(internalOptions.systemConPty);
+    span::terminal::setPreferSystemConsoleHost(internalOptions.systemConPty);
     if (internalOptions.traceViewport) {
         span::terminal::TerminalViewportTrace::setEnabled(*internalOptions.traceViewport);
     }

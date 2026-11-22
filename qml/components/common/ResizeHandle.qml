@@ -48,6 +48,7 @@ Item {
         visible: root.railVisible
         color: root.dragging ? root.dragColor
                : root.engaged ? root.hoverColor : root.restColor
+        Behavior on color { ColorAnimation { duration: Theme.durHover } }
         antialiasing: false
         x: root.verticalBar ? root.railAlong : root.railEndInset
         y: root.verticalBar ? root.railEndInset : root.railAlong

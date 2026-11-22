@@ -1,4 +1,4 @@
-#include "platform/windows/process_containment.h"
+#include "platform/process_containment.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN

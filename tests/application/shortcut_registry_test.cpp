@@ -1,5 +1,6 @@
 #include "application/preferences.h"
 #include "application/shortcut_registry.h"
+#include "platform/keyboard_conventions.h"
 
 #include <QSignalSpy>
 #include <QSqlDatabase>
@@ -15,6 +16,7 @@ class ShortcutRegistryTest final : public QObject {
 
 private slots:
     void exposesDefaults();
+    void defaultsFollowHostConvention();
     void matchesKeyEvents();
     void persistsOverridesAcrossRestart();
     void sharesChordsBetweenActions();
@@ -26,6 +28,13 @@ private slots:
 };
 
 namespace {
+
+// The host's default: a Command chord where a Command key exists, the
+// Ctrl+Shift chord where plain Ctrl belongs to the shell.
+QString hostDefault(const char *command, const char *ctrlShift)
+{
+    return QString::fromLatin1(span::platform::hasCommandKey() ? command : ctrlShift);
+}
 
 bool openAt(Preferences &preferences, const QString &databasePath)
 {
@@ -83,7 +92,7 @@ void ShortcutRegistryTest::exposesDefaults()
     QVERIFY(openAt(state, dir.filePath(QStringLiteral("state.db"))));
     ShortcutRegistry registry(&state.workspace);
 
-    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), QStringLiteral("Ctrl+Shift+F"));
+    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), hostDefault("Ctrl+F", "Ctrl+Shift+F"));
     QCOMPARE(registry.sequence(QStringLiteral("editor.find")), QStringLiteral("Ctrl+F"));
     QCOMPARE(registry.sequence(QStringLiteral("no.such.action")), QString());
     QCOMPARE(registry.catalog().size(), ShortcutRegistry::actions().size());
@@ -92,8 +101,37 @@ void ShortcutRegistryTest::exposesDefaults()
     QCOMPARE(find.value(QStringLiteral("customized")).toBool(), false);
 
     const QVariantMap terminal = registry.terminalBindings();
-    QCOMPARE(terminal.value(QStringLiteral("terminal.copy")).toString(), QStringLiteral("Ctrl+Shift+C"));
+    QCOMPARE(terminal.value(QStringLiteral("terminal.copy")).toString(), hostDefault("Ctrl+C", "Ctrl+Shift+C"));
     QVERIFY(!terminal.contains(QStringLiteral("editor.find")));
+}
+
+void ShortcutRegistryTest::defaultsFollowHostConvention()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    Preferences state;
+    QVERIFY(openAt(state, dir.filePath(QStringLiteral("state.db"))));
+    ShortcutRegistry registry(&state.workspace);
+
+    QCOMPARE(registry.nativeMenuBar(), span::platform::hasCommandKey());
+    QCOMPARE(registry.sequence(QStringLiteral("terminal.paste")), hostDefault("Ctrl+V", "Ctrl+Shift+V"));
+    QCOMPARE(registry.sequence(QStringLiteral("app.closeTile")), hostDefault("Ctrl+W", "Ctrl+Shift+W"));
+    QCOMPARE(registry.sequence(QStringLiteral("app.fullScreen")), hostDefault("Meta+Ctrl+F", "F11"));
+    QCOMPARE(registry.defaultSequence(QStringLiteral("app.newTerminal")), hostDefault("Ctrl+T", "Ctrl+Shift+T"));
+    QCOMPARE(entry(registry, QStringLiteral("app.settings")).value(QStringLiteral("scope")).toString(),
+             QStringLiteral("global"));
+
+    const QVariantMap application = registry.applicationBindings();
+    QCOMPARE(application.value(QStringLiteral("app.openFolder")).toString(), hostDefault("Ctrl+O", "Ctrl+Shift+O"));
+    QVERIFY(!application.contains(QStringLiteral("terminal.copy")));
+    QVERIFY(!registry.terminalBindings().contains(QStringLiteral("app.closeTile")));
+
+    // A custom binding outlives the convention's default.
+    QVERIFY(registry.setBinding(QStringLiteral("app.closeTile"), QStringLiteral("Alt+F4"))
+                .value(QStringLiteral("ok"))
+                .toBool());
+    QCOMPARE(registry.applicationBindings().value(QStringLiteral("app.closeTile")).toString(),
+             QStringLiteral("Alt+F4"));
 }
 
 void ShortcutRegistryTest::matchesKeyEvents()
@@ -104,9 +142,10 @@ void ShortcutRegistryTest::matchesKeyEvents()
     QVERIFY(openAt(state, dir.filePath(QStringLiteral("state.db"))));
     ShortcutRegistry registry(&state.workspace);
 
-    const int ctrlShift = int(Qt::ControlModifier | Qt::ShiftModifier);
-    QVERIFY(registry.matches(QStringLiteral("terminal.find"), Qt::Key_F, ctrlShift));
-    QVERIFY(!registry.matches(QStringLiteral("terminal.find"), Qt::Key_F, int(Qt::ControlModifier)));
+    QVERIFY(registry.matches(QStringLiteral("terminal.previousPrompt"), Qt::Key_Up,
+                             int(span::platform::hasCommandKey() ? Qt::KeyboardModifiers(Qt::ControlModifier)
+                                                                 : Qt::ControlModifier | Qt::ShiftModifier)));
+    QVERIFY(!registry.matches(QStringLiteral("terminal.previousPrompt"), Qt::Key_Up, int(Qt::AltModifier)));
     // Keypad state is not part of a chord.
     QVERIFY(registry.matches(QStringLiteral("editor.find"), Qt::Key_F,
                              int(Qt::ControlModifier | Qt::KeypadModifier)));
@@ -151,11 +190,10 @@ void ShortcutRegistryTest::sharesChordsBetweenActions()
     };
 
     // One chord may carry several actions; the terminal runs each that applies.
-    QVERIFY(registry.setBinding(QStringLiteral("terminal.find"), QStringLiteral("Ctrl+Shift+C"))
-                .value(QStringLiteral("ok")).toBool());
-    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), QStringLiteral("Ctrl+Shift+C"));
-    QCOMPARE(registry.terminalBindings().value(QStringLiteral("terminal.find")).toString(),
-             QStringLiteral("Ctrl+Shift+C"));
+    const QString copy = registry.sequence(QStringLiteral("terminal.copy"));
+    QVERIFY(registry.setBinding(QStringLiteral("terminal.find"), copy).value(QStringLiteral("ok")).toBool());
+    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), copy);
+    QCOMPARE(registry.terminalBindings().value(QStringLiteral("terminal.find")).toString(), copy);
     QCOMPARE(sharedWith(QStringLiteral("terminal.find")), QStringList{QStringLiteral("terminal.copy")});
     QCOMPARE(sharedWith(QStringLiteral("terminal.copy")), QStringList{QStringLiteral("terminal.find")});
 
@@ -216,7 +254,7 @@ void ShortcutRegistryTest::resetsSingleAndAllBindings()
     QVERIFY(registry.setBinding(QStringLiteral("editor.find"), QStringLiteral("F4"))
                 .value(QStringLiteral("ok")).toBool());
     registry.resetBinding(QStringLiteral("terminal.find"));
-    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), QStringLiteral("Ctrl+Shift+F"));
+    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), hostDefault("Ctrl+F", "Ctrl+Shift+F"));
     QCOMPARE(registry.sequence(QStringLiteral("editor.find")), QStringLiteral("F4"));
     registry.resetAll();
     QCOMPARE(registry.sequence(QStringLiteral("editor.find")), QStringLiteral("Ctrl+F"));
@@ -242,7 +280,7 @@ void ShortcutRegistryTest::ignoresCorruptStoredBindings()
     Preferences state;
     QVERIFY(openAt(state, path));
     ShortcutRegistry registry(&state.workspace);
-    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), QStringLiteral("Ctrl+Shift+F"));
+    QCOMPARE(registry.sequence(QStringLiteral("terminal.find")), hostDefault("Ctrl+F", "Ctrl+Shift+F"));
     QCOMPARE(registry.sequence(QStringLiteral("editor.find")), QStringLiteral("Ctrl+F"));
 }
 

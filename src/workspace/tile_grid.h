@@ -42,7 +42,15 @@ bool vacateColumn(QVector<Tile> &tiles, QVector<int> &widths, QVector<qreal> &ra
 // New columns (width <= 0) take the mean of the existing ones, or
 // `fallback` when none exist.
 void fillNewColumnWidths(QVector<int> &widths, int fallback);
-// Scales `weights` to `available` pixels, honouring per-column minimums.
+// Opens an empty column at `at` (an index into the columns after the
+// insertion). Beside an existing column `splitFrom` (an index before the
+// insertion) it takes half that column's width, so the two share its space
+// evenly and every other column keeps its width; without one (-1) its width
+// is left for fillNewColumnWidths.
+void openColumn(QVector<int> &widths, QVector<qreal> &ratios, int at, int splitFrom);
+// Scales `weights` to `available` pixels, honouring per-column minimums;
+// with less room than the minimums add up to, the columns share it in the
+// ratio of their minimums.
 QVector<int> distributeWidths(const QVector<int> &weights, const QVector<Tile> &tiles, int available);
 // Sizes `widths` to the grid's columns, then distributes `available`.
 void reconcileWidths(QVector<int> &widths, const QVector<Tile> &tiles, int available);

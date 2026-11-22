@@ -9,7 +9,8 @@ namespace span::core {
 // under root(). The root is, first match wins:
 //   1. the --data-dir <path> override (dev runs, smoke, packaging probes);
 //   2. <exe dir>\data when portable.txt sits next to the executable;
-//   3. %LOCALAPPDATA%\SpanTui, from the LOCALAPPDATA environment variable.
+//   3. <userDataParentDirectory()>/SpanTui: %LOCALAPPDATA%\SpanTui on
+//      Windows, ~/Library/Application Support/SpanTui on macOS.
 // QStandardPaths and Qt test mode are not consulted.
 class ProductPaths final {
 public:
@@ -21,10 +22,10 @@ public:
     static QString portableDataDirName() { return QStringLiteral("data"); }
 
     // Pure resolution used by root(); exposed for tests.
-    static QString resolveRoot(const QString &overridePath, const QString &applicationDir, const QString &localAppData);
+    static QString resolveRoot(const QString &overridePath, const QString &applicationDir, const QString &dataParent);
 
-    // Moves %APPDATA%\Span\SpanTui to a default root() that does not exist
-    // yet. Call before anything writes there; returns a warning or empty.
+    // Moves the older builds' root (%APPDATA%\Span\SpanTui on Windows; none
+    // elsewhere) to a default root() that does not exist yet. Call before anything writes there; returns a warning or empty.
     static QString moveLegacyDefaultRoot();
     // Pure move used by moveLegacyDefaultRoot(); exposed for tests. Also
     // removes the legacy folder's parent when it is left empty.
@@ -58,6 +59,11 @@ public:
     {
         return QDir(root()).filePath(QStringLiteral("last-launch.log"));
     }
+
+    // Owner-only key that encrypts saved secrets where the operating system
+    // has no per-user secret store usable without code signing (macOS;
+    // Windows uses DPAPI and never creates it).
+    static QString credentialKeyPath() { return QDir(root()).filePath(QStringLiteral("credential.key")); }
 
     static QString crashLogDirectory() { return root(); }
     // Logs of helper processes (the update installer) live under root()/logs.

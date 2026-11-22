@@ -34,7 +34,7 @@ ColumnLayout {
         glideHover: true
         glideInsetX: 0
         glideInsetY: 0
-        glideFillColor: Theme.accent
+        glideFillColor: Theme.accentOnOverlay
     }
 
     UiText {

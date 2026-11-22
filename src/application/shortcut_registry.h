@@ -18,6 +18,12 @@ class ShortcutRegistry final : public QObject {
     // id -> portable sequence for the terminal scope, consumed by TerminalView
     // (the terminal library cannot depend on this layer).
     Q_PROPERTY(QVariantMap terminalBindings READ terminalBindings NOTIFY bindingsChanged FINAL)
+    // id -> portable sequence of the application (global) actions. A focused
+    // terminal leaves these chords to the application.
+    Q_PROPERTY(QVariantMap applicationBindings READ applicationBindings NOTIFY bindingsChanged FINAL)
+    // The system menu bar runs the application actions through its key
+    // equivalents (macOS); elsewhere window shortcuts do.
+    Q_PROPERTY(bool nativeMenuBar READ nativeMenuBar CONSTANT FINAL)
     // Bumped on every change so QML bindings that call sequence()/matches()
     // can depend on it.
     Q_PROPERTY(int revision READ revision NOTIFY bindingsChanged FINAL)
@@ -25,11 +31,14 @@ class ShortcutRegistry final : public QObject {
 public:
     enum class Scope { Global, Terminal, Editor, GitLog };
 
+    // Two defaults: where Ctrl chords belong to the shell, and where a
+    // Command key exists (portable "Ctrl" is Command there).
     struct Action {
         const char *id;
         const char *group;
         Scope scope;
-        const char *defaultSequence;
+        const char *ctrlDefault;
+        const char *commandDefault;
     };
 
     explicit ShortcutRegistry(WorkspaceSettings *state, QObject *parent = nullptr);
@@ -56,6 +65,8 @@ public:
     Q_INVOKABLE QString sequenceFromKey(int key, int modifiers) const;
 
     QVariantMap terminalBindings() const;
+    QVariantMap applicationBindings() const;
+    bool nativeMenuBar() const;
     int revision() const { return m_revision; }
 
     // Single-chord sequence a binding may use: Ctrl or Alt held, or F1-F24.
@@ -66,6 +77,8 @@ signals:
 
 private:
     static const Action *find(const QString &id);
+    static QKeySequence defaultOf(const Action &action);
+    QVariantMap bindingsIn(Scope scope) const;
     QKeySequence effective(const Action &action) const;
     static bool scopesOverlap(Scope left, Scope right);
 

@@ -25,7 +25,7 @@
 
 ## 3. 凭据与提示桥
 
-1. **加密**：密码、私钥密码以 DPAPI（当前用户 + 固定熵）加密存 `remote_hosts.password`/`key_passphrase`（`src/platform/windows/credential_protection.*`）。明文不返回 QML，`hostDetails()` 只给 `hasPassword`/`hasKeyPassphrase`。
+1. **加密**：密码、私钥密码以 DPAPI（当前用户 + 固定熵）加密存 `remote_hosts.password`/`key_passphrase`（`src/platform/credential_protection.h`；macOS 为密钥文件，见 [macOS 平台](../platform/macos.md#3-凭据保护的局限)）。明文不返回 QML，`hostDetails()` 只给 `hasPassword`/`hasKeyPassphrase`。
 2. **askpass**：ssh/sftp 进程带 `SSH_ASKPASS=<本程序>`、`SSH_ASKPASS_REQUIRE=force`、管道名与按主机签发的令牌。`main()` 首行识别该调用，经仅当前用户可访问的管道把提示交给 broker，答复写 stdout 后退出，不启动 GUI。未知令牌一律拒绝。
 3. **自动作答**（`RemoteHostRegistry::handlePrompt`）——保存的秘密只回答确认属于本主机登录的提示：
    - **进程归属**（`isLaunchedSsh`）：发问的 ssh 须由本程序直接启动，或是本程序启动的 sftp 的子进程。ProxyJump 跳板继承了 askpass 环境但低一层，必须排除；提示文字本身不含端口，无法区分。

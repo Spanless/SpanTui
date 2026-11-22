@@ -1,4 +1,6 @@
-#include "platform/windows/open_with_handlers.h"
+#include "platform/open_with_handlers.h"
+
+#include "platform/process_containment.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -92,6 +94,13 @@ QString fileExplorerExecutable()
 {
     const QString windows = windowsDirectory();
     return windows.isEmpty() ? QString() : windows + QStringLiteral("/explorer.exe");
+}
+
+bool openFolderWith(const QString &executable, const QString &folder, QString *error)
+{
+    // Leaves the application job: closing SpanTui must not close the editor.
+    const QString directory = QDir::toNativeSeparators(folder);
+    return process::startUnaffiliatedProcess(QDir::toNativeSeparators(executable), {directory}, directory, error) != 0;
 }
 
 } // namespace span::platform

@@ -19,7 +19,7 @@ Qt Quick 用 Direct3D 11；硬件设备或交换链创建失败时 Qt 自行改�
 - **启动中途崩溃**（多为驱动）：加载主界面前写 `<root>\<镜像名>.graphics-start`，首帧或正常退出时删除。下次启动发现标记时，`GraphicsModeService` 本次改用软件渲染并把 `renderMode` 立即存为 `software`，主界面出现后在消息中心提示可改回。无窗口、视觉夹具与独立终端模式不读写标记。
 - **用户选择**：`renderMode`（`auto`/`software`）与 `--safe-graphics`（仅本次）。软件渲染经 `QSG_RHI_PREFER_SOFTWARE_RENDERER=1` 在首个窗口前设定，进程内固定。不用 Qt 的 `software` 场景图后端：终端在其上只能 CPU 逐行光栅化，而 WARP 与硬件走同一着色器路径。
 
-首帧后启动日志记录实际渲染器（`Graphics: Direct3D 11 on <适配器> (hardware|software)`）。
+首帧后启动日志记录实际渲染器（`Graphics: Direct3D 11 on <适配器> (hardware|software)`）。适配器经 `platform/graphics_adapter.h` 读取：Windows 为 Direct3D 11 背后的 DXGI 适配器（WARP 记为 software），macOS 为 Metal 的 `MTLDevice`；读不到时写 `an unknown adapter`。
 
 ## 2. 单实例路由
 

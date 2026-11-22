@@ -20,6 +20,12 @@
       "checks": ["dev.bat run --smoke"]
     },
     {
+      "name": "qml-app",
+      "paths": ["qml/components/business/app/*"],
+      "docs": ["docs/services/application/settings-appearance.md", "docs/services/platform/macos.md"],
+      "checks": ["dev.bat run --smoke"]
+    },
+    {
       "name": "qml-git",
       "paths": ["qml/components/business/git/*"],
       "docs": ["docs/services/git/reads-history-diff.md"],
@@ -111,13 +117,13 @@
     },
     {
       "name": "terminal-input",
-      "paths": ["src/terminal/core/terminal_win32_input.*", "src/terminal/render/terminal_view.*", "src/terminal/render/terminal_scroll_model.*", "src/terminal/render/terminal_input_routing.*", "src/terminal/render/terminal_ime_*"],
+      "paths": ["src/terminal/core/terminal_win32_input.*", "src/terminal/render/terminal_view.*", "src/terminal/render/terminal_view_input.cpp", "src/terminal/shared/terminal_paste.*", "src/terminal/render/terminal_scroll_model.*", "src/terminal/render/terminal_input_routing.*", "src/terminal/render/terminal_ime_*"],
       "docs": ["docs/services/terminal/input-protocols.md"],
       "checks": ["dev.bat test -R terminal"]
     },
     {
       "name": "remote",
-      "paths": ["src/remote/*", "src/platform/windows/credential_protection.*", "qml/components/business/remote/*"],
+      "paths": ["src/remote/*", "src/platform/credential_protection.h", "src/platform/*/credential_protection.*", "qml/components/business/remote/*"],
       "docs": ["docs/services/remote/ssh-remote.md"],
       "checks": ["dev.bat test -R ssh_ -R remote_", "tools/check-translations.ps1"]
     },
@@ -134,10 +140,16 @@
       "checks": ["dev.bat test -R migration -R settings_test"]
     },
     {
+      "name": "platform-macos",
+      "paths": ["src/*/macos/*", "src/terminal/platform/macos/*", "tests/terminal/mac_pty_process_test.cpp"],
+      "docs": ["docs/services/platform/macos.md"],
+      "checks": ["dev test -R mac_pty -R single_instance -R terminal_input_routing (macOS)"]
+    },
+    {
       "name": "platform",
       "paths": ["src/platform/*"],
-      "docs": ["docs/architecture/security-boundaries.md", "docs/architecture/process-lifecycle.md"],
-      "checks": ["dev.bat test -R process_containment -R window_chrome -R shell_extension"]
+      "docs": ["docs/architecture/security-boundaries.md", "docs/architecture/process-lifecycle.md", "docs/services/platform/macos.md"],
+      "checks": ["dev.bat test -R process_containment -R window_chrome -R shell_extension -R single_instance"]
     },
     {
       "name": "monitoring",

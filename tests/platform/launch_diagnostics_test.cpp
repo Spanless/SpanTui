@@ -1,6 +1,6 @@
 #include "core/product_paths.h"
 #include "platform/diagnostics/launch_logging.h"
-#include "platform/windows/crash_handler.h"
+#include "platform/crash_handler.h"
 
 #include <QFile>
 #include <QTemporaryDir>
@@ -80,7 +80,9 @@ void LaunchDiagnosticsTest::fatalReportWritesTheCrashLogOnce()
     QVERIFY(latest.contains(QStringLiteral("Reason: launch diagnostics test")));
     // Recent log lines reach the report through the launch message handler.
     QVERIFY(latest.contains(QStringLiteral("context before the fault")));
-    QVERIFY(latest.contains(QStringLiteral("Stack (CaptureStackBackTrace):")));
+    // The heading names the platform's stack source: CaptureStackBackTrace
+    // on Windows, backtrace on macOS.
+    QVERIFY(latest.contains(QStringLiteral("Stack (")));
     QVERIFY(!latest.contains(QStringLiteral("second report")));
 
     const QString history = readAll(m_root.filePath(QStringLiteral("crash.log")));

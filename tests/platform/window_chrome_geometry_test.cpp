@@ -1,4 +1,4 @@
-#include "platform/windows/window_chrome_geometry.h"
+#include "platform/window_chrome_geometry.h"
 
 #include <QtTest>
 

@@ -16,7 +16,7 @@
 #include "git/git_worktree_commands.h"
 #include "monitoring/resource_monitor.h"
 #include "platform/diagnostics/graphics_startup.h"
-#include "platform/windows/window_chrome.h"
+#include "platform/window_chrome.h"
 #include "remote/remote_host_registry.h"
 #include "remote/ssh_askpass.h"
 #include "remote/tailscale_devices.h"
@@ -88,13 +88,15 @@ private:
     const LaunchOptions &m_launchOptions;
     const InternalLaunchOptions &m_internal;
 
+    // Declared first so it is destroyed last: the isolated run's directory
+    // holds the database that SettingsStore still saves to on destruction.
+    std::unique_ptr<IsolatedRunData> m_visualHarnessData;
     SessionModel m_sessionModel;
     span::terminal::TerminalManager m_terminalManager;
     FileIconTheme m_fileIconTheme;
     UiIconCatalog m_uiIcons;
     Preferences m_preferences;
     ShortcutRegistry m_shortcuts;
-    std::unique_ptr<IsolatedRunData> m_visualHarnessData;
     ResourceMonitor m_resourceMonitor;
     UpdateService m_updateService;
     TaskProgressService m_taskProgress;
