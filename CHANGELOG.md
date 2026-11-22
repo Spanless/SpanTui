@@ -4,6 +4,14 @@ All notable changes to SpanTui are recorded here. Versions follow [Semantic Vers
 
 ## [Unreleased]
 
+## [0.1.1]
+
+- Paste images into terminals: a program that takes Kitty paste events (mode 5522) receives the image itself; otherwise a local session saves the image and pastes its path. Pasted text also goes to such programs as a paste event, and each paste keeps its place among the keys typed around it.
+- Font presets in Settings > Interface: System (Segoe UI, Cascadia Mono or Consolas, Microsoft YaHei UI), Span (the bundled fonts) or Custom; font sizes stay per area, and all font settings now live on the Interface page.
+- Workspace layout: the title bar, sidebar, pane headers and right dock share one top row; Files, Changes and History switch in the right dock's header; the sidebar footer is a single compact row.
+- Fixed: an intermittent crash when resource monitoring stopped.
+- macOS (Apple Silicon) builds from source; releases remain Windows-only.
+
 ## [0.1.0]
 
 First public release, for Windows 10 1809 or later (x64), as an installer (`SpanTui-0.1.0-Setup.exe`) and a portable zip.
