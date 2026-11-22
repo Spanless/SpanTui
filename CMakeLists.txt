@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(SpanTui VERSION 0.1.0 LANGUAGES C CXX)
+project(SpanTui VERSION 0.1.1 LANGUAGES C CXX)
 
 # Windows (MinGW) and macOS (Apple Silicon); every module keeps one
 # implementation per platform behind a neutral header.

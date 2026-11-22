@@ -63,7 +63,7 @@ libghostty 不识别 9001 且不回调未知 CSI，由 CoreWorker 的字节扫�
 ### 写入与取消
 
 - `TerminalSessionInput` 在 GUI 侧持粘贴与输出积压，有界分片，超限报警。每次粘贴单独成段、各自一对括号，按到达顺序排队，连续粘贴互不吞并；一段不超过一片（4096 个 UTF-16 单元）的粘贴在调用时就投递完开始、正文与结束，之后键入的按键排在它后面，更长的粘贴按进程消化速度续发。
-- Session 直接调进程的 `write`，成功只表示后端接管字节，调用不阻塞。进程启动中或后端拒收（未交付超过 1 MiB）时 `TerminalSessionInput` 保留当前写入，稍后重试，后续普通写入不得越过。
+- Session 直接调进程的 `write`，成功只表示后端接管字节，调用不阻塞。进程启动中或后端拒收（未交付超过 1 MiB）时 `TerminalSessionInput` 保留当前写入，稍后重试，后续普通写入不得越过。超过 64 KiB 的单次引擎回写一律切成 64 KiB 的片排队（后端拒收超出自身预算的单次写入）。排队上限为图片上限的 1.5 倍（15 MiB）：子进程读取粘贴事件时，libghostty 在一轮内同步写回整张图片的 base64（约 4/3 倍，另加 OSC 5522 分块帧），远超后端预算，排队须容纳最大的一张；超出上限才丢弃并报 "Terminal input backlog is full"。
 - 后端未交付预算 1 MiB，含排队与在途写入。`cancelPendingWritesAndInterrupt`、停止与析构在锁内丢弃排队字节；已进入 `WriteFile` 的数据无法撤回。`pendingWriteBytes()` = 排队 + 在途未写完的字节。
 
 ## 3. IME 锚点

@@ -13,6 +13,7 @@ macOS（Apple Silicon，本机构建，不签名、不公证、无 CI）与 Wind
 | 打开方式 `platform/open_with_handlers.h` | `macos/open_with_handlers.mm`：`NSWorkspace` 按扩展名的 UTType 列出可打开的 `.app` | 跳过 `/System/` 下的应用；“在文件管理器中打开”为 Finder；文件夹经 `NSWorkspace openURLs` 交给目标应用 |
 | 程序图标 `platform/program_icon_provider.h` | `macos/program_icon_provider.mm`：`NSWorkspace iconForFile` | 输入为 `.app` 或可执行文件路径 |
 | 键盘惯例 `platform/keyboard_conventions.h` | `macos/keyboard_conventions.cpp`：`hasCommandKey()` 为真 | 快捷键默认用 ⌘ 组合（终端 ⌘C/⌘V/⌘F 等），窗口命令进原生菜单栏 `MacMenuBar.qml`（文件/编辑/显示/窗口；应用菜单的关于、设置、隐藏、退出由 Qt 按 role 并入），Windows 用 Ctrl+Shift 组合与窗口级 `Shortcut`（见 [设置 §快捷键](../application/settings-appearance.md#快捷键)）；物理 Control 组合照常进 PTY |
+| 字体惯例 `platform/font_conventions.h` | `macos/font_conventions.cpp`：Qt 通用主题字体（`.AppleSystemUIFont`，即 SF Pro）、等宽取用户自装的 SF Mono 否则 Qt 等宽主题字体（Menlo）、CJK 为 PingFang SC；`prefersSystemFonts()` 为真 | 新安装默认「系统默认」字体方案；Windows 默认「Span」，系统方案为 Segoe UI Variable Text/Segoe UI、Cascadia Mono/Consolas、Microsoft YaHei UI（见 [设置 §字体方案](../application/settings-appearance.md#字体方案)） |
 | 单实例锁 `platform/instance_lock.h` | `macos/instance_lock.cpp`：`<端点地址>.lock` 上的 `flock` | 持锁者在监听前删掉残留的本地套接字文件 |
 | 本地端点 `platform/local_endpoint.h` | `macos/local_endpoint.cpp`：`confstr(_CS_DARWIN_USER_TEMP_DIR)` 下的 Unix 域套接字 | 不随 `$TMPDIR` 变化：同一用户的进程总能找到彼此，路径也在 `sun_path` 的 104 字节内（端点名须短于约 50 字符）；单实例与 SSH 提示桥都经它取地址 |
 | 图形适配器 `platform/graphics_adapter.h` | `macos/graphics_adapter.mm`：Metal 设备的 `MTLDevice.name` | 只有 Metal；没有软件适配器 |

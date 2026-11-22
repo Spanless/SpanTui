@@ -38,22 +38,18 @@ QString matchingFamily(const QStringList &families, const QString &family) {
 }
 
 bool isLegacyBitmapFamily(const QString &family) {
-    static const QStringList legacyFamilies {
-        QStringLiteral("MS Sans Serif"),
-        QStringLiteral("MS Serif"),
-        QStringLiteral("Fixedsys"),
-        QStringLiteral("Small Fonts"),
-        QStringLiteral("System"),
+    static const QStringList legacyFamilies{
+        QStringLiteral("MS Sans Serif"), QStringLiteral("MS Serif"), QStringLiteral("Fixedsys"),
+        QStringLiteral("Small Fonts"), QStringLiteral("System"),
         // Windows LOGFONT logical bitmap families. DirectWrite cannot
         // instantiate these aliases, so probing isFixedPitch() emits one
         // warning per advertised raster size.
-        QStringLiteral("Roman"),
-        QStringLiteral("Swiss"),
-        QStringLiteral("Modern"),
-        QStringLiteral("Script"),
-        QStringLiteral("Decorative"),
-        QStringLiteral("Terminal")
-    };
+        QStringLiteral("Roman"), QStringLiteral("Swiss"), QStringLiteral("Modern"), QStringLiteral("Script"),
+        QStringLiteral("Decorative"), QStringLiteral("Terminal"),
+        // macOS NISC18030.ttf: bitmap strikes only, no outlines and no
+        // 'hhea' table, so Qt cannot derive minimum bearings and every text
+        // layout in it (a font picker's preview row) warns.
+        QStringLiteral("GB18030 Bitmap")};
     return hasFamily(legacyFamilies, family);
 }
 

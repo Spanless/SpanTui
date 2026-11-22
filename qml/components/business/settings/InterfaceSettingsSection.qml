@@ -2,12 +2,40 @@ import QtQuick
 import QtQuick.Layouts
 import SpanTui
 
-// Interface section: UI, auxiliary, and viewer typography. No fixed-pitch
-// warning here: only the terminal grid needs a monospace font.
+// Interface section: every font setting. The font set (Appearance.fontPreset)
+// picks the faces of all five groups — UI, auxiliary, hint, viewer and
+// terminal; outside the custom set each group is its size row alone. Only
+// the terminal group warns about a non-monospace face: only the terminal
+// grid needs one.
 SettingsSection {
     id: root
 
+    readonly property bool customFonts: Appearance.fontPreset === "custom"
+
+    SectionLabel {
+        text: qsTr("Fonts")
+    }
+
+    SettingRow {
+        title: qsTr("Font set")
+        description: qsTr("System uses the platform's interface and monospace fonts. Span uses the bundled Span Sans and Span Mono. Custom lets you pick each font, starting from the set in use. Font sizes apply to every set.")
+
+        SegmentedControl {
+            Layout.preferredWidth: Theme.fieldMd
+            Layout.alignment: Qt.AlignVCenter
+            model: [
+                { key: "system", text: qsTr("System") },
+                { key: "span", text: "Span" },
+                { key: "custom", text: qsTr("Custom") }
+            ]
+            current: Appearance.fontPreset
+            onPicked: key => Appearance.fontPreset = key
+        }
+    }
+
     FontSettingsGroup {
+        showTitle: root.customFonts
+        showFaces: root.customFonts
         title: qsTr("UI Typography")
         primaryTitle: qsTr("UI primary font")
         primaryDescription: qsTr("Main typeface used for interface chrome, project trees, tab headers, and labels.")
@@ -32,6 +60,8 @@ SettingsSection {
     }
 
     FontSettingsGroup {
+        showTitle: root.customFonts
+        showFaces: root.customFonts
         title: qsTr("Auxiliary typography")
         primaryTitle: qsTr("Auxiliary primary font")
         primaryDescription: qsTr("Typeface for small auxiliary text: badges, metadata, section labels, and secondary labels.")
@@ -56,6 +86,8 @@ SettingsSection {
     }
 
     FontSettingsGroup {
+        showTitle: root.customFonts
+        showFaces: root.customFonts
         title: qsTr("Form hint typography")
         primaryTitle: qsTr("Hint primary font")
         primaryDescription: qsTr("Typeface for form validation and note lines shown under input controls.")
@@ -80,6 +112,8 @@ SettingsSection {
     }
 
     FontSettingsGroup {
+        showTitle: root.customFonts
+        showFaces: root.customFonts
         title: qsTr("Viewer typography")
         primaryTitle: qsTr("Viewer primary font")
         primaryDescription: qsTr("Fixed-pitch monospace font for file preview, line numbers, and diffs.")
@@ -120,5 +154,32 @@ SettingsSection {
             current: Appearance.editorLineHeight
             onPicked: key => Appearance.editorLineHeight = key
         }
+    }
+
+    FontSettingsGroup {
+        showTitle: root.customFonts
+        showFaces: root.customFonts
+        title: qsTr("Terminal Typography")
+        primaryTitle: qsTr("Terminal primary font")
+        primaryDescription: qsTr("Fixed-pitch typeface used for the terminal grid and console output.")
+        fallbackTitle: qsTr("Terminal fallback font")
+        fallbackDescription: qsTr("Fallback typeface used when the primary terminal font lacks glyphs.")
+        sizeTitle: qsTr("Terminal font size")
+        sizeDescription: qsTr("Pixel size for terminal cells, command input, and shell text.")
+        weightTitle: qsTr("Terminal font weight")
+        weightDescription: qsTr("Selects the font weight style provided by the active terminal font family.")
+        fontModel: Appearance.availableFonts
+        primaryFamily: Appearance.terminalPrimaryFontFamily
+        fallbackFamily: Appearance.terminalFallbackFontFamily
+        fontSize: Appearance.terminalFontSize
+        minimumSize: 10
+        maximumSize: 22
+        weightModel: Appearance.availableTerminalFontWeights
+        fontWeight: Appearance.terminalFontWeight
+        fixedPitchCheck: family => Appearance.isFixedPitch(family)
+        onPrimaryFamilyPicked: family => Appearance.terminalPrimaryFontFamily = family
+        onFallbackFamilyPicked: family => Appearance.terminalFallbackFontFamily = family
+        onFontSizeEdited: size => Appearance.terminalFontSize = size
+        onFontWeightPicked: weight => Appearance.terminalFontWeight = weight
     }
 }
