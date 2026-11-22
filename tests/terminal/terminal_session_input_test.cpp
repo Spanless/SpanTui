@@ -34,10 +34,9 @@ public:
         m_queue->open();
         m_worker.setInputEpoch(m_epoch);
         m_worker.initialize();
-        QObject::connect(&m_worker, &TerminalCoreWorker::outputRequested,
-                         [this](const QByteArray &bytes, const TerminalInputToken &token) {
-                             input.writeFromEngine(bytes, token);
-                         });
+        QObject::connect(
+            &m_worker, &TerminalCoreWorker::outputRequested,
+            [this](const QByteArray &bytes, const TerminalInputToken &token) { input.writeFromEngine(bytes, token); });
         QObject::connect(&m_worker, &TerminalCoreWorker::pasteDeclined,
                          [this](const QString &message) { errors.append(message); });
     }
@@ -174,9 +173,9 @@ void TerminalSessionInputTest::childThatIsSlowToReadGetsAWholePastedImage()
     // The child asks for the image and reads its input slower than the
     // answer arrives.
     harness.stallChild();
-    harness.childWrites("\x1b]5522;type=read:pw=" + password.captured(1).toLatin1() + ":name="
-                        + QByteArrayLiteral("test").toBase64() + ";" + QByteArrayLiteral("image/png").toBase64()
-                        + "\x1b\\");
+    harness.childWrites("\x1b]5522;type=read:pw=" + password.captured(1).toLatin1()
+                        + ":name=" + QByteArrayLiteral("test").toBase64() + ";"
+                        + QByteArrayLiteral("image/png").toBase64() + "\x1b\\");
     QTRY_VERIFY_WITH_TIMEOUT((harness.childReads(), harness.written.contains("status=DONE")), 10000);
 
     QCOMPARE(harness.errors, QStringList());
